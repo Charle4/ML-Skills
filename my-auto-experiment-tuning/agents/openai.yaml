@@ -1,0 +1,4 @@
+interface:
+  display_name: "Auto Experiment Tuning"
+  short_description: "Autonomous experiment tuning and analysis"
+  default_prompt: "Use $auto-experiment-tuning to tune this experiment suite autonomously and keep a durable run ledger."
