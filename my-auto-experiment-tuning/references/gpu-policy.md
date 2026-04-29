@@ -30,7 +30,8 @@ Users and project adapters can provide any of the following:
 |---|---|---|
 | `gpu_ids` | `[0, 1, 3]` | Only use these GPU indices |
 | `max_per_gpu` | `2` | Maximum concurrent experiments per GPU (hard cap: 3 unless user explicitly overrides) |
-| `max_mem_per_gpu` | `20GB` | Skip a GPU if launching would exceed this memory headroom |
+| `max_memory_used_mb` | `70000` | Skip a GPU whose used memory is already at or above this value |
+| `min_free_memory_mb` | `20000` | Skip a GPU unless at least this much memory is free |
 | `max_util` | `80%` | Do not launch onto a GPU whose utilization is at or above this threshold |
 
 If the user says "use GPU 2 and 3, up to 2 jobs each", record that in the session `meta.json` and plan accordingly.
@@ -41,15 +42,29 @@ Before each launch, check available slots:
 
 ```bash
 nvidia-smi --query-gpu=index,utilization.gpu,memory.used,memory.total --format=csv,noheader
-python SKILL_DIR/scripts/aet.py gpu-slots --kind heavy
+python SKILL_DIR/scripts/aet.py gpu-slots
 ```
+
+The raw `nvidia-smi` command is for readable context and keeps units. The helper command uses `nvidia-smi --format=csv,noheader,nounits` internally so it can parse memory and utilization reliably.
 
 A GPU slot is **available** if all of the following hold:
 - GPU utilization is below `max_util` (default 95%)
 - Active experiments on that GPU are below `max_per_gpu` (default 1)
-- If `max_mem_per_gpu` is set: remaining memory is sufficient for another run
+- If a memory limit is set: used memory is below `max_memory_used_mb` and/or remaining memory is at least `min_free_memory_mb`
 
 If all configured GPUs are at capacity, wait for the next completion notification rather than forcing a launch.
+
+Use `--kind default|light|heavy` for generic estimates. If a project adapter or user instruction gives a project-specific limit, pass it explicitly with `--capacity N`, `--gpu-ids`, `--saturated-util`, `--max-memory-used-mb`, or `--min-free-memory-mb` rather than adding project-specific method names to the helper script.
+
+CLI mapping:
+
+| Policy setting | `aet.py gpu-slots` flag |
+|---|---|
+| `gpu_ids: [0, 1, 3]` | `--gpu-ids 0,1,3` |
+| `max_per_gpu: 2` | `--capacity 2` |
+| `max_util: 80%` | `--saturated-util 80` |
+| `max_memory_used_mb: 70000` | `--max-memory-used-mb 70000` |
+| `min_free_memory_mb: 20000` | `--min-free-memory-mb 20000` |
 
 ## When to Use Multiple Experiments per GPU
 

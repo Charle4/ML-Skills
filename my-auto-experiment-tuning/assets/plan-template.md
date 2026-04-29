@@ -2,8 +2,9 @@
 
 ## Objective
 
+- Objective: {{ objective }}
 - Metric:
-- Direction:
+- Direction: {{ goal }}
 - Baseline:
 - Current best:
 - Explicit target threshold:

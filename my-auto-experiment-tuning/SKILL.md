@@ -17,7 +17,7 @@ Default autonomy contract:
 - Continue filling available slots, collecting results, and planning follow-up batches until a stop condition is reached.
 - Do not stop merely because a result improved the current best, looks "good enough", or a local neighborhood has been checked. If the user has not set an explicit budget, keep running until the user intervenes, the explicit target is met, or the plateau/exhaustion rules below are satisfied.
 - If the user gives a numeric target such as `PSNR > 25`, treat it as a hard stop condition: continue autonomous batches until a clean run meets or exceeds it, or until the user changes the target or budget.
-- If the user says resources are available or asks to "fully tune", actively keep GPUs occupied within method-specific contention limits. Prefer launching the next candidate from the queue as soon as any GPU slot opens — do not wait for all running experiments to finish.
+- If the user says resources are available or asks to "fully tune", actively keep GPUs occupied within the configured contention limits. Prefer launching the next candidate from the queue as soon as any GPU slot opens — do not wait for all running experiments to finish.
 
 Core rules:
 - Optimize by hypotheses, not blind grids. State what each batch is testing.
@@ -85,9 +85,11 @@ If no project plan format already exists, read `assets/plan-template.md`, copy i
 
 ```bash
 nvidia-smi --query-gpu=index,utilization.gpu,memory.used,memory.total --format=csv,noheader
-python SKILL_DIR/scripts/aet.py gpu-slots --kind heavy
+python SKILL_DIR/scripts/aet.py gpu-slots
 python SKILL_DIR/scripts/aet.py unique-dir /path/to/project/experiments/results/dse_example/run_name --mkdir
 ```
+
+Use raw `nvidia-smi` for human-readable/agent-readable context; use `aet.py gpu-slots` for the normalized slot decision because it parses numeric fields internally and applies configured filters.
 
 5. Launch experiments:
    - Use the `aet.py unique-dir ... --mkdir` output as the run's `output_dir`.
@@ -129,13 +131,13 @@ python SKILL_DIR/scripts/aet.py record \
 
 Use `scripts/aet.py` as the durable state and safety helper for the tuning loop:
 
-- `init`: run once at the start of a new tuning objective to create `aet/YYYY-MM-DD/HH-MM-SS/` with `meta.json`, `results.csv`, `queue.jsonl`, `observations.md`, `plan.md`, and `runs/`.
-- `create-run`: run before each experiment launch to allocate or register a run id and store params, command, GPU id, output directory, log path, and notes. Prefer passing an explicit `--run-id` when coordinating multiple agents.
-- `unique-dir`: run before launching when choosing an output directory. Use `--mkdir` so the shell can open `<output_dir>/train.log` before the experiment starts.
-- `gpu-slots`: run before launching new experiments and after each completion to estimate available GPU slots. Choose `--kind` or `--capacity` to match the method's expected contention.
-- `parse-log`: run after completion only when metrics are not already available as structured JSON. Treat its regex output as a draft and inspect it before recording.
-- `record`: run whenever a run's durable status changes, especially after finished, failed, inconclusive, or superseded outcomes. Include primary metric, metric name, metrics JSON, output directory, log path, GPU id, and trust notes.
-- `status` or `summarize`: run after each completed run (or periodically when many runs are active), after context recovery, and before planning new candidates to get run counts, status counts, and current best finished result.
+- `init`: create `aet/YYYY-MM-DD/HH-MM-SS/` with `meta.json`, `results.csv`, `queue.jsonl`, `observations.md`, `plan.md`, and `runs/`. Required: `--project-root`, `--name`, `--objective`. Optional: `--goal max|min` (default `max`).
+- `create-run`: register a run before launch and create `runs/<id>/`. Optional: `--session` or `--project-root` (latest session lookup), `--run-id`, `--name`, `--params` (JSON string or JSON file), `--command`, `--gpu-id`, `--output-dir`, `--log-path`, `--notes`. Prefer explicit `--run-id` when coordinating multiple agents.
+- `record`: update a run whenever status or results change. Required: `--run-id`, `--status created|running|finished|failed|inconclusive|superseded`. Optional: `--session` or `--project-root`, `--name`, `--primary-metric`, `--metric-name`, `--metrics` (JSON string or JSON file), `--gpu-id`, `--output-dir`, `--log-path`, `--notes`. Use `running` to record `start_time`; terminal statuses record `end_time`.
+- `unique-dir`: choose a non-existing output directory. Positional: `path`. Optional: `--mkdir`; use it before launching so shell redirection to `<output_dir>/train.log` succeeds.
+- `gpu-slots`: estimate available GPU slots. Optional: `--kind default|light|heavy` (default `default`), `--capacity N`, `--saturated-util N` (default `95`), `--process-pattern REGEX` (default `python`), `--gpu-ids 0,1,3`, `--max-memory-used-mb N`, `--min-free-memory-mb N`, `--allow-over-cap`, `--json`. It internally queries `nvidia-smi` with machine-readable numeric output, then reports utilization, memory used/total/free, running process count, capacity, and free slots.
+- `parse-log`: extract metrics from a log only when structured metrics are unavailable. Positional: `log`. Optional: repeat `--pattern REGEX`; each pattern should have named groups `name` and `value`, or one numeric group. Treat regex output as a draft and inspect it before recording.
+- `status` / `summarize`: print session path, objective, run counts, status counts, and current best finished result. Optional: `--project-root`, `--session`, `--goal max|min`.
 
 Session-aware commands (`create-run`, `record`, `status`, and `summarize`) accept `--session`; if omitted, they use the latest session under `--project-root/aet`. Prefer explicit `--session` when multiple sessions may exist or when delegating work to subagents.
 
@@ -145,12 +147,12 @@ Session-aware commands (`create-run`, `record`, `status`, and `summarize`) accep
 - `references/search-strategies.md`: core; read at session start for choosing grids, coordinate descent, boundary expansion, confirmation runs, and stopping rules.
 - `references/experiment-ledger.md`: core; read at session start for durable state schema and what to record after each run.
 - `references/project-adapter-*.md`: optional project adapters. Each adapter should state match criteria at the top and point to the authoritative project README, benchmark docs, launch conventions, and known tuning constraints.
-- `references/gpu-policy.md`: core; read at session start. GPU slot defaults (1 per GPU, cap 3, util ceiling 95%), configurable parameters (`gpu_ids`, `max_per_gpu`, `max_mem_per_gpu`, `max_util`), and override priority (user > adapter > README > memory).
+- `references/gpu-policy.md`: core; read at session start. GPU slot defaults (1 per GPU, cap 3, util ceiling 95%), configurable parameters (`gpu_ids`, `max_per_gpu`, memory headroom, `max_util`), helper CLI mappings, and override priority (user > adapter > README > memory).
 - `references/permissions.md`: read if a command is blocked by sandbox policy, or before starting a long Codex autonomous run. Covers approved command-prefix patterns and what always requires confirmation.
 - `references/watchdog.md`: read when setting up a keepalive for a long session (Claude Code `/loop` or external cron for Codex). Not needed for short runs.
 - `references/subagents.md`: read before spawning or coordinating Strategist/Runner/Analyzer subagents. Contains the role prompts to include in each subagent task.
 - `references/claude-code-adapter.md`: **Claude Code only** — read at session start (already listed in Quick Start step 1). Covers `run_in_background`, completion notifications, `/loop`, and subagent differences vs Codex.
-- `scripts/aet.py`: session creation, run scaffolding, GPU slot inspection, unique directory creation, log parsing, result recording, and summaries.
+- `scripts/aet.py`: session creation, run scaffolding, normalized GPU slot inspection (`gpu-slots`), unique directory creation, log parsing, result recording, and summaries.
 - `assets/plan-template.md`: Markdown template to copy and fill for the tuning plan when the project lacks its own format.
 - `assets/run-summary-template.md`: Markdown template to copy and fill for per-run summaries when the project lacks its own format.
 - `agents/experiment-strategist.md`: role prompt for a strategist subagent that plans the next queue of candidate experiments.

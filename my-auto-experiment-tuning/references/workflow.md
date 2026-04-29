@@ -18,7 +18,7 @@ Default duration semantics:
 - Treat autonomous tuning as a long-running job, not a short investigation. If the user asks for broad tuning, abundant GPU use, or a target such as `PSNR > 25`, expect tens to hundreds of runs and possibly multi-day operation.
 - Do not end after 1-3 batches just because a plausible local best was found. A local best is a signal for the next batch, not a stopping reason.
 - If no explicit run or wall-clock budget is provided, assume the budget is open-ended until the user intervenes or the target is cleanly met.
-- Keep all usable GPU slots occupied within the method-specific contention limits. When any run finishes, immediately collect it, record metrics, and launch the next candidate from the queue into the freed slot — do not wait for other running experiments to finish first.
+- Keep all usable GPU slots occupied within the configured contention limits. When any run finishes, immediately collect it, record metrics, and launch the next candidate from the queue into the freed slot — do not wait for other running experiments to finish first.
 - If the system forces a final response before the target is met, report the next batch and the reason continuation is blocked; do not present a local best as final.
 
 ## 1. Context Pass
@@ -101,7 +101,7 @@ When a run finishes, immediately collect and record before launching more if the
 - Do not wait for all jobs in a batch to finish before recording the ones that completed first — incremental recording reduces exposure to context compaction loss.
 
 **Both runtimes:**
-- Check `nvidia-smi --query-gpu=index,utilization.gpu,memory.used,memory.total --format=csv,noheader` before launching and during suspicious slowdowns. Memory alone is insufficient; high utilization can contaminate metrics for some methods. Use `references/gpu-policy.md` to determine available slots (default: 1 per GPU, cap 3, util ceiling 95%).
+- Check `nvidia-smi --query-gpu=index,utilization.gpu,memory.used,memory.total --format=csv,noheader` before launching and during suspicious slowdowns. Memory alone is insufficient; high utilization can contaminate metrics for some methods. Use `references/gpu-policy.md` and `aet.py gpu-slots` to determine available slots (default: 1 per GPU, cap 3, util ceiling 95%); the helper normalizes the same fields for numeric filtering.
 - Use `pgrep -af` only as a sanity check. It may match the `pgrep` command itself, and it does not prove which output directory belongs to a process. Prefer precise patterns such as `experiments/exp_` or the exact script name; broad patterns like `exp_` can match unrelated system threads.
 
 ## 5. Collection

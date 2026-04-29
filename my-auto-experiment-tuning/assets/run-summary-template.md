@@ -3,19 +3,19 @@
 ## Command
 
 ```bash
-
+{{ command }}
 ```
 
 ## Parameters
 
 ```json
-{}
+{{ params_json }}
 ```
 
 ## Metrics
 
 ```json
-{}
+{{ metrics_json }}
 ```
 
 ## Optimization Trajectory (optional — fill if intermediate metrics are logged)
@@ -36,4 +36,3 @@ Convergence diagnosis: <!-- healthy / overfitting / underfitting / divergence / 
 - Comparable metric:
 
 ## Takeaway
-

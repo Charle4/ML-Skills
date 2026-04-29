@@ -33,15 +33,12 @@ RESULT_COLUMNS = [
 
 
 CAPACITY_BY_KIND = {
+    "default": 1,
     "light": 3,
-    "selfdeblur": 3,
-    "drunet": 3,
     "heavy": 2,
-    "elbo": 2,
-    "dps": 2,
-    "blinddps": 2,
-    "diffunet": 2,
 }
+
+HARD_CAP_PER_GPU = 3
 
 
 def now_iso() -> str:
@@ -60,6 +57,34 @@ def load_json_arg(value: str | None) -> dict[str, Any]:
 def dump_json(path: Path, value: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def skill_dir() -> Path:
+    return Path(__file__).resolve().parents[1]
+
+
+def read_asset(name: str) -> str:
+    path = skill_dir() / "assets" / name
+    if not path.exists():
+        raise SystemExit(f"Missing skill asset: {path}")
+    return path.read_text(encoding="utf-8")
+
+
+def render_plan_template(objective: str, goal: str) -> str:
+    return (
+        read_asset("plan-template.md")
+        .replace("{{ objective }}", objective)
+        .replace("{{ goal }}", goal)
+    )
+
+
+def render_run_summary_template(command: str, params: dict[str, Any], metrics: dict[str, Any] | None = None) -> str:
+    return (
+        read_asset("run-summary-template.md")
+        .replace("{{ command }}", command)
+        .replace("{{ params_json }}", json.dumps(params, ensure_ascii=False, indent=2, sort_keys=True))
+        .replace("{{ metrics_json }}", json.dumps(metrics or {}, ensure_ascii=False, indent=2, sort_keys=True))
+    )
 
 
 def read_rows(path: Path) -> list[dict[str, str]]:
@@ -120,18 +145,7 @@ def command_init(args: argparse.Namespace) -> None:
     write_rows(session / "results.csv", [])
     (session / "queue.jsonl").write_text("", encoding="utf-8")
     (session / "observations.md").write_text(f"# Observations\n\nCreated: `{now_iso()}`\n\n", encoding="utf-8")
-    (session / "plan.md").write_text(
-        "# Tuning Plan\n\n"
-        f"## Objective\n\n{args.objective}\n\n"
-        "## Current State\n\n"
-        "## Hypotheses\n\n"
-        "1. \n\n"
-        "## Next Batch\n\n"
-        "| Run | Parameters | GPU | Output Dir | Expected Signal |\n"
-        "| --- | --- | --- | --- | --- |\n\n"
-        "## Stop/Continue Rule\n\n",
-        encoding="utf-8",
-    )
+    (session / "plan.md").write_text(render_plan_template(args.objective, args.goal), encoding="utf-8")
     print(session)
 
 
@@ -156,8 +170,7 @@ def command_create_run(args: argparse.Namespace) -> None:
     dump_json(run_dir / "params.json", params)
     dump_json(run_dir / "metrics.json", metrics)
     (run_dir / "summary.md").write_text(
-        f"# {run_name}\n\n## Command\n\n```bash\n{args.command or ''}\n```\n\n"
-        "## Result\n\n## Takeaway\n",
+        render_run_summary_template(args.command or "", params, metrics),
         encoding="utf-8",
     )
     if args.command:
@@ -215,6 +228,7 @@ def command_record(args: argparse.Namespace) -> None:
             "output_dir": args.output_dir or row.get("output_dir", ""),
             "log_path": args.log_path or row.get("log_path", ""),
             "metrics_json": json.dumps(metrics, ensure_ascii=False, sort_keys=True),
+            "start_time": now_iso() if args.status == "running" and not row.get("start_time") else row.get("start_time", ""),
             "end_time": now_iso() if args.status in {"finished", "failed", "inconclusive", "superseded"} else row.get("end_time", ""),
             "notes": args.notes or row.get("notes", ""),
         }
@@ -222,13 +236,9 @@ def command_record(args: argparse.Namespace) -> None:
     run_dir = session / "runs" / run_id
     run_dir.mkdir(parents=True, exist_ok=True)
     dump_json(run_dir / "metrics.json", metrics)
-    (run_dir / "summary.md").write_text(
-        f"# {row.get('run_name') or run_id}\n\n"
-        f"## Status\n\n{row['status']}\n\n"
-        f"## Metrics\n\n```json\n{json.dumps(metrics, ensure_ascii=False, indent=2, sort_keys=True)}\n```\n\n"
-        f"## Notes\n\n{row['notes']}\n",
-        encoding="utf-8",
-    )
+    summary = render_run_summary_template(row.get("command", ""), load_json_arg(row.get("params_json")), metrics)
+    summary += f"\n## Status\n\n{row['status']}\n\n## Notes\n\n{row['notes']}\n"
+    (run_dir / "summary.md").write_text(summary, encoding="utf-8")
     write_rows(session / "results.csv", rows)
     if args.notes:
         with (session / "observations.md").open("a", encoding="utf-8") as handle:
@@ -281,7 +291,7 @@ def command_unique_dir(args: argparse.Namespace) -> None:
 def nvidia_rows() -> list[dict[str, str]]:
     cmd = [
         "nvidia-smi",
-        "--query-gpu=index,utilization.gpu,memory.used",
+        "--query-gpu=index,utilization.gpu,memory.used,memory.total",
         "--format=csv,noheader,nounits",
     ]
     try:
@@ -291,8 +301,15 @@ def nvidia_rows() -> list[dict[str, str]]:
     rows = []
     for line in out.splitlines():
         parts = [p.strip() for p in line.split(",")]
-        if len(parts) >= 3:
-            rows.append({"index": parts[0], "utilization": parts[1], "memory_used": parts[2]})
+        if len(parts) >= 4:
+            rows.append(
+                {
+                    "index": parts[0],
+                    "utilization": parts[1],
+                    "memory_used": parts[2],
+                    "memory_total": parts[3],
+                }
+            )
     return rows
 
 
@@ -315,20 +332,34 @@ def process_gpu_counts(pattern: str) -> dict[str, int]:
 
 def command_gpu_slots(args: argparse.Namespace) -> None:
     capacity = args.capacity if args.capacity is not None else CAPACITY_BY_KIND.get(args.kind, 2)
+    if capacity > HARD_CAP_PER_GPU and not args.allow_over_cap:
+        capacity = HARD_CAP_PER_GPU
     gpu_info = nvidia_rows()
+    if args.gpu_ids:
+        allowed = {gpu.strip() for gpu in args.gpu_ids.split(",") if gpu.strip()}
+        gpu_info = [row for row in gpu_info if row["index"] in allowed]
     counts = process_gpu_counts(args.process_pattern)
     result = []
     for row in gpu_info:
         gpu = row["index"]
         running = counts.get(gpu, 0)
         util = int(float(row["utilization"]))
+        memory_used = int(float(row["memory_used"]))
+        memory_total = int(float(row["memory_total"]))
+        memory_free = max(0, memory_total - memory_used)
         free_slots = max(0, capacity - running)
         if util >= args.saturated_util:
+            free_slots = 0
+        if args.max_memory_used_mb is not None and memory_used >= args.max_memory_used_mb:
+            free_slots = 0
+        if args.min_free_memory_mb is not None and memory_free < args.min_free_memory_mb:
             free_slots = 0
         item = {
             "gpu": int(gpu),
             "utilization": util,
-            "memory_used_mb": int(float(row["memory_used"])),
+            "memory_used_mb": memory_used,
+            "memory_total_mb": memory_total,
+            "memory_free_mb": memory_free,
             "running_count": running,
             "capacity": capacity,
             "free_slots": free_slots,
@@ -340,7 +371,8 @@ def command_gpu_slots(args: argparse.Namespace) -> None:
         for item in result:
             print(
                 f"gpu {item['gpu']}: util={item['utilization']}%, "
-                f"mem={item['memory_used_mb']} MiB, running={item['running_count']}, "
+                f"mem={item['memory_used_mb']}/{item['memory_total_mb']} MiB "
+                f"(free={item['memory_free_mb']} MiB), running={item['running_count']}, "
                 f"capacity={item['capacity']}, free={item['free_slots']}"
             )
 
@@ -425,10 +457,14 @@ def build_parser() -> argparse.ArgumentParser:
     p.set_defaults(func=command_unique_dir)
 
     p = sub.add_parser("gpu-slots")
-    p.add_argument("--kind", default="heavy", choices=sorted(CAPACITY_BY_KIND))
+    p.add_argument("--kind", default="default", choices=sorted(CAPACITY_BY_KIND))
     p.add_argument("--capacity", type=int)
-    p.add_argument("--saturated-util", type=int, default=90)
-    p.add_argument("--process-pattern", default=r"python|exp_blind|exp_nonblind")
+    p.add_argument("--saturated-util", type=int, default=95)
+    p.add_argument("--process-pattern", default=r"python")
+    p.add_argument("--gpu-ids", help="Comma-separated GPU indices to consider, e.g. 0,1,3")
+    p.add_argument("--max-memory-used-mb", type=int, help="Set free_slots=0 when used memory is at or above this value")
+    p.add_argument("--min-free-memory-mb", type=int, help="Set free_slots=0 unless at least this much memory is free")
+    p.add_argument("--allow-over-cap", action="store_true")
     p.add_argument("--json", action="store_true")
     p.set_defaults(func=command_gpu_slots)
 

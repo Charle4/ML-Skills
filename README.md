@@ -18,25 +18,49 @@
 
 Hypothesis-driven hyperparameter tuning loop for ML experiments. Works with both Claude Code and Codex.
 
-**Install (Claude Code):**
-
-```bash
-ln -s $(pwd)/my-auto-experiment-tuning ~/.claude/skills/my-auto-experiment-tuning
-```
-
-**Install (Codex):**
-
-```bash
-ln -s $(pwd)/my-auto-experiment-tuning ~/.codex/skills/my-auto-experiment-tuning
-```
-
-Core features:
+**Core features:**
 
 - Durable session state in `aet/` inside the project — survives context compaction
 - `aet.py` CLI for session init, GPU slot inspection, run recording, and summaries
 - Project-specific adapters via `references/project-adapter-*.md`
 
-**What to tell the agent**
+#### Install
+
+Claude Code:
+
+```bash
+ln -s $(pwd)/my-auto-experiment-tuning ~/.claude/skills/my-auto-experiment-tuning
+```
+
+Codex:
+
+```bash
+ln -s $(pwd)/my-auto-experiment-tuning ~/.codex/skills/my-auto-experiment-tuning
+```
+
+#### Example invocation
+
+Claude Code:
+
+```
+/my-auto-experiment-tuning Tune train.py (NAFNet deblurring). Maximize PSNR on test set.
+Target: PSNR > 30 dB (hard stop). Use GPU 0 and 1 only, max 16 GB VRAM per slot, util ≤ 80%.
+Key hyperparams: lr [1e-5, 5e-3] log scale, batch_size {4, 8, 16}, num_blocks {8, 16, 32}.
+Current best is PSNR 28.7 with lr=1e-3, batch=8, num_blocks=16. lr > 1e-2 is unstable.
+Launch: python train.py --lr LR --batch_size BS --num_blocks NB --gpu_id GPU --output_dir DIR
+```
+
+Codex:
+
+```
+$my-auto-experiment-tuning Tune train.py (NAFNet deblurring). Maximize PSNR on test set.
+Target: PSNR > 30 dB (hard stop). Use GPU 0 and 1 only, max 16 GB VRAM per slot, util ≤ 80%.
+Key hyperparams: lr [1e-5, 5e-3] log scale, batch_size {4, 8, 16}, num_blocks {8, 16, 32}.
+Current best is PSNR 28.7 with lr=1e-3, batch=8, num_blocks=16. lr > 1e-2 is unstable.
+Launch: python train.py --lr LR --batch_size BS --num_blocks NB --gpu_id GPU --output_dir DIR
+```
+
+#### What to tell the agent
 
 The skill runs autonomously once started. The more context you give upfront, the better the initial plan.
 
