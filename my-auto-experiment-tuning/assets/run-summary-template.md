@@ -1,5 +1,7 @@
 # Run Summary
 
+Canonical file: this template is rendered by `aet.py create-run` into `SESSION/runs/<id>/summary.md`. Keep updating that generated file in place; do not create separate run-summary files under `PROJECT/aet/` or `PROJECT/aet/YYYY-MM-DD/`.
+
 ## Command
 
 ```bash

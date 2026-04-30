@@ -34,6 +34,7 @@ Do not repeatedly reread large files after extracting stable rules. Write durabl
 ## 2. Session Setup
 
 Create one `aet/YYYY-MM-DD/HH-MM-SS/` session per tuning objective.
+This two-level timestamped directory is the canonical session root. Store session files inside it, not directly under `aet/` or `aet/YYYY-MM-DD/`.
 
 Required session fields:
 - objective and metric direction
@@ -51,9 +52,11 @@ Use:
 python SKILL_DIR/scripts/aet.py init --project-root PROJECT --name NAME --objective OBJECTIVE --goal max
 ```
 
+Capture the printed session path. `aet.py init` creates `plan.md` from `assets/plan-template.md` and `observations.md` from `assets/observations-template.md` in that exact directory; edit those generated files directly.
+
 ## 3. Planning
 
-Before launching a batch, write the next-step plan:
+Before launching a batch, write the next-step plan in `SESSION/plan.md`:
 - hypothesis being tested
 - parameter dimensions and values
 - expected signal if the hypothesis is true
@@ -61,6 +64,8 @@ Before launching a batch, write the next-step plan:
 - exact launch commands or command template
 - expected follow-up if the batch improves, fails, or lands on a boundary
 - remaining stop blockers, such as unmet target, missing escape batch, missing confirmation, or unused plausible parameter families
+
+Do not create separate planning notes such as `aet/YYYY-MM-DD/next.md`, `aet/YYYY-MM-DD/plan.md`, or `aet/plan.md`. If the session `plan.md` is missing or corrupted, restore it from `assets/plan-template.md` into `SESSION/plan.md`.
 
 Prefer batches that distinguish hypotheses. Avoid spending many runs only confirming tiny local changes unless a peak has already been found and needs verification.
 

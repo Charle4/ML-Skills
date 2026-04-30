@@ -78,6 +78,14 @@ def render_plan_template(objective: str, goal: str) -> str:
     )
 
 
+def render_observations_template(created_at: str, objective: str) -> str:
+    return (
+        read_asset("observations-template.md")
+        .replace("{{ created_at }}", created_at)
+        .replace("{{ objective }}", objective)
+    )
+
+
 def render_run_summary_template(command: str, params: dict[str, Any], metrics: dict[str, Any] | None = None) -> str:
     return (
         read_asset("run-summary-template.md")
@@ -101,6 +109,28 @@ def write_rows(path: Path, rows: list[dict[str, str]]) -> None:
         writer.writeheader()
         for row in rows:
             writer.writerow({key: row.get(key, "") for key in RESULT_COLUMNS})
+
+
+def append_run_observation(path: Path, run_id: str, status: str, notes: str) -> None:
+    entry = f"\n## Run {run_id} - {status}\n\n{notes}\n\n"
+    if not path.exists():
+        path.write_text("# Observations\n\n## Run Notes\n" + entry, encoding="utf-8")
+        return
+
+    text = path.read_text(encoding="utf-8")
+    lines = text.splitlines(keepends=True)
+    run_notes_index = next((i for i, line in enumerate(lines) if line.strip() == "## Run Notes"), None)
+    if run_notes_index is None:
+        path.write_text(text.rstrip() + "\n\n## Run Notes\n" + entry, encoding="utf-8")
+        return
+
+    insert_at = len(lines)
+    for i in range(run_notes_index + 1, len(lines)):
+        if lines[i].startswith("## "):
+            insert_at = i
+            break
+    lines[insert_at:insert_at] = [entry]
+    path.write_text("".join(lines), encoding="utf-8")
 
 
 def latest_session(project_root: Path) -> Path | None:
@@ -129,6 +159,7 @@ def require_session(args: argparse.Namespace) -> Path:
 def command_init(args: argparse.Namespace) -> None:
     project_root = Path(args.project_root).expanduser().resolve()
     timestamp = datetime.now().astimezone()
+    created_at = timestamp.isoformat(timespec="seconds")
     session = project_root / "aet" / timestamp.strftime("%Y-%m-%d") / timestamp.strftime("%H-%M-%S")
     session.mkdir(parents=True, exist_ok=False)
     (session / "runs").mkdir()
@@ -138,13 +169,16 @@ def command_init(args: argparse.Namespace) -> None:
         "name": args.name,
         "objective": args.objective,
         "goal": args.goal,
-        "created_at": timestamp.isoformat(timespec="seconds"),
+        "created_at": created_at,
         "status": "running",
     }
     dump_json(session / "meta.json", meta)
     write_rows(session / "results.csv", [])
     (session / "queue.jsonl").write_text("", encoding="utf-8")
-    (session / "observations.md").write_text(f"# Observations\n\nCreated: `{now_iso()}`\n\n", encoding="utf-8")
+    (session / "observations.md").write_text(
+        render_observations_template(created_at, args.objective),
+        encoding="utf-8",
+    )
     (session / "plan.md").write_text(render_plan_template(args.objective, args.goal), encoding="utf-8")
     print(session)
 
@@ -241,8 +275,7 @@ def command_record(args: argparse.Namespace) -> None:
     (run_dir / "summary.md").write_text(summary, encoding="utf-8")
     write_rows(session / "results.csv", rows)
     if args.notes:
-        with (session / "observations.md").open("a", encoding="utf-8") as handle:
-            handle.write(f"\n## Run {run_id} - {args.status}\n\n{args.notes}\n")
+        append_run_observation(session / "observations.md", run_id, args.status, args.notes)
     print(session / "results.csv")
 
 

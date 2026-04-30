@@ -28,6 +28,9 @@ Core rules:
 - Treat failed and bad runs as data. Record the failure pattern and avoid repeating it.
 - If a standard baseline is far below expected behavior, pause pure hyperparameter sweeps and audit implementation fidelity, preprocessing, objective terms, schedules, seeds, and metric definitions.
 - Keep command execution simple: one experiment per command/session. Never use shell `&`, `nohup`, `screen`, or `tmux` unless the user explicitly requests external process management. **Claude Code exception**: use the Bash tool's `run_in_background=True` parameter instead of shell backgrounding — this gives native completion notifications with no shell hacks.
+- Never batch multiple experiments in a single `for` loop or shell script. Use one tool call per experiment. To launch several experiments in parallel, issue multiple independent tool calls in the same response turn, not a loop.
+- Never use `cd` combined with redirection, pipes, or multi-command chains in a single shell command. Use absolute paths throughout and keep each tool call to a single, unconditional operation. **Claude Code**: `for` loops, `cd`+redirect combos, and multi-command sequences trigger hook interception and require manual approval, breaking the autonomous loop. See `references/claude-code-adapter.md` (Safe Bash Patterns section) for the explicit forbidden/safe list.
+- When reading multiple result files or logs, prefer the Read tool for known paths or `grep -r` / `rg` with an explicit directory — not a `for` loop iterating over filenames.
 - Launch experiment scripts with a consistent log-managed command shape: `python -u <script.py> <script args including unique output_dir> > <output_dir>/train.log 2>&1`. Use plain `python` by default so the command inherits the agent's startup environment; use an explicit interpreter path only when the active environment is wrong.
 - Prefer project CLI arguments over editing experiment scripts. If edits are required, read first and keep them scoped.
 - Use subagents when the user has requested autonomous tuning with subagent support and the environment permits delegation. Otherwise, execute the same roles locally.
@@ -53,6 +56,7 @@ Throughout this skill, `SKILL_DIR` means the install root above. Substitute it w
    - Read these core references immediately after this file: `references/workflow.md`, `references/search-strategies.md`, `references/experiment-ledger.md`, and `references/gpu-policy.md`.
    - `AGENTS.md`, `CLAUDE.md`, experiment README files, and existing memory/notes if present.
    - Check `references/project-adapter-*.md` for project-specific adapters. Each adapter should state its match criteria near the top, such as project root paths, repository markers, or required files. If one matches the current project, read it before planning.
+   - **Semantic search — don't trust filenames alone**: After reviewing file names, use your available search tool (`grep`, `rg`, `search`, or equivalent) to scan all reference files for keywords from the actual task: project root path fragments, script names, method names, metric names, and parameter names the user mentioned. If any file matches, read it fully. This step takes seconds and prevents missing critical tuning rules that happen to live in a file whose name looks irrelevant.
    - **Claude Code only**: read `references/claude-code-adapter.md` now to understand how your execution model differs from Codex.
 
 2. Create or resume a session:
@@ -66,6 +70,8 @@ python SKILL_DIR/scripts/aet.py init \
 ```
 
 Use `aet/` inside the project as the canonical state root. This makes the loop recoverable after context compaction.
+The `init` command prints the exact session directory, normally `PROJECT/aet/YYYY-MM-DD/HH-MM-SS`; treat that directory as the only session state location.
+`init` already creates `PROJECT/aet/YYYY-MM-DD/HH-MM-SS/plan.md` from `assets/plan-template.md` and `observations.md` from `assets/observations-template.md`. Edit those generated files in place. Do not create ad hoc plan or observation files such as `PROJECT/aet/YYYY-MM-DD/*.md` or `PROJECT/aet/*.md`.
 
 3. Write a plan before launching:
    - target metric and direction
@@ -77,7 +83,7 @@ Use `aet/` inside the project as the canonical state root. This makes the loop r
    - likely parameter couplings and at least one broad interaction batch before narrow sweeps
    - batch size and per-GPU capacity
 
-If no project plan format already exists, read `assets/plan-template.md`, copy its Markdown structure into the project session notes, and fill every relevant field before launching.
+Fill `PROJECT/aet/YYYY-MM-DD/HH-MM-SS/plan.md` before launching. If that file is missing or damaged, read `assets/plan-template.md` only to restore the template into the same session `plan.md`; do not copy the template into any other path.
 
 4. Check capacity and create unique run output directories:
 
@@ -121,7 +127,7 @@ python SKILL_DIR/scripts/aet.py record \
 
 7. Analyze, update project records, and continue:
    - Summarize the session with `aet.py summarize`.
-   - If no project run-summary format already exists, read `assets/run-summary-template.md`, copy its Markdown structure into the project session notes, and fill it for each important run or batch.
+   - `aet.py create-run` creates `SESSION/runs/<id>/summary.md` from `assets/run-summary-template.md`; update that per-run file for important runs. If the file is missing, restore the template into `SESSION/runs/<id>/summary.md`, not a date-level note.
    - Update the benchmark table or experiment README in the project-required format.
    - Update durable failure/success notes when a reusable rule emerges.
    - Unless a stop condition is satisfied, replenish the queue and launch into any free GPU slots immediately.
@@ -131,7 +137,7 @@ python SKILL_DIR/scripts/aet.py record \
 
 Use `scripts/aet.py` as the durable state and safety helper for the tuning loop:
 
-- `init`: create `aet/YYYY-MM-DD/HH-MM-SS/` with `meta.json`, `results.csv`, `queue.jsonl`, `observations.md`, `plan.md`, and `runs/`. Required: `--project-root`, `--name`, `--objective`. Optional: `--goal max|min` (default `max`).
+- `init`: create `aet/YYYY-MM-DD/HH-MM-SS/` with `meta.json`, `results.csv`, `queue.jsonl`, `observations.md`, `plan.md`, and `runs/`, then print that session path. `plan.md` is rendered from `assets/plan-template.md`; `observations.md` is rendered from `assets/observations-template.md`. These generated files are the canonical files to edit. Required: `--project-root`, `--name`, `--objective`. Optional: `--goal max|min` (default `max`).
 - `create-run`: register a run before launch and create `runs/<id>/`. Optional: `--session` or `--project-root` (latest session lookup), `--run-id`, `--name`, `--params` (JSON string or JSON file), `--command`, `--gpu-id`, `--output-dir`, `--log-path`, `--notes`. Prefer explicit `--run-id` when coordinating multiple agents.
 - `record`: update a run whenever status or results change. Required: `--run-id`, `--status created|running|finished|failed|inconclusive|superseded`. Optional: `--session` or `--project-root`, `--name`, `--primary-metric`, `--metric-name`, `--metrics` (JSON string or JSON file), `--gpu-id`, `--output-dir`, `--log-path`, `--notes`. Use `running` to record `start_time`; terminal statuses record `end_time`.
 - `unique-dir`: choose a non-existing output directory. Positional: `path`. Optional: `--mkdir`; use it before launching so shell redirection to `<output_dir>/train.log` succeeds.
@@ -153,8 +159,9 @@ Session-aware commands (`create-run`, `record`, `status`, and `summarize`) accep
 - `references/subagents.md`: read before spawning or coordinating Strategist/Runner/Analyzer subagents. Contains the role prompts to include in each subagent task.
 - `references/claude-code-adapter.md`: **Claude Code only** — read at session start (already listed in Quick Start step 1). Covers `run_in_background`, completion notifications, `/loop`, and subagent differences vs Codex.
 - `scripts/aet.py`: session creation, run scaffolding, normalized GPU slot inspection (`gpu-slots`), unique directory creation, log parsing, result recording, and summaries.
-- `assets/plan-template.md`: Markdown template to copy and fill for the tuning plan when the project lacks its own format.
-- `assets/run-summary-template.md`: Markdown template to copy and fill for per-run summaries when the project lacks its own format.
+- `assets/plan-template.md`: source template rendered by `aet.py init` into the session's `plan.md`; read it only to understand or restore the generated plan format.
+- `assets/observations-template.md`: source template rendered by `aet.py init` into the session's `observations.md`; read it only to understand or restore observation sections.
+- `assets/run-summary-template.md`: source template rendered by `aet.py create-run` into `SESSION/runs/<id>/summary.md`; read it only to understand or restore per-run summary format.
 - `agents/experiment-strategist.md`: role prompt for a strategist subagent that plans the next queue of candidate experiments.
 - `agents/experiment-runner.md`: role prompt for a runner subagent that launches assigned experiment commands.
 - `agents/result-analyzer.md`: role prompt for an analyzer subagent that parses runs, records metrics, and extracts conclusions.

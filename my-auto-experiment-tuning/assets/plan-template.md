@@ -1,5 +1,7 @@
 # Tuning Plan
 
+Canonical file: this template is rendered by `aet.py init` into `PROJECT/aet/YYYY-MM-DD/HH-MM-SS/plan.md`. Keep updating that generated file in place.
+
 ## Objective
 
 - Objective: {{ objective }}
@@ -27,12 +29,12 @@
 ## Coupled Parameters
 
 | Group | Why Coupled | Broad Test | Local Refinement Trigger |
-| --- | --- | --- | --- |
+| ----- | ----------- | ---------- | ------------------------ |
 
 ## Next Batch
 
 | Run | Hypothesis | Parameters | GPU | Output Dir | Expected Signal |
-| --- | --- | --- | --- | --- | --- |
+| --- | ---------- | ---------- | --- | ---------- | --------------- |
 
 <!-- Rolling queue: plan more candidates than available GPU slots. Launch a new experiment from the queue as soon as a slot opens — no need to wait for all running experiments to finish before refilling. When the queue runs low, plan the next set of candidates. -->
 

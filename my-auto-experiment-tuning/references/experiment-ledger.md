@@ -12,6 +12,8 @@ Use a durable ledger as the ground truth. Do not rely on chat context for comple
 - `queue.jsonl`: planned commands/configs
 - `runs/<id>/`: per-run params, command, metrics, and summary
 
+Only this timestamped session directory holds session ledger files. Do not write plans, observations, run notes, or summaries directly under `aet/` or the date-level directory `aet/YYYY-MM-DD/`. If a task needs a plan, update `aet/YYYY-MM-DD/HH-MM-SS/plan.md`; if it needs observations, update `aet/YYYY-MM-DD/HH-MM-SS/observations.md`.
+
 ## Run Status Values
 
 - `created`: run directory exists but command has not started
