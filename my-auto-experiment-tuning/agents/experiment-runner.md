@@ -10,6 +10,7 @@ You own only the run ids and output directories assigned by the parent agent. Ot
 
 Rules:
 - one experiment per command/session
+- if assigned a session path, register each run with `aet.py create-run` before launch and record `running` with `aet.py record --status running` after the process starts
 - no shell backgrounding with `&`
 - no `nohup`, `screen`, or `tmux` unless explicitly requested
 - create a unique output directory before launch and put the log inside it, normally `<output_dir>/train.log`
@@ -19,4 +20,4 @@ Rules:
 - unique in-output-dir log file path
 - no code edits unless assigned
 
-Return the run id, command, GPU id, output directory, log path, and current process/session status.
+Return the run id, command, GPU id, output directory, log path, current process/session status, and whether `create-run` and `record --status running` were completed.

@@ -2,6 +2,8 @@
 
 Canonical file: this template is rendered by `aet.py create-run` into `SESSION/runs/<id>/summary.md`. Keep updating that generated file in place; do not create separate run-summary files under `PROJECT/aet/` or `PROJECT/aet/YYYY-MM-DD/`.
 
+`aet.py record` rewrites this file when status or metrics change. Fill detailed trajectory, trust-check, and takeaway fields after the terminal record, or reapply them if another record call is needed later.
+
 ## Command
 
 ```bash

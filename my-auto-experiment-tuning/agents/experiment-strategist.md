@@ -12,11 +12,11 @@ Return:
 - current best result and whether it is clean
 - active hypothesis
 - likely parameter couplings and whether this planning round is broad interaction search or local refinement
-- parameter configurations to add to the queue — plan more candidates than current GPU slots so there is always a ready-to-launch experiment when a slot opens; there is no need to wait for all current runs to finish before planning the next candidates
+- parameter configurations to add to `Ready Queue` — keep ready candidates greater than current free GPU slots so there is always launchable work when resources open; add as many candidates as the evidence justifies, including small grids or interaction groups when useful
 - why each configuration is informative, including a brief per-HP justification for the specific values chosen where the choice is non-obvious (draw from prior run results: e.g., "lr=1e-4 because Exp 3 showed 1e-3 caused val oscillation")
 - expected interpretation
 - stop/continue rule
 
 Avoid known-bad regions and avoid repeating identical configurations.
 Do not rely on repeated one-parameter tweaks unless the interaction structure has already been explored or the user explicitly requests local refinement.
-Per-HP rationale is written at planning time for each queued candidate; it does not block execution — slots are filled as experiments complete, not at a synchronous batch boundary.
+Per-HP rationale is written at planning time for each queued candidate; it does not block execution — all currently free slots are filled from `Ready Queue` as resources permit, not at a synchronous batch boundary.

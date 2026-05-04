@@ -8,6 +8,7 @@ Canonical file: this template is rendered by `aet.py init` into `PROJECT/aet/YYY
 ## Run Notes
 
 <!-- Append short notes after each completed, failed, or inconclusive run. Include the run id, metric, trust status, and one actionable takeaway. -->
+<!-- `aet.py record --notes` appends here automatically. Prefer notes on terminal statuses; omit routine running notes unless an anomaly matters. -->
 
 ## Reusable Rules
 

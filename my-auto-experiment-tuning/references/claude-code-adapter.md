@@ -29,7 +29,7 @@ Rules:
 - One `run_in_background=True` call per experiment, not per batch. Each call tracks independently.
 - Create the unique run directory before launch so the shell can open `RUNDIR/train.log`.
 - Capture stdout and stderr to a log file inside the run directory with `> RUNDIR/train.log 2>&1` so you can parse it later.
-- Record the mapping (run id → output dir → background job description) in the session `plan.md` or `queue.jsonl` before returning, because you will not see the command again until the notification arrives.
+- Register the run with `aet.py create-run` before launch so `queue.jsonl` has a recovery snapshot, and write the live mapping (run id → output dir → background job description) in `plan.md` before returning, because you will not see the command again until the notification arrives.
 - Do not add `&` or `nohup` to the shell command itself — `run_in_background=True` handles daemonization correctly.
 
 ### Launching Multiple Experiments in Parallel
@@ -53,10 +53,10 @@ When a `run_in_background=True` command finishes, Claude Code receives an automa
 
 1. Identify the run from your session map (run id ↔ output dir).
 2. Verify output files exist: metrics JSON/CSV/NPZ, logs.
-3. Parse results and record with `aet.py record`.
+3. Parse results and record terminal status/metrics with `aet.py record`.
 4. Update `plan.md` and `observations.md`.
 5. Check if a stop condition is now met.
-6. If not, immediately launch the next candidate from the queue into the freed slot (or trigger a planning pass to extend the queue if the new result changes direction).
+6. If not, re-check current GPU slots, select as many ready candidates as resources allow, register each with `aet.py create-run`, launch each background job, then record each accepted job with `aet.py record --status running`.
 
 Do not batch notifications — process each one as soon as it arrives, even if another experiment is still running. Incremental recording prevents data loss if the session is interrupted.
 
@@ -64,7 +64,7 @@ Do not batch notifications — process each one as soon as it arrives, even if a
 
 Claude Code's `/loop` command sends a recurring prompt at a fixed interval inside the current session. Use it as a native keepalive so the tuning loop restarts automatically even if the session sits idle between background notifications.
 
-**When to set up**: immediately after the AET session is created (`aet.py init`), before launching the first batch.
+**When to set up**: immediately after the AET session is created (`aet.py init`), before launching the first runs.
 
 **Invoke `/loop` as a slash command in the conversation** (not in a shell). Pass the interval and the skill invocation prompt:
 
@@ -79,7 +79,7 @@ Template to customize:
 
 **Effect**: every hour (or whatever interval), the skill is re-invoked with the keepalive prompt. The tail "if actively working, ignore this prompt" prevents duplicate launches when experiments are already running.
 
-**When to stop the loop**: `/loop stop` or adjust the interval once the target is met or the user ends the session.
+**When to stop the loop**: `/loop stop` only when the user ends the session or a valid stop condition has been recorded and the session is being closed. Do not stop the loop merely because one run hit a local or provisional target.
 
 ## Subagent Differences vs Codex
 
@@ -96,7 +96,7 @@ Claude Code uses the `Agent` tool (not Codex's `multi_tool_use.parallel` pattern
 | Step | Codex | Claude Code |
 |---|---|---|
 | Launch one experiment | Foreground, one session | `run_in_background=True`, one Bash call |
-| Launch batch (parallel) | One foreground session per run, serialized | Multiple `run_in_background=True` in same turn |
+| Launch candidate group (parallel) | One foreground session per run, serialized | Multiple `run_in_background=True` in same turn |
 | Monitor progress | Poll with `write_stdin` or wait | Receive completion notification automatically |
 | Keepalive between turns | External cron/systemd required | `/loop 1h` native |
 | Subagents | Codex `exec_command` delegation | `Agent` tool, parallel calls |
@@ -124,7 +124,7 @@ import json
 print('hello')
 "
 
-# ✗ writing a shell script to a file and executing it as a batch launcher
+# ✗ writing a shell script to a file and executing it as a multi-run launcher
 bash /tmp/launch_batch.sh
 ```
 
@@ -148,7 +148,7 @@ print('hello')
 "
 ```
 
-### Batch launches: parallel tool calls, not loops
+### Multi-run launches: parallel tool calls, not loops
 
 To launch multiple experiments at once, fire independent `Bash(run_in_background=True)` calls in the same response turn — never a shell `for` loop:
 

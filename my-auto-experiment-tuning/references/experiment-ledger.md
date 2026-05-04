@@ -6,10 +6,10 @@ Use a durable ledger as the ground truth. Do not rely on chat context for comple
 
 `aet/YYYY-MM-DD/HH-MM-SS/` contains:
 - `meta.json`: objective, metric direction, project root, creation time
-- `plan.md`: current hypotheses and next batch
+- `plan.md`: current hypotheses plus the rolling execution board (`Completed / Recorded`, `Running`, `Ready Queue`)
 - `results.csv`: one row per run
 - `observations.md`: short analysis notes and reusable rules
-- `queue.jsonl`: planned commands/configs
+- `queue.jsonl`: append-only `create-run` recovery snapshots for registered runs; not the live `Ready Queue`
 - `runs/<id>/`: per-run params, command, metrics, and summary
 
 Only this timestamped session directory holds session ledger files. Do not write plans, observations, run notes, or summaries directly under `aet/` or the date-level directory `aet/YYYY-MM-DD/`. If a task needs a plan, update `aet/YYYY-MM-DD/HH-MM-SS/plan.md`; if it needs observations, update `aet/YYYY-MM-DD/HH-MM-SS/observations.md`.
@@ -22,6 +22,15 @@ Only this timestamped session directory holds session ledger files. Do not write
 - `failed`: command failed or output is unusable
 - `inconclusive`: completed but contaminated, mismatched, or not comparable
 - `superseded`: no longer relevant because a later clean run replaces it
+
+## AET Helper Ownership
+
+- Use `aet.py create-run` before launching any experiment. It creates `runs/<id>/`, writes objective artifacts, and appends the registration snapshot to `queue.jsonl`.
+- Use `aet.py record --status running` after the process starts so `results.csv` records `start_time`.
+- Use `aet.py record` again for terminal statuses and metrics. Terminal records update `end_time`, `metrics.json`, `results.csv`, and `summary.md`.
+- Treat `results.csv` as the current status source of truth. `queue.jsonl` is append-only and may still show the original `created` snapshot.
+- Manage semantic queue decisions in `plan.md`; do not expect `aet.py` to choose, prioritize, or retire candidates.
+- Add detailed per-run trajectory/trust-check notes after terminal `record`, because a later `record` call rewrites `runs/<id>/summary.md`.
 
 ## Required Per-Run Fields
 
@@ -56,7 +65,7 @@ Record:
 ## Contamination and Code Changes
 
 - Record sandbox, dependency, CUDA visibility, and permission failures as failures or inconclusive runs; do not fold them into method performance.
-- If a batch used a later-discovered implementation bug, wrong color conversion, wrong crop, stale metric, or mismatched output directory, mark the affected runs `inconclusive`.
+- If a candidate group used a later-discovered implementation bug, wrong color conversion, wrong crop, stale metric, or mismatched output directory, mark the affected runs `inconclusive`.
 - When adding CLI knobs or changing experiment code during tuning, record the code-diff summary, default behavior, and whether older benchmark rows remain comparable.
 - Keep raw logs under each run's output directory for bad, failed, and contaminated runs. They are often the only evidence that prevents repeating the same mistake.
 

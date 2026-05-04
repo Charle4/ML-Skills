@@ -7,13 +7,13 @@ The main agent remains responsible for the loop. Subagents provide bounded sidec
 ## Strategist
 
 Task:
-Read the session ledger, project benchmark docs, and current observations. Propose the next queue of candidate experiments (plan more candidates than available GPU slots so there is always a ready candidate when a slot opens).
+Read the session ledger, project benchmark docs, and current observations. Propose the next `Ready Queue` candidates (keep ready candidates greater than current free GPU slots so there is always launchable work when resources open).
 
 Output:
 - current best and trust status
 - active hypothesis and which interaction is being tested or intentionally deferred
 - likely parameter couplings and whether this is broad exploration or local refinement
-- exact parameter configurations to add to the queue
+- exact parameter configurations to add to `Ready Queue`; add as many as the evidence justifies, including small grids or interaction groups when useful
 - per-HP rationale for non-obvious value choices, cited from prior run results (e.g., "lr=1e-4 because Exp 3 showed 1e-3 caused oscillation")
 - launch commands or command template
 - expected interpretation for possible outcomes
@@ -23,7 +23,7 @@ Rules:
 - Avoid repeating known-bad regions.
 - Avoid pure one-knob local search unless a broad interaction pass already supports it.
 - Include clean confirmation when needed.
-- Plan enough candidates to keep slots filled without over-committing; do not propose more than 2× the available GPU slots at once unless the method tolerates high parallelism.
+- Plan enough candidates to keep slots filled without over-committing; do not propose more than about 2x configured total capacity at once unless the method tolerates a larger backlog.
 - Do not write files unless assigned ownership of `plan.md` or a specific run list.
 
 ## Runner
@@ -41,6 +41,7 @@ Output:
 Rules:
 - Do not modify code unless explicitly assigned.
 - Do not overwrite directories.
+- If assigned a session path, register each run with `aet.py create-run` before launch and record `running` with `aet.py record --status running` after the process starts.
 - Create a unique output directory before launch and put the log inside it, normally `<output_dir>/train.log`.
 - Launch with `python -u <script.py> <script args including unique output_dir> > <output_dir>/train.log 2>&1`; use plain `python` unless the active environment is wrong.
 - Do not use shell `&`, `nohup`, `screen`, or `tmux`.
@@ -66,6 +67,7 @@ Written to `observations.md` (not returned in full to parent):
 Rules:
 - Verify files exist before recording metrics.
 - Prefer structured result files over regex.
+- Use `aet.py record` for terminal status and metrics; include concise notes only after trust status is known.
 - Mark contaminated runs as inconclusive.
 - Keep the parent-facing return brief; write trajectory details and per-HP influence notes to `observations.md`.
 - Keep observations concise and actionable.
