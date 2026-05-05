@@ -1,0 +1,4 @@
+interface:
+  display_name: "中文学术润色"
+  short_description: "中文论文重写、克制润色、去翻译腔与降 AI 味优化"
+  default_prompt: "Use $my-zh-academic-polish to polish this Chinese academic paragraph into natural, rigorous, Word-friendly prose."
