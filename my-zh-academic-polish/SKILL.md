@@ -41,6 +41,8 @@ Read [references/style-guide.md](references/style-guide.md) by default before ha
 
 6. Produce clean output. Use Chinese full-width punctuation by default. Keep necessary spaces around English terms, variables, mathematical symbols, and formulas when readability benefits.
 
+7. Enforce Chinese academic typography for generated or polished prose. Use curly Chinese quotation marks “”, and use the em dash — whenever a dash is needed. When a technical term first appears, use “中文全名（English Full Name，ABBR）”; if the term has no abbreviation or does not need one, use “中文全名（English Full Name）”. Preserve established abbreviations and term choices in the source text unless they are inconsistent or undefined.
+
 ## Output Surfaces
 
 When the user specifies an output format, follow it.
