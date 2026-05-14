@@ -53,10 +53,10 @@ When a `run_in_background=True` command finishes, Claude Code receives an automa
 
 1. Identify the run from your session map (run id ↔ output dir).
 2. Verify output files exist: metrics JSON/CSV/NPZ, logs.
-3. Parse results and record terminal status/metrics with `aet.py record`.
-4. Update `plan.md` and `observations.md`.
+3. Spawn Analyzer (see `references/subagents.md` template) with the session path, run id, and algorithm context.
+4. After Analyzer returns: call `aet.py record --status <status> --run-id <id> [--primary-metric <value> --metric-name <name> --metrics '<json>'] [--notes '<notes>']` (omit metric flags if Analyzer returned no valid metric); append returned `observations_to_append` to `observations.md` and `summary_trust_details` to `runs/<id>/summary.md`; move the row in `plan.md`.
 5. Check if a stop condition is now met.
-6. If not, re-check current GPU slots, select as many ready candidates as resources allow, register each with `aet.py create-run`, launch each background job, then record each accepted job with `aet.py record --status running`.
+6. If not, re-check current GPU slots, select as many ready candidates as resources allow, register each with `aet.py create-run`, launch each with `run_in_background=True`, then record each with `aet.py record --status running`.
 
 Do not batch notifications — process each one as soon as it arrives, even if another experiment is still running. Incremental recording prevents data loss if the session is interrupted.
 

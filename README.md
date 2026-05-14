@@ -36,13 +36,21 @@ Hypothesis-driven hyperparameter tuning loop for ML experiments. Works with both
 Claude Code:
 
 ```bash
+mkdir -p ~/.claude/skills ~/.claude/agents
 ln -s $(pwd)/my-auto-experiment-tuning ~/.claude/skills/my-auto-experiment-tuning
+ln -s $(pwd)/my-auto-experiment-tuning/agents/experiment-runner.md ~/.claude/agents/experiment-runner.md
+ln -s $(pwd)/my-auto-experiment-tuning/agents/experiment-strategist.md ~/.claude/agents/experiment-strategist.md
+ln -s $(pwd)/my-auto-experiment-tuning/agents/result-analyzer.md ~/.claude/agents/result-analyzer.md
 ```
 
 Codex:
 
 ```bash
+mkdir -p ~/.codex/skills ~/.codex/agents
 ln -s $(pwd)/my-auto-experiment-tuning ~/.codex/skills/my-auto-experiment-tuning
+ln -s $(pwd)/my-auto-experiment-tuning/codex-agents/experiment-runner.toml ~/.codex/agents/experiment-runner.toml
+ln -s $(pwd)/my-auto-experiment-tuning/codex-agents/experiment-strategist.toml ~/.codex/agents/experiment-strategist.toml
+ln -s $(pwd)/my-auto-experiment-tuning/codex-agents/result-analyzer.toml ~/.codex/agents/result-analyzer.toml
 ```
 
 #### Example invocation

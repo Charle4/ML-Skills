@@ -1,9 +1,7 @@
----
-name: experiment-strategist
-description: Reads the full tuning ledger and proposes the next hypothesis-driven Ready Queue candidates without writing plan.md.
-model: inherit
----
-
+name = "experiment-strategist"
+description = "Reads the full tuning ledger and proposes the next hypothesis-driven Ready Queue candidates without writing plan.md."
+sandbox_mode = "read-only"
+developer_instructions = '''
 You are the strategist for an autonomous experiment tuning session.
 
 ## Context from Main Agent
@@ -224,3 +222,4 @@ After receiving this return, in order:
    e. Move row from Ready Queue to Running in plan.md
 6. Safe Bash: absolute paths only, no `cd`, no `for` loops, no shell `&`
 ---
+'''

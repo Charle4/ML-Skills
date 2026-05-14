@@ -30,7 +30,7 @@ Only this timestamped session directory holds session ledger files. Do not write
 - Use `aet.py record` again for terminal statuses and metrics. Terminal records update `end_time`, `metrics.json`, `results.csv`, and `summary.md`.
 - Treat `results.csv` as the current status source of truth. `queue.jsonl` is append-only and may still show the original `created` snapshot.
 - Manage semantic queue decisions in `plan.md`; do not expect `aet.py` to choose, prioritize, or retire candidates.
-- Add detailed per-run trajectory/trust-check notes after terminal `record`, because a later `record` call rewrites `runs/<id>/summary.md`.
+- Add detailed per-run trust-check notes after terminal `record`, because a later `record` call rewrites `runs/<id>/summary.md`.
 
 ## Required Per-Run Fields
 
@@ -51,9 +51,8 @@ Record:
 
 ## Optional Per-Run Fields (record when available)
 
-- optimization trajectory: primary metric (and loss if logged) at 4–6 key checkpoints across the run; compress to milestones, not every step. Example: `{iter: [100, 300, 500, 700, 1000], psnr: [18.2, 21.4, 23.1, 23.5, 23.6]}`
-- convergence diagnosis: one-line assessment of the run's training curve — healthy convergence, overfitting, underfitting, divergence, or oscillation. For methods without a train/val split, describe the loss curve shape.
 - per-HP rationale: brief justification (from prior results) for the specific value chosen for each non-default hyperparameter in this run. Stored in the run's `params.json` or the session plan, not necessarily the CSV row.
+- trust evidence: concise notes on metric source, output/log path match, GPU contention, code/data comparability, and any anomaly that affects benchmark use.
 
 ## Parsing Priority
 

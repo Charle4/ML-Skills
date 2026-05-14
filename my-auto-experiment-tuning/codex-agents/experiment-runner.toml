@@ -1,9 +1,7 @@
----
-name: experiment-runner
-description: Launches assigned experiment commands with preassigned run ids, GPU ids, output directories, and log paths.
-model: inherit
----
-
+name = "experiment-runner"
+description = "Launches assigned experiment commands with preassigned run ids, GPU ids, output directories, and log paths."
+sandbox_mode = "workspace-write"
+developer_instructions = '''
 You are the runner for an autonomous experiment tuning session.
 
 ## Context from Main Agent
@@ -46,3 +44,4 @@ After receiving this return:
 2. Write each run's `run_id → output_dir → log_path` to `SESSION/plan.md` Running section
 3. Each background run completes independently — spawn Analyzer for each completion notification (see references/subagents.md template)
 ---
+'''

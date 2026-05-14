@@ -10,8 +10,8 @@ After the user states the tuning target, benchmark setting, constraints, and bud
 - keep a ready queue of launchable candidates
 - launch experiments within allowed permissions
 - monitor and collect results
-- update ledgers and benchmark docs
-- decide which candidates to add, launch, rewrite, or retire
+- update lifecycle ledgers and benchmark docs
+- delegate result analysis and candidate planning, then apply returned queue changes
 
 Escalate to the user only for destructive operations, ambiguous goals, missing required permissions, budget changes, or actions outside the active sandbox/approval policy.
 
@@ -19,7 +19,7 @@ Default duration semantics:
 - Treat autonomous tuning as a long-running job, not a short investigation. If the user asks for broad tuning, abundant GPU use, or a target such as `PSNR > 25`, expect tens to hundreds of runs and possibly multi-day operation.
 - Do not end after 1-3 planning groups just because a plausible local best was found. A local best is a signal for the next queue update, not a stopping reason.
 - If no explicit run or wall-clock budget is provided, assume the budget is open-ended until the user intervenes or the target is cleanly met.
-- Keep all usable GPU slots occupied within the configured contention limits. When any run finishes, immediately collect it, record metrics, move it from `Running` to `Completed / Recorded`, re-check current resources, and launch as many `Ready Queue` candidates as the now-free slots allow - do not wait for other running experiments to finish first.
+- Keep all usable GPU slots occupied within the configured contention limits. When any run finishes, immediately identify it, spawn Analyzer to parse and judge; after Analyzer returns, call `aet.py record` from returned data, append per-HP notes and trust details, move the run to `Completed / Recorded`, re-check current resources, and launch as many `Ready Queue` candidates as the now-free slots allow — do not wait for other running experiments to finish first.
 - Keep `Ready Queue` count strictly greater than current free GPU slots whenever useful unexplored regions remain. If free slots = N, maintain at least N+1 ready candidates; if free slots = 0, keep at least one ready candidate unless a valid stop condition is documented.
 - If the system forces a final response before the target is met, report the next ready candidates or search group and the reason continuation is blocked; do not present a local best as final.
 
@@ -64,7 +64,7 @@ Use `aet.py` for objective run bookkeeping, not for semantic search decisions:
 - `results.csv` is the status/metric source of truth. Use `aet.py record` for every transition to `running`, `finished`, `failed`, `inconclusive`, or `superseded`.
 - `runs/<id>/params.json`, `metrics.json`, `command.sh`, and `summary.md` are per-run objective artifacts. Do not create parallel run-note files.
 - `record --notes` appends a run note to `observations.md`; use notes mainly for terminal statuses or important anomalies. For routine `running` transitions, omit `--notes` to avoid noisy duplicate observations.
-- `record` rewrites `runs/<id>/summary.md` from the template. Add detailed trajectory/trust-check edits after the final terminal `record`, or be prepared to reapply them if status changes later.
+- `record` rewrites `runs/<id>/summary.md` from the template. Add detailed trust-check edits after the final terminal `record`, or be prepared to reapply them if status changes later.
 
 ## 3. Planning
 
@@ -81,9 +81,9 @@ Before launching, write and maintain the live plan in `SESSION/plan.md`:
 
 Do not create separate planning notes such as `aet/YYYY-MM-DD/next.md`, `aet/YYYY-MM-DD/plan.md`, or `aet/plan.md`. If the session `plan.md` is missing or corrupted, restore it from `assets/plan-template.md` into `SESSION/plan.md`.
 
-Prefer candidate groups that distinguish hypotheses. Avoid spending many runs only confirming tiny local changes unless a peak has already been found and needs verification.
+Prefer candidate groups that distinguish hypotheses. The Strategist owns detailed candidate selection when delegation is available; the main agent writes the returned candidates into `plan.md`.
 
-Use "batch" only as a search-design label. Execution is rolling: a completion, a resource change, or a changed result can trigger an immediate row transition, slot refill, and queue refill before the rest of the conceptual batch finishes. Analysis may append zero, one, or many ready candidates at once, not exactly one candidate per finished run.
+Use "batch" only as a search-design label. Execution is rolling: a completion, a resource change, or a changed result can trigger an immediate row transition, slot refill, and queue refill before the rest of the conceptual batch finishes. Strategist may return zero, one, or many ready candidates at once, not exactly one candidate per finished run.
 
 ## 4. Launch
 
@@ -103,13 +103,14 @@ Launch rules:
 
 **Claude Code**: use `run_in_background=True` on the Bash tool instead of foreground blocking. Multiple experiments can be launched in the same turn. See `references/claude-code-adapter.md`.
 
-When a run finishes, immediately collect and record before launching more if the result changes the plan. Move the row to `Completed / Recorded`, update observations, re-check resources, then fill all currently usable slots from `Ready Queue`.
+When a run finishes, immediately identify the run, then spawn Analyzer to parse and judge. After Analyzer returns, call `aet.py record` from returned data, append returned notes to `observations.md`/`summary.md`, move the row to `Completed / Recorded`, re-check resources, and fill all currently usable slots from `Ready Queue`.
 
 ## 4.1 Task Management by Runtime
 
 **Codex task management:**
 - Keep the `Running` table in the session plan before launching: run id, hypothesis, GPU id, output directory, command, and expected metric file. `queue.jsonl` is only a recovery map created by `create-run`.
-- After `exec_command` returns a long-running session id, record the mapping from Codex session id to run id. Do not rely on chat memory alone.
+- Launch each experiment by passing the standard command directly to `exec_command`; this is a foreground tool session, not shell backgrounding. Use the same command shape as Claude Code, but without `run_in_background=True` and without shell `&`.
+- If `exec_command` yields before completion and returns a long-running `session_id`, treat that session as the managed run. Record `codex_session_id -> run_id/output_dir/log_path` in `plan.md` immediately. Do not rely on chat memory alone.
 - Poll active sessions with `write_stdin` at reasonable intervals. Because stdout/stderr are redirected to the log file, use separate short reads of the log path when progress details are needed.
 - Prefer direct commands such as `python -u SCRIPT --gpu_id N --output_dir DIR > DIR/train.log 2>&1`, where `DIR` already exists and was created as a unique run directory. Keep one experiment per tool session. Avoid launching more jobs than can be tracked and analyzed cleanly.
 - Use `multi_tool_use.parallel` for independent file reads and status checks, not for launching several long-running experiments unless each launch remains a separate, trackable tool session.
@@ -120,8 +121,8 @@ When a run finishes, immediately collect and record before launching more if the
 - Before launching, register each run with `aet.py create-run` so `queue.jsonl` receives the recovery map, and write the live row to `plan.md`: run id, hypothesis, GPU id, output directory, command, expected metric file.
 - Launch all independent jobs in the same turn with `run_in_background=True`. You will receive a completion notification for each.
 - After each background launch is accepted, call `aet.py record --status running` without routine notes so `results.csv` has a start time.
-- On notification: identify the run from `Running`, collect results, record immediately, move it to `Completed / Recorded`, update `observations.md`, re-check resources, then launch as many `Ready Queue` candidates as current slots allow.
-- Do not wait for all jobs in a candidate group to finish before recording the ones that completed first — incremental recording reduces exposure to context compaction loss.
+- On notification: identify the run from `Running`, spawn Analyzer immediately; after Analyzer returns, call `aet.py record` from returned data, append returned notes, move the run to `Completed / Recorded`, re-check resources, and launch as many `Ready Queue` candidates as current slots allow.
+- Do not wait for all jobs in a candidate group to finish before analyzing and recording the ones that completed first — incremental recording reduces exposure to context compaction loss.
 
 **Both runtimes:**
 - Check `nvidia-smi --query-gpu=index,utilization.gpu,memory.used,memory.total --format=csv,noheader` before launching and during suspicious slowdowns. Memory alone is insufficient; high utilization can contaminate metrics for some methods. Use `references/gpu-policy.md` and `aet.py gpu-slots` to determine available slots (default: 1 per GPU, cap 3, util ceiling 95%); the helper normalizes the same fields for numeric filtering.
@@ -131,38 +132,39 @@ When a run finishes, immediately collect and record before launching more if the
 
 For each finished run:
 1. Verify output directory, metrics JSON/CSV/NPZ, images, and the in-output-dir log file exist.
-2. Parse structured outputs first; use log regex only as fallback.
-3. Record terminal status and metrics with `aet.py record`; include a concise `--notes` only after trust status is known.
-4. Move the row from `Running` to `Completed / Recorded` in `plan.md`.
-5. Append a short observation: what changed, whether it improved, and whether the run is trustworthy.
-6. Update project benchmark tables immediately if the project requires it.
+2. Spawn Analyzer immediately using `references/subagents.md` (Analyzer is read-only; it returns data, not writes).
+3. After Analyzer returns: call `aet.py record --status <status> --run-id <id> [--notes '<notes>']` — add `--primary-metric <value> --metric-name <name> --metrics '<json>'` only when Analyzer returned a valid metric
+4. If `summary_trust_details` returned: append to `runs/<id>/summary.md` (after record, since record rewrites that file)
+5. If `observations_to_append` returned: append to `SESSION/observations.md`
+6. If `benchmark_update_needed: yes`: update project benchmark table or README
+7. Move the row from `Running` to `Completed / Recorded` in `plan.md`.
+8. Re-check GPU slots and continue the rolling queue protocol.
 
 ## 6. Analysis
 
-Analyze after each completed run, not only at the end of the session:
-- rank finished runs by the primary metric
-- compare against baseline and previous best
-- identify monotonic trends, discrete peaks, boundary hits, collapses, and contamination
-- mark regions as promising, exhausted, forbidden, or inconclusive
+The main agent does not perform inline result analysis. Analyzer owns:
+- metric parsing and trust judgment
+- per-HP influence pattern accumulation
+- returning structured data: status, metrics, trust note, per-HP notes, benchmark-update flag
 
-Write reusable conclusions as rules. Example: "lambda=0.205 is an isolated peak; do not dense-scan 0.202-0.219 again."
+The main agent owns all write operations after Analyzer returns:
+- `aet.py record` (results.csv, metrics.json, summary.md)
+- append per-HP notes to `observations.md`
+- append trust-check details to `summary.md`
 
-Delegate detailed per-run analysis to the Analyzer subagent (see `agents/result-analyzer.md`). The Analyzer extracts optimization trajectories and convergence diagnostics and writes per-HP influence notes to `observations.md`. The main agent receives only the recorded primary metric and a one-line convergence note — this keeps main-agent context clean across a long multi-run session.
+Spawn Analyzer after each completed run or small completion group. Do not wait for the rest of a conceptual batch.
 
 ## 7. Next Queue
 
-Choose candidates to add to `Ready Queue` using the search strategy reference:
-- expand if best is on a boundary
-- refine if a stable local peak is bracketed
-- confirm if the result is surprising or affected by contention
-- broaden if all recent runs are local variants and no escape group has been run
-- stop only if a valid stop condition is met and the required evidence has been recorded
+The main agent does not perform inline strategy derivation. After Analyzer returns:
 
-After every analysis pass:
-- remove or rewrite unlaunched ready rows invalidated by the new evidence
-- append as many informative candidates as the evidence justifies, including grids or interaction groups when appropriate, not necessarily one
-- keep ready_count > current_free_slots while useful search remains
-- immediately move ready rows into `Running` for any free slots
+1. Check whether a stop condition is already met.
+2. Count current `Ready Queue` rows and current free GPU slots.
+3. If `Ready Queue` count <= free slots, or the queue is empty while useful search remains, spawn Strategist using `references/subagents.md`.
+4. Apply the Strategist return to `plan.md`: append Ready Queue rows, update Stop/Continue Rule text, and remove or rewrite invalidated ready rows.
+5. Immediately move ready rows into `Running` for any free slots.
+
+Candidate-selection principles are built into the `experiment-strategist` subagent.
 
 Before stopping, verify:
 - explicit target is met, or an explicit budget is exhausted, or continuation is blocked
@@ -174,7 +176,7 @@ When a valid stop condition is met, produce a **Session Final Analysis** before 
 
 1. **Best configuration found**: full parameter table of the best run, primary metric, and the run id.
 2. **Per-HP influence summary**: for each tuned hyperparameter, state what was learned — which values worked, which failed, observed trends (monotone, peaked, interaction-dependent), and any coupling with other HPs. Draw from `observations.md` and the session ledger. Keep entries concise (1–2 sentences each).
-3. **Future exploration directions**: list 2–5 specific directions that were not exhausted — unexplored regions, untested couplings, alternative schedules, or method-level changes that the trajectory diagnostics suggest might help.
+3. **Future exploration directions**: list 2–5 specific directions that were not exhausted — unexplored regions, untested couplings, alternative schedules, or method-level changes that might help.
 
 Write the final analysis to the session's `observations.md` under a `## Final Analysis` heading, and include it in the response to the user. Run `aet.py summarize` alongside it for the quantitative run-count and metric statistics; the two serve different purposes and complement each other.
 

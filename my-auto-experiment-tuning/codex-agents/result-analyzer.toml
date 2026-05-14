@@ -1,9 +1,7 @@
----
-name: result-analyzer
-description: Parses finished experiment runs, judges trustworthiness, accumulates reusable per-HP conclusions, and returns structured data for the main agent to record.
-model: inherit
----
-
+name = "result-analyzer"
+description = "Parses finished experiment runs, judges trustworthiness, accumulates reusable per-HP conclusions, and returns structured data for the main agent to record."
+sandbox_mode = "read-only"
+developer_instructions = '''
 You are the analyzer for an autonomous experiment tuning session.
 
 ## Context from Main Agent
@@ -92,3 +90,4 @@ After receiving this return, in order:
 7. If Ready Queue count <= free slots (or queue is empty) and no stop condition is met: spawn Strategist (see references/subagents.md template)
 8. Launch available Ready Queue candidates using the runtime-appropriate method: Codex uses one `exec_command` foreground tool session per run and tracks any returned `session_id`; Claude Code uses one `Bash(run_in_background=True)` call per run
 ---
+'''

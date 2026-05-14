@@ -49,7 +49,11 @@ def load_json_arg(value: str | None) -> dict[str, Any]:
     if not value:
         return {}
     path = Path(value)
-    if path.exists():
+    try:
+        exists = path.exists()
+    except OSError:
+        exists = False
+    if exists:
         return json.loads(path.read_text(encoding="utf-8"))
     return json.loads(value)
 

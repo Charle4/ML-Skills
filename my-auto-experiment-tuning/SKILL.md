@@ -7,7 +7,14 @@ description: Autonomous, hypothesis-driven experiment and hyperparameter tuning 
 
 ## Operating Model
 
-Run an autonomous loop: understand the project once, create a durable session, keep a rolling candidate queue, launch unique experiment runs, collect metrics, analyze trends, update the project record, then replenish the queue — **without pausing between planning groups**.
+Run an autonomous loop with the main agent as an experiment orchestrator. The main agent understands the project once, creates one durable session, maintains `plan.md`, manages run lifecycle commands, checks GPU slots, launches work, and coordinates subagents. It does not do inline hyperparameter analysis or candidate strategy when subagent support is available.
+
+Analysis and planning are delegated:
+- Analyzer parses finished runs, judges trust, and accumulates per-HP observations. It returns structured data (status, metrics, trust notes, per-HP notes) for the main agent to record and write.
+- Strategist reads the durable ledger and proposes the next `Ready Queue` rows.
+- Runner is optional; use it only when launch execution benefits from context isolation. By default, the main agent launches assigned runs itself.
+
+Keep the rolling loop moving **without pausing between planning groups**.
 
 ### ⛔ Forbidden Anti-Patterns (CRITICAL — read before anything else)
 
@@ -18,7 +25,7 @@ These are the mistakes that break the autonomous loop. **Never do any of these:*
 | 1 | **Stopping after a batch completes** — collecting results, writing a summary report, and going idle | A batch completing is NOT a stop condition. The loop continues as long as slots exist and unexplored parameter regions remain. | After collecting results: immediately re-check GPU slots, plan next candidates, launch as many ready candidates as current resources allow, THEN give a brief progress note (not a final report). |
 | 2 | **Canceling the `/loop` after a sub-phase** — deleting the cron job because "this sub-goal is done" | The loop is the keepalive mechanism for the ENTIRE tuning objective, not one sub-phase. Canceling it kills the autonomous session. | Set the loop once at session start. Only cancel it when the user explicitly ends the session, or a valid stop condition has been recorded and the session is being closed. |
 | 3 | **Creating new AET sessions for sub-phases** — running `aet.py init` again when exploring a new parameter direction | One tuning objective = one session. Fragmenting sessions destroys the ledger continuity. | Use the same session for the entire tuning objective. Sub-phases are documented in the same `plan.md` and `observations.md`. |
-| 4 | **Using shell `for` loops to create dirs or launch experiments** — `for d in ...; do ...; done` | Hook interception → manual approval → loop broken. | Use `mkdir -p dir1 dir2 dir3 dir4` to create multiple directories in one command. Launch experiments with multiple independent `Bash(run_in_background=True)` calls in the same turn. |
+| 4 | **Using shell `for` loops to create dirs or launch experiments** — `for d in ...; do ...; done` | Hook interception → manual approval → loop broken. | Use `mkdir -p dir1 dir2 dir3 dir4` to create multiple directories in one command. Claude Code: launch with independent `Bash(run_in_background=True)` calls. Codex: launch with one `exec_command` session per experiment; no shell `&`. |
 | 5 | **Presenting a "final report" before checking if more work exists** — summarizing results as if the task is done | Unless a stop condition is met (target achieved, budget exhausted, plateau documented), the tuning continues. | After results: check slots → launch more → then (and only then) give a brief status update. Do not frame updates as conclusions. |
 | 6 | **Keeping only a same-size "next batch" table** — planning exactly as many candidates as current free slots | This creates idle gaps and forces batch-synchronous thinking. | Maintain `Completed / Recorded`, `Running`, and `Ready Queue` sections in `plan.md`; keep ready candidates strictly greater than current free GPU slots whenever unexplored regions remain. |
 
@@ -27,13 +34,13 @@ These are the mistakes that break the autonomous loop. **Never do any of these:*
 The default operating mode is **asynchronous rolling**: GPU slots are filled continuously, not in synchronized waves. A "batch" is a planning concept, not an execution gate.
 
 **The iron rule**: when you receive a completion notification for ANY experiment:
-1. Collect the result immediately
-2. Record it
-3. Move the run from `Running` to `Completed / Recorded` in `plan.md`
+1. Identify the run from `plan.md` `Running` and verify the output/log paths exist
+2. Spawn Analyzer immediately, passing `session_path`, `run_ids`, script paths, and algorithm context
+3. After Analyzer returns: call `aet.py record` from returned data; append returned per-HP notes to `observations.md` and trust details to `summary.md`; then move the run from `Running` to `Completed / Recorded` in `plan.md`
 4. Check GPU slots
-5. If slots are free AND unexplored parameter regions remain → launch as many `Ready Queue` candidates as current resources allow NOW
-6. If ready candidates are not strictly greater than current free slots → analyze results and append as many new candidates as the evidence justifies NOW
-7. Only after steps 1-6: give a brief status update
+5. If slots are free, launch as many existing `Ready Queue` candidates as current resources allow NOW
+6. If ready candidates are not strictly greater than current free slots and no stop condition is met, spawn Strategist and write its returned candidates into `plan.md`
+7. Only after steps 1-6: give a brief progress update
 
 **Never wait for all experiments in a batch to finish before acting.** Process each completion as it arrives. Keep all GPU slots occupied at all times.
 
@@ -48,10 +55,28 @@ Use `SESSION/plan.md` as a live execution board with three sections:
 - `Ready Queue`: launchable candidates without assigned run ids yet. Keep this count strictly greater than the current free GPU slots whenever useful unexplored regions remain. If free slots = N, maintain at least N+1 ready candidates; if free slots = 0, keep at least one ready candidate unless a valid stop condition is documented.
 
 State transitions:
-- Planning adds candidates to `Ready Queue`. Add as many as the analysis justifies, including multi-point grids or factorial groups when useful; do not force a one-finished-run to one-new-run cadence.
+- Strategist planning adds candidates to `Ready Queue`. Add as many as the evidence justifies, including multi-point grids or factorial groups when useful; do not force a one-finished-run to one-new-run cadence.
 - Launching takes one or more `Ready Queue` rows according to current available slots, assigns run id/GPU/output/log fields, registers each with `aet.py create-run`, launches the command, records each accepted process with `aet.py record --status running`, and moves them to `Running`.
-- Completion records metrics with `aet.py record`, moves the row to `Completed / Recorded`, updates `observations.md`, re-checks resources, then fills all currently usable slots from `Ready Queue`.
-- New evidence may invalidate unlaunched ready rows; rewrite or remove those rows and note the reason in `observations.md`.
+- Completion triggers Analyzer (read-only); Analyzer returns structured data (status, metrics, trust note, per-HP notes); the main agent calls `aet.py record`, appends returned notes to `observations.md` and `summary.md` as needed, moves the row to `Completed / Recorded`, re-checks resources, then fills all currently usable slots from `Ready Queue`.
+- New evidence may invalidate unlaunched ready rows; the main agent rewrites or removes those rows after Analyzer/Strategist returns and notes the reason in the session ledger.
+
+### Delegation Protocol
+
+Read `references/subagents.md` before spawning or locally emulating a role. Use paths and durable context in prompts; avoid summarizing results for the subagent when it can read the files directly.
+
+| Trigger | Role | Main-agent follow-up |
+| ------- | ---- | -------------------- |
+| Any run completes | Analyzer | Call `aet.py record` from returned data, append returned notes to `observations.md`/`summary.md`, move row to `Completed / Recorded`, update benchmark if needed |
+| `Ready Queue` count <= free slots, or queue is empty, and no stop condition is met | Strategist | Append returned rows to `plan.md`, update Stop/Continue Rule, launch ready rows |
+| Launch execution needs context isolation | Runner, optional | Confirm registration/running status, write `Running` row, then handle completion through Analyzer |
+
+When calling subagents, pass `algorithm_context` as 2-5 sentences covering: metric meaning and direction, tuning target, known comparability risks (GPU contention, channel mode differences, etc.), and key parameter couplings. See `references/subagents.md` prompt templates for the full format.
+
+Single-writer rules:
+- `plan.md`: main agent only.
+- `observations.md`: main agent appends Analyzer-returned per-HP notes; `aet.py record --notes` may append terminal run notes.
+- `results.csv`: only through `aet.py record` (main agent calls it based on Analyzer return).
+- `runs/<id>/summary.md`: rewritten by `aet.py record`; main agent appends trust-check details from Analyzer return after record.
 
 ### One Session Per Objective
 
@@ -80,6 +105,7 @@ Create exactly ONE AET session (`aet.py init`) per user tuning objective. Do NOT
 - Optimize by hypotheses, not blind grids. State what each candidate group is testing.
 - Analyze hyperparameters as a coupled system. Early candidate groups should deliberately cover interactions among important knobs before local refinement.
 - Do not get trapped in single-parameter coordinate tuning. If progress stalls or conclusions conflict, broaden the design space and test interaction hypotheses.
+- Delegate detailed trend analysis and next-candidate strategy to Analyzer/Strategist when subagents are available; the main agent applies returned decisions and maintains the lifecycle.
 - Keep a durable ledger before relying on context memory.
 - Never overwrite an existing output directory, log file, or shared result JSON.
 - Treat failed and bad runs as data. Record the failure pattern and avoid repeating it.
@@ -99,11 +125,13 @@ Claude Code hooks intercept complex shell structures, requiring manual approval 
 
 **Safe replacements:**
 - Multiple directories: `mkdir -p /abs/path/dir1 /abs/path/dir2 /abs/path/dir3` (space-separated, one command)
-- Launch experiments: multiple independent `Bash(run_in_background=True)` tool calls in the same response turn — never a loop. Use the exact command shape:
+- Launch experiments with the exact command shape below — never a loop:
   ```
   python -u <script.py> <script args including unique output_dir> > <output_dir>/train.log 2>&1
   ```
   Use plain `python` by default so the command inherits the agent's startup environment; use an explicit interpreter path only when the active environment is wrong. Pass `--gpu_id` explicitly.
+  - **Codex**: run that same command as one `exec_command` session per experiment. Do not add shell `&`; if the tool yields a `session_id`, record the `session_id -> run_id/output_dir/log_path` mapping and poll it with `write_stdin`.
+  - **Claude Code**: use one independent `Bash(run_in_background=True)` tool call per experiment.
 - Read logs: `grep -r "pattern" /abs/path/results/` or the Read tool for known paths — never a `for f in ...` loop
 - Always use absolute paths — no `cd` needed
 
@@ -130,7 +158,7 @@ Throughout this skill, `SKILL_DIR` means the install root above. Substitute it w
 ## Quick Start
 
 1. Read project-local operating context:
-   - Read these core references immediately after this file: `references/workflow.md`, `references/search-strategies.md`, `references/experiment-ledger.md`, and `references/gpu-policy.md`.
+   - Read these core references immediately after this file: `references/workflow.md`, `references/subagents.md`, `references/experiment-ledger.md`, `references/gpu-policy.md`, and `references/permissions.md`.
    - `AGENTS.md`, `CLAUDE.md`, experiment README files, and existing memory/notes if present.
    - Check `references/project-adapter-*.md` for project-specific adapters. Each adapter should state its match criteria near the top, such as project root paths, repository markers, or required files. If one matches the current project, read it before planning.
    - **Semantic search — don't trust filenames alone**: After reviewing file names, use your available search tool (`grep`, `rg`, `search`, or equivalent) to scan all reference files for keywords from the actual task: project root path fragments, script names, method names, metric names, and parameter names the user mentioned. If any file matches, read it fully. This step takes seconds and prevents missing critical tuning rules that happen to live in a file whose name looks irrelevant.
@@ -183,7 +211,7 @@ Use raw `nvidia-smi` for human-readable/agent-readable context; use `aet.py gpu-
    - `create-run` appends a recovery row to `queue.jsonl`; do not treat `queue.jsonl` as the live `Ready Queue`.
    - After the process starts, call `aet.py record --status running` without routine notes so `results.csv` records `start_time`.
    - Move each launched row from `Ready Queue` to `Running` in `plan.md`.
-   - **Codex**: one foreground command per long-running experiment so Codex receives one session per run.
+   - **Codex**: run the same launch command in one `exec_command` session per experiment. Do not use shell backgrounding. When Codex returns a long-running `session_id`, record `session_id -> run_id/output_dir/log_path` in `plan.md` and poll with `write_stdin`.
    - **Claude Code**: use `run_in_background=True` on the Bash tool; you will be notified on completion and do not need to poll. See `references/claude-code-adapter.md` for the full pattern.
    - Set `workdir` instead of shell `cd`.
    - Use the standard launch shape: `python -u <script.py> <script args including unique output_dir> > <output_dir>/train.log 2>&1`.
@@ -192,11 +220,13 @@ Use raw `nvidia-smi` for human-readable/agent-readable context; use `aet.py gpu-
    - Use a unique `--output_dir` for every configuration and never reuse an existing output directory.
    - Register the in-output-dir log path with `aet.py create-run --log-path`.
 
-6. Record results immediately:
-   - If the project produced structured metrics, pass them directly to `aet.py record --metrics`.
-   - If only logs contain metrics, run `aet.py parse-log <log>` first, inspect the extracted JSON, then pass clean metrics to `aet.py record`.
+6. Record results immediately through Analyzer:
+   - On completion, spawn Analyzer with the session path, run id, project root, script paths, and algorithm context.
+   - Analyzer reads files, parses metrics, and returns structured data (status, metrics, trust note, per-HP notes). Analyzer does not call `aet.py record` or write files.
+   - The main agent calls `aet.py record` based on Analyzer's returned fields, appends returned notes to `observations.md` and `summary.md`, and moves the run row in `plan.md`.
 
 ```bash
+# Main agent calls aet.py record after Analyzer returns:
 python SKILL_DIR/scripts/aet.py record \
   --session /path/to/project/aet/YYYY-MM-DD/HH-MM-SS \
   --run-id 3 \
@@ -207,12 +237,12 @@ python SKILL_DIR/scripts/aet.py record \
   --notes "lk=0.05 clean run; candidate peak"
 ```
 
-7. Analyze, update project records, and continue:
+7. Update project records and continue:
    - Summarize the session with `aet.py summarize`.
    - `aet.py create-run` creates `SESSION/runs/<id>/summary.md` from `assets/run-summary-template.md`, and `aet.py record` rewrites it when metrics/status change. Update that per-run file for important runs after the terminal `record`. If the file is missing, restore the template into `SESSION/runs/<id>/summary.md`, not a date-level note.
    - Update the benchmark table or experiment README in the project-required format.
-   - Update durable failure/success notes when a reusable rule emerges.
-   - Move completed runs from `Running` to `Completed / Recorded`; append several new `Ready Queue` candidates when analysis exposes useful regions. The number added can be 0, 1, or many.
+   - Move completed runs from `Running` to `Completed / Recorded`.
+   - If `Ready Queue` count is not strictly greater than current free GPU slots and no stop condition is met, spawn Strategist and append its returned candidates. The number added can be 0, 1, or many.
    - Unless a stop condition is satisfied, keep `Ready Queue` count strictly greater than current free GPU slots and launch into any free GPU slots immediately.
    - Stop only when the objective is met, budget is exhausted, resources/permissions block continuation, or plateau/exhaustion has been documented with the evidence required above.
 
@@ -233,37 +263,34 @@ Session-aware commands (`create-run`, `record`, `status`, and `summarize`) accep
 ## Resource Map
 
 - `references/workflow.md`: core; read at session start for the full autonomous loop and recovery protocol.
-- `references/search-strategies.md`: core; read at session start for choosing grids, coordinate descent, boundary expansion, confirmation runs, and stopping rules.
 - `references/experiment-ledger.md`: core; read at session start for durable state schema and what to record after each run.
 - `references/project-adapter-*.md`: optional project adapters. Each adapter should state match criteria at the top and point to the authoritative project README, benchmark docs, launch conventions, and known tuning constraints.
 - `references/gpu-policy.md`: core; read at session start. GPU slot defaults (1 per GPU, cap 3, util ceiling 95%), configurable parameters (`gpu_ids`, `max_per_gpu`, memory headroom, `max_util`), helper CLI mappings, and override priority (user > adapter > README > memory).
-- `references/permissions.md`: read if a command is blocked by sandbox policy, or before starting a long Codex autonomous run. Covers approved command-prefix patterns and what always requires confirmation.
+- `references/permissions.md`: core; read at session start. Covers sandbox permission model, approved command-prefix patterns, recommended pre-approvals, and what always requires confirmation.
 - `references/watchdog.md`: read when setting up a keepalive for a long session (Claude Code `/loop` or external cron for Codex). Not needed for short runs.
-- `references/subagents.md`: read before spawning or coordinating Strategist/Runner/Analyzer subagents. Contains the role prompts to include in each subagent task.
+- `references/subagents.md`: core; read at session start (already listed in Quick Start step 1). Contains trigger rules, prompt templates for Analyzer/Strategist/Runner, and the post-return protocols the main agent must follow after each subagent call.
 - `references/claude-code-adapter.md`: **Claude Code only** — read at session start (already listed in Quick Start step 1). Covers `run_in_background`, completion notifications, `/loop`, and subagent differences vs Codex.
 - `scripts/aet.py`: session creation, run scaffolding, normalized GPU slot inspection (`gpu-slots`), unique directory creation, log parsing, result recording, and summaries.
 - `assets/plan-template.md`: source template rendered by `aet.py init` into the session's `plan.md`; it defines the live execution board (`Completed / Recorded`, `Running`, `Ready Queue`) and rolling queue invariant. Read it only to understand or restore the generated plan format.
 - `assets/observations-template.md`: source template rendered by `aet.py init` into the session's `observations.md`; read it only to understand or restore observation sections.
 - `assets/run-summary-template.md`: source template rendered by `aet.py create-run` into `SESSION/runs/<id>/summary.md`; read it only to understand or restore per-run summary format.
-- `agents/experiment-strategist.md`: role prompt for a strategist subagent that plans the next queue of candidate experiments.
-- `agents/experiment-runner.md`: role prompt for a runner subagent that launches assigned experiment commands.
-- `agents/result-analyzer.md`: role prompt for an analyzer subagent that parses runs, records metrics, and extracts conclusions.
+- Subagent `experiment-strategist`: plans the next queue of candidate experiments. Claude Code: invoke via `Agent(subagent_type="experiment-strategist", prompt="...")`; Codex: invoke via `spawn_agent(agent_type="experiment-strategist", message="...")`.
+- Subagent `experiment-runner`: launches assigned experiment commands. Claude Code: invoke via `Agent(subagent_type="experiment-runner", prompt="...")`; Codex: invoke via `spawn_agent(agent_type="experiment-runner", message="...")`.
+- Subagent `result-analyzer`: parses runs, judges trust, and returns structured record data for the main agent to write. Claude Code: invoke via `Agent(subagent_type="result-analyzer", prompt="...")`; Codex: invoke via `spawn_agent(agent_type="result-analyzer", message="...")`.
 - `agents/openai.yaml`: UI metadata only; do not treat it as operational instructions.
 
 Load only the reference file needed for the current decision.
 
 ## Subagent Pattern
 
-For autonomous tuning requests that include subagent support, use these roles when they can run in parallel without blocking the main thread:
-- Strategist: reads current ledger and proposes `Ready Queue` candidates (keep ready count strictly greater than current free GPU slots, and generally no more than about 2x configured capacity unless the method tolerates a larger queue). Includes per-HP rationale for non-obvious value choices, cited from prior run results. Planning happens whenever the queue runs low, not at synchronous batch boundaries.
-- Runner: launches disjoint run commands, moves assigned ready rows to `Running` when given write ownership, and reports process/session IDs.
-- Analyzer: parses finished runs, updates ledger, moves rows to `Completed / Recorded` when given write ownership, extracts failure rules, extracts optimization trajectories (key checkpoints), diagnoses convergence behavior, and accumulates per-HP influence notes in `observations.md`. Main agent receives only the recorded metric and a one-line convergence note — delegate the detailed work to Analyzer to keep main-agent context clean.
+For autonomous tuning requests that include subagent support, use these roles to keep the main thread focused on orchestration:
+- Strategist: reads current ledger and proposes `Ready Queue` candidates. It does not write `plan.md`; the main agent applies its returned rows.
+- Runner: optionally launches disjoint run commands when context isolation is useful. It receives preassigned run ids, GPU ids, output directories, and commands.
+- Analyzer: parses finished runs, judges trust, and accumulates per-HP notes. Read-only — does not call `aet.py record` or write files. Returns structured data (status, metrics, trust note, per-HP notes, benchmark-update flag) for the main agent to record and write.
 
-Before spawning a subagent, read the matching `agents/*.md` role prompt and include its instructions in the subagent task. If delegation is useful but no subagent tool is available, use the matching role prompt as a local checklist.
+**Claude Code**: spawn via the `Agent` tool using the registered subagent types — `result-analyzer`, `experiment-strategist`, `experiment-runner`. Use Claude Code syntax such as `Agent(subagent_type="experiment-strategist", prompt="...")`. Pass only session-specific context in the `prompt` parameter; the subagent's role instructions are already loaded from its own system prompt. See `references/subagents.md` for the prompt template for each role.
 
-**Codex**: use `spawn_agent` only when the user explicitly requested subagents, delegation, or parallel agent work. Give each subagent a bounded write scope and tell it that other agents may be working in the same codebase. Do not assign the critical-path blocker to a subagent if the main agent needs the result immediately. Use `send_input`, `wait_agent`, and `close_agent` to coordinate; `multi_tool_use.parallel` is for parallel tool calls, not subagent creation.
-
-**Claude Code**: use the `Agent` tool to spawn subagents. Multiple independent agents can be launched in the same message. Claude Code subagents also support `run_in_background=True`; see `references/claude-code-adapter.md` for coordination patterns.
+**Codex**: spawn via `spawn_agent` using the registered custom agent types — `result-analyzer`, `experiment-strategist`, `experiment-runner`. Use Codex syntax such as `spawn_agent(agent_type="experiment-strategist", message="...")`. Pass only session-specific context in the `message` parameter; the subagent's role instructions are already loaded from its registered Codex custom agent file. Use `send_input`, `wait_agent`, and `close_agent` to coordinate; `multi_tool_use.parallel` is for parallel tool calls, not subagent creation.
 
 If delegation is not authorized, perform the same three roles sequentially in the main thread.
 
