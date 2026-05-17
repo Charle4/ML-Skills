@@ -14,6 +14,7 @@ The parent agent provides:
 - `algorithm_context`: metric meaning, tuning objective, known parameter couplings, benchmark constraints, and known bad-data risks.
 - `current_free_slots`: current usable GPU slots.
 - `current_best`: best run id and metric as a locator only.
+- `runs_since_last_strategist`: list of run_ids completed since the last Strategist call, along with their recorded status, primary_metric, and metric_name (from results.csv). Strategist uses these to generate targeted observations before planning.
 
 Read files directly. Treat parent-provided summaries as hints, not evidence.
 
@@ -29,6 +30,21 @@ Read as needed:
 - `Completed / Recorded`: terminal runs and key findings.
 - `Running`: active runs and expected signals.
 - `Ready Queue`: launchable candidates with columns `Queue ID`, `Hypothesis`, `Parameters`, `Rationale`, `Priority`, `Expected Signal`, `Launch Template`.
+
+## Observations
+
+Before proposing new candidates, synthesize what was learned from the runs listed in
+`runs_since_last_strategist`. Read their artifacts directly from session files; do not
+rely on summaries passed in context.
+
+For each parameter or interaction that shows a pattern:
+- Note repeated signals, boundary hits, forbidden regions, and settings that only
+  help under specific companion knobs.
+- Write reusable, evidence-linked rules, not narrative. Example:
+  "runs 4/7: lr=1e-4 beats 1e-3 when weight_decay<=1e-3; avoid 1e-3 under current schedule."
+- Keep total observations concise (1-3 lines per pattern found).
+
+If nothing new was learned, return an empty observations block.
 
 ## Planning Rules
 
@@ -183,11 +199,20 @@ Report the stopping reason explicitly.
 
 ## Ownership
 
-Do not launch commands. Do not write `plan.md`, `observations.md`, or result files unless the parent explicitly assigns a separate write scope. The parent agent is the only writer of `plan.md`.
+- Read session files; do not write or modify any files.
+- Do not execute commands or call aet.py.
+- Return all outputs as structured text in your final message.
 
 ## Return Protocol
 
 Return these sections:
+
+0. **Observations**: per-HP influence notes covering `runs_since_last_strategist`:
+
+```text
+observations_to_append: |
+  <concise per-HP influence notes; omit if nothing new>
+```
 
 1. **Ready Queue Candidates**: markdown table rows compatible with:
 
@@ -210,6 +235,7 @@ End your response with the following block verbatim (this is for the main agent 
 ## Main Agent: Next Steps
 
 After receiving this return, in order:
+0. If `observations_to_append` provided: append to `SESSION/observations.md`; clear the `runs_since_last_strategist` tracking list
 1. Append Ready Queue Candidates to `SESSION/plan.md` Ready Queue section
 2. Update Stop/Continue Rule section in `SESSION/plan.md`
 3. Apply any Queue Edits (remove/rewrite invalidated rows)

@@ -53,10 +53,13 @@ When a `run_in_background=True` command finishes, Claude Code receives an automa
 
 1. Identify the run from your session map (run id ↔ output dir).
 2. Verify output files exist: metrics JSON/CSV/NPZ, logs.
-3. Spawn Analyzer (see `references/subagents.md` template) with the session path, run id, and algorithm context.
-4. After Analyzer returns: call `aet.py record --status <status> --run-id <id> [--primary-metric <value> --metric-name <name> --metrics '<json>'] [--notes '<notes>']` (omit metric flags if Analyzer returned no valid metric); append returned `observations_to_append` to `observations.md` and `summary_trust_details` to `runs/<id>/summary.md`; move the row in `plan.md`.
-5. Check if a stop condition is now met.
-6. If not, re-check current GPU slots, select as many ready candidates as resources allow, register each with `aet.py create-run`, launch each with `run_in_background=True`, then record each with `aet.py record --status running`.
+3. Parse primary metric in priority order: structured JSON/CSV/NPZ → TensorBoard event files → log regex via `aet.py parse-log` → manual extraction as last resort.
+4. Determine terminal status: `finished`, `failed`, or `inconclusive`. Mark sandbox failures, dependency failures, code bugs, GPU contention, and partial crashes as `failed` or `inconclusive`.
+5. Call `aet.py record --status <status> --run-id <id> [--primary-metric <value> --metric-name <name> --metrics '<json>'] [--notes '<notes>']` (omit metric flags if no valid metric).
+6. If trust note is relevant: append to `runs/<id>/summary.md` (after record); move the row in `plan.md` from `Running` to `Completed / Recorded`; add run_id to `runs_since_last_strategist`.
+7. Check if a self-evaluatable stop condition is now met: explicit user stop, explicit numeric target cleanly met with evidence, explicit budget consumed, or required permission/resource unavailable. Do not evaluate plateau or exhaustion here.
+8. If not, re-check current GPU slots, select as many ready candidates as resources allow, register each with `aet.py create-run`, launch each with `run_in_background=True`, then record each with `aet.py record --status running`.
+9. If Ready Queue count <= free slots, spawn Strategist passing `runs_since_last_strategist`; after it returns, append `observations_to_append` to `observations.md` and clear the tracking list. Suppress this spawn only for explicit self-evaluatable conditions (explicit user stop, target cleanly met, budget consumed, permission unavailable). Plateau and exhaustion cannot suppress it.
 
 Do not batch notifications — process each one as soon as it arrives, even if another experiment is still running. Incremental recording prevents data loss if the session is interrupted.
 
@@ -85,7 +88,7 @@ Template to customize:
 
 Claude Code uses the `Agent` tool (not Codex's `multi_tool_use.parallel` pattern):
 
-- Launch Strategist, Runner, and Analyzer as parallel `Agent` tool calls in a single message.
+- Launch Strategist and Runner as parallel `Agent` tool calls in a single message when both are needed.
 - Each agent is an independent process with its own tool access.
 - Pass the session path, ledger summary, and bounded write scope explicitly in the agent prompt, because subagents start without the parent's context.
 - Background jobs launched by a Runner subagent do NOT notify the parent directly — the Runner must collect results before returning, or the parent must re-check the output directories after the Runner finishes.

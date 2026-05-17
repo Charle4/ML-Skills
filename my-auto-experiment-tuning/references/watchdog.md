@@ -35,15 +35,14 @@ If the user provided a numeric target (e.g., `PSNR > 25`), embed it in the promp
 
 With `run_in_background=True`, the Bash tool notifies Claude Code when the command finishes. This means:
 - You do not need to poll or sleep between experiments.
-- On notification, immediately identify the run and spawn Analyzer using `references/subagents.md`.
-- After Analyzer returns, the main agent calls `aet.py record`, appends returned notes, moves the run to `Completed / Recorded`, re-checks resources, and launches as many ready candidates as current slots allow.
-- If multiple experiments run in parallel, each notification triggers an incremental Analyzer -> record -> queue-refill pass.
+- On notification, immediately identify the run and record inline: verify output files, parse metrics (JSON/CSV/NPZ → TensorBoard → log regex), determine status, call `aet.py record`, append trust details to `summary.md`, move to `Completed / Recorded`, add to `runs_since_last_strategist`, re-check resources, and launch as many ready candidates as current slots allow.
+- If multiple experiments run in parallel, each notification triggers an incremental inline-record → queue-refill pass.
 
 See `references/claude-code-adapter.md` for the full background job pattern.
 
 ## Codex: External Keepalive (Cron / systemd)
 
-Codex cannot self-wake and has no background completion notification. During an active turn, a long-running `exec_command` may return a `session_id`; the main agent must record `session_id -> run_id/output_dir/log_path` in `plan.md` and poll it with `write_stdin`. After the turn ends, an external scheduler must send a follow-up prompt if continued supervision is required.
+Codex cannot self-wake and has no background completion notification. During an active turn, a long-running `exec_command` may return a `session_id`; record `session_id -> run_id/output_dir/log_path` in `plan.md` and poll it with `write_stdin`. After the turn ends, an external scheduler must send a follow-up prompt if continued supervision is required.
 
 ## Keepalive Prompt
 
@@ -65,8 +64,8 @@ A good external watchdog should:
 - run every 30-60 minutes for multi-day tuning
 - check whether GPU jobs for the session are active
 - if the session is idle and the target is unmet, send the keepalive prompt
-- if processes finished while Codex was idle, the resumed agent should reconcile `plan.md`, `results.csv`, logs, and output directories, then spawn Analyzer for finished-but-unrecorded runs
+- if processes finished while Codex was idle, the resumed agent should reconcile `plan.md`, `results.csv`, logs, and output directories, then record each finished-but-unrecorded run inline
 - include the project root, session path, target metric, and current target threshold
 - avoid starting duplicate sessions unless the previous one is unrecoverable
 
-Do not rely on the watchdog to replace the skill's normal autonomy. The main agent should still keep filling available slots and replenishing the ready queue during an active turn.
+Do not rely on the watchdog to replace the skill's normal autonomy. Keep filling available slots and replenishing the ready queue during an active turn.

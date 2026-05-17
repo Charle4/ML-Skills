@@ -1,31 +1,29 @@
 # Subagent Delegation Guide
 
-Use this file before spawning the registered Analyzer, Strategist, or Runner subagents.
-
-The main agent is the orchestrator. It manages the AET session lifecycle, writes `plan.md`, checks GPU slots, starts the next launchable work, and decides when to stop. Subagents provide bounded analysis, strategy, or launch execution without owning the full loop.
+Use this file before spawning the registered Strategist or Runner subagents.
 
 ## Agent Roles
-### Analyzer (`result-analyzer`)
-
-Analyzer handles per-run result parsing, trust judgment, and per-HP pattern accumulation. It returns structured data (status, metrics, trust notes, per-HP observations) for the main agent to record and write. Analyzer does not call `aet.py record` or write any files directly. Spawn it for each completed run or small group of completed runs.
 
 ### Strategist (`experiment-strategist`)
 
-Strategist reads the full durable ledger and proposes the next `Ready Queue` candidates plus stop/continue text. It does not write `plan.md`; the main agent applies or edits its returned rows.
+Returns: `observations_to_append` (per-HP influence notes for `runs_since_last_strategist`) and Ready Queue candidates plus stop/continue text. Does not write `plan.md` or `observations.md`; apply all returned outputs.
 
 ### Runner (`experiment-runner`)
 
-Runner is optional. Use it only when launch execution needs context isolation or parallel delegation. The main agent normally registers, launches, and records `running` itself.
+Runner is optional. Use it only when launch execution needs context isolation or parallel delegation. Normally register, launch, and record `running` directly.
 
 ## When to Delegate
 
 | Trigger | Spawn | Required |
 | ------- | ----- | -------- |
-| A run reaches terminal state or a background completion notification arrives | Analyzer | Yes |
-| Ready Queue count <= current free slots, or Queue is empty, and no stop condition is met | Strategist | Yes |
+| Ready Queue count <= current free slots, or Queue is empty | Strategist | Yes |
 | Launching many independent runs and context isolation is useful | Runner | Optional |
 
-Do not wait for a whole conceptual batch to finish. Analyze each completed run promptly, then refill slots from `Ready Queue` or request Strategist output if the queue is low.
+Self-evaluatable conditions that may suppress a Strategist spawn: explicit user stop, explicit numeric target cleanly met with evidence, explicit run/wall-clock budget consumed, required permission/resource unavailable. Plateau and exhaustion are never self-evaluatable — Strategist must be the one to declare them; they cannot gate this spawn.
+
+Prompt neutrality: always use the standard prompt template when calling Strategist. Never add context about previous Strategist verdicts, never ask "is the search exhausted?", never prime the Strategist's conclusion in any direction — including during double-verification.
+
+Record each completed run inline immediately (verify files → parse metrics → determine status → call `aet.py record` → append trust details → move row → add to `runs_since_last_strategist`). Do not wait for a whole batch to finish before recording.
 
 ## Shared Prompt Inputs
 
@@ -36,37 +34,7 @@ Pass paths and stable context, not a parent-agent interpretation of results:
 - `algorithm_context`: metric meaning, target, benchmark constraints, known data/implementation risks, and important parameter couplings
 - runtime notes: Codex vs Claude Code launch behavior, GPU policy, and current free slots when relevant
 
-Pass only session-specific context in the prompt; each subagent's role instructions are already loaded via its registered system prompt (`result-analyzer`, `experiment-strategist`, `experiment-runner`).
-
-## Call Prompt Template: Analyzer
-
-**Claude Code:** `Agent(subagent_type="result-analyzer", description="Analyze run(s) RUN_IDS", prompt="""...""")`
-
-**Codex:** `spawn_agent(agent_type="result-analyzer", message="""...""")`.
-
-```text
-You are not alone in the codebase; other agents may be working. Do not revert unrelated changes.
-
-session_path: SESSION_PATH
-run_ids: RUN_IDS
-project_root: PROJECT_ROOT
-experiment_scripts: SCRIPT_PATHS
-algorithm_context: METRIC/TARGET/RISKS/COUPLINGS
-
-Read SESSION_PATH/meta.json, results.csv, observations.md, plan.md, and SESSION_PATH/runs/<id>/ artifacts directly. Do not rely on this prompt as a result summary.
-
-Tasks:
-1. Verify artifacts for each assigned run.
-2. Parse metrics by structured files first, then event files if applicable, then explicit log parsing fallback.
-3. Decide finished/failed/inconclusive; determine trust note and per-HP observations. Do NOT call aet.py record or write any files — return all data to the main agent.
-4. Accumulate 1-3 lines of per-HP influence notes (patterns across runs, boundary hits, forbidden regions).
-
-Do not edit plan.md or any other file.
-Return structured data per run:
-run_id, status, primary_metric, metric_name, metrics_json, metric_source,
-trust_note, record_notes, observations_to_append, summary_trust_details,
-benchmark_update_needed: yes/no
-```
+Pass only session-specific context in the prompt; each subagent's role instructions are already loaded via its registered system prompt (`experiment-strategist`, `experiment-runner`).
 
 ## Call Prompt Template: Strategist
 
@@ -84,10 +52,12 @@ cli_notes: CLI_NOTES
 algorithm_context: METRIC/TARGET/RISKS/COUPLINGS
 current_free_slots: N
 current_best: RUN_ID/METRIC as a locator only
+runs_since_last_strategist: [run_id list with recorded status, primary_metric, metric_name from results.csv]
 
 Read SESSION_PATH/meta.json, results.csv, observations.md, plan.md, and important runs/<id>/ artifacts directly.
 
 Tasks:
+0. Generate observations: for runs in runs_since_last_strategist, read their artifacts directly (runs/<id>/metrics.json, params.json, summary.md, train.log) and synthesize per-HP influence notes (patterns, boundary hits, forbidden regions, settings that help only under specific companion knobs). Return as observations_to_append. Omit if nothing new.
 1. Determine whether the next candidates should broaden, refine, confirm, expand a boundary, or run an escape group.
 2. Return enough Ready Queue candidates so ready_count will be greater than current_free_slots while useful search remains.
 3. Include per-HP rationale for non-obvious values, cited from run evidence.
@@ -95,6 +65,7 @@ Tasks:
 
 Do not write plan.md or observations.md.
 Return:
+0. observations_to_append (per-HP influence notes for runs_since_last_strategist; omit if nothing new).
 1. Ready Queue Candidates as rows compatible with plan.md.
 2. Stop/Continue Rule Update.
 3. Queue Edits.
@@ -130,19 +101,9 @@ Return run_id, command, gpu_id, output_dir, log_path, process/session status, an
 
 ## Interpreting Returns
 
-### After Analyzer Returns
-
-1. Call `aet.py record --status <status> --run-id <id> [--notes '<record_notes>']` — add `--primary-metric <value> --metric-name <name> --metrics '<metrics_json>'` only if Analyzer returned a valid metric
-2. If `summary_trust_details` provided: append it to `SESSION/runs/<run_id>/summary.md` (after record, since record rewrites that file)
-3. If `observations_to_append` provided: append it to `SESSION/observations.md`
-4. If `benchmark_update_needed: yes`: update the project benchmark table or README
-5. Move the corresponding row in `plan.md` from `Running` to `Completed / Recorded`.
-6. Re-check GPU slots.
-7. If `Ready Queue` count <= free slots and no stop condition is met, spawn Strategist.
-8. Launch from `Ready Queue` into available slots.
-
 ### After Strategist Returns
 
+0. If `observations_to_append` provided: append to `SESSION/observations.md`; clear the `runs_since_last_strategist` tracking list.
 1. Apply or lightly edit returned rows, then append them to `plan.md` `Ready Queue`.
 2. Update the `Stop/Continue Rule` section.
 3. Remove or rewrite invalidated ready rows if the strategist identified any.
@@ -154,4 +115,4 @@ Return run_id, command, gpu_id, output_dir, log_path, process/session status, an
 
 1. Confirm `create-run` and `record --status running` completed.
 2. Record run id, output directory, log path, GPU, and process/session status in `plan.md` `Running`.
-3. Wait for normal completion handling; every terminal run still goes through Analyzer.
+3. Wait for normal completion handling; record each terminal run inline.

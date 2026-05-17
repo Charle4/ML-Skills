@@ -70,7 +70,7 @@ Keep this board current. Move rows between sections instead of leaving stale dup
 ## Stop/Continue Rule
 
 - Stop if:
-- Plateau can be claimed only after:
+- Strategist may declare plateau only after (evidence requirements for Strategist to evaluate, not you):
   - minimum run count:
   - broad interaction group completed:
   - local refinement group completed:

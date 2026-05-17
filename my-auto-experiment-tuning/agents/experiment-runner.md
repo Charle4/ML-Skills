@@ -44,5 +44,5 @@ End your response with the following block verbatim (this is for the main agent 
 After receiving this return:
 1. Verify `create-run` and `record --status running` completed for each run
 2. Write each run's `run_id → output_dir → log_path` to `SESSION/plan.md` Running section
-3. Each background run completes independently — spawn Analyzer for each completion notification (see references/subagents.md template)
+3. Each background run completes independently — the main agent records each completion inline (see references/subagents.md)
 ---

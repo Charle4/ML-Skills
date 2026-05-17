@@ -1,3 +1,5 @@
+# DEPRECATED — merged into experiment-strategist (observations) and inline main-agent recording
+
 name = "result-analyzer"
 description = "Parses finished experiment runs, judges trustworthiness, accumulates reusable per-HP conclusions, and returns structured data for the main agent to record."
 sandbox_mode = "read-only"
