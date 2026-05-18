@@ -22,7 +22,7 @@ Claude Code has a `/loop` command that sends a recurring prompt at a fixed inter
 **Command to run** (in conversation, not in shell):
 
 ```
-/loop 1h /my-auto-experiment-tuning Continue fine-tuning parameters; target PSNR > XX (if specified when enabled); expand the range if trapped in a local optimum; maintain GPU usage; ignore if working normally.
+/loop 1h /my-auto-experiment-tuning Continue fine-tuning. Target: PSNR > XX (substitute actual target). At the start of each invocation: (1) run `aet.py status` — if results.csv finished count exceeds plan.md Completed entries, rebuild plan.md from results.csv first; (2) if Ready Queue count < total_capacity, spawn Strategist (blocking if queue empty; Claude Code: background `Agent(run_in_background=True)` if non-empty; Codex: always blocking); pass recent run IDs from results.csv as runs_since_last_strategist. Keep GPUs occupied. If actively working on steps 1–2 already, skip this prompt.
 ```
 
 If the user provided a numeric target (e.g., `PSNR > 25`), embed it in the prompt. If not, omit the target clause. The "ignore if working normally" tail means the loop does nothing when the session is already busy, making it safe to leave running.
@@ -49,7 +49,7 @@ Codex cannot self-wake and has no background completion notification. During an 
 If an external scheduler can send a message to the active conversation, use a short prompt like:
 
 ```text
-$my-auto-experiment-tuning Continue the existing tuning session. Keep GPUs occupied within contention limits. Do not stop unless a valid stop condition is recorded: clean target evidence, exhausted budget, user stop, or blocked continuation. If recent runs are stuck in a local optimum, broaden the search space and add appropriate escape candidates to the ready queue. Record results and update the benchmark ledger.
+$my-auto-experiment-tuning Continue the existing tuning session. Keep GPUs occupied within contention limits. Do not stop unless a valid stop condition is recorded: clean target evidence, exhausted budget, user stop, or blocked continuation. If the Ready Queue is insufficient or a stop condition is not clearly met, spawn Strategist with the standard neutral prompt. Record results and update the benchmark ledger.
 ```
 
 If the objective has a numeric target, include it:

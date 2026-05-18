@@ -28,8 +28,8 @@ These are the mistakes that break the autonomous loop. **Never do any of these:*
 | 3 | **Creating new AET sessions for sub-phases** — running `aet.py init` again when exploring a new parameter direction | One tuning objective = one session. Fragmenting sessions destroys the ledger continuity. | Use the same session for the entire tuning objective. Sub-phases are documented in the same `plan.md` and `observations.md`. |
 | 4 | **Using shell `for` loops to create dirs or launch experiments** — `for d in ...; do ...; done` | Hook interception → manual approval → loop broken. | Use `mkdir -p dir1 dir2 dir3 dir4` to create multiple directories in one command. Claude Code: launch with independent `Bash(run_in_background=True)` calls. Codex: launch with one `exec_command` session per experiment; no shell `&`. |
 | 5 | **Presenting a "final report" before checking if more work exists** — summarizing results as if the task is done | Unless a stop condition is met (target achieved, budget exhausted, or plateau confirmed by two independent Strategist instances), the tuning continues. | After results: check slots → launch more → then (and only then) give a brief status update. Do not frame updates as conclusions. |
-| 6 | **Keeping only a same-size "next batch" table** — planning exactly as many candidates as current free slots | This creates idle gaps and forces batch-synchronous thinking. | Maintain `Completed / Recorded`, `Running`, and `Ready Queue` sections in `plan.md`; keep ready candidates strictly greater than current free GPU slots whenever unexplored regions remain. |
-| 7 | **Self-declaring exhaustion, convergence, or plateau** — concluding from your own reading of results that the search space is exhausted, a ceiling has been reached, or that further tuning is futile, then stopping or skipping Strategist on that basis | You lack the full search-history perspective; such judgments are highly error-prone. Only the Strategist has authority to declare exhaustion. | Never self-evaluate plateau, convergence, or exhaustion. When Ready Queue is insufficient, always spawn Strategist. Only when Strategist returns 0 candidates and explicitly declares exhaustion should you consider stopping — and even then a second independent Strategist must confirm. See Default Stopping Rules. |
+| 6 | **Keeping only a same-size "next batch" table** — planning exactly as many candidates as current free slots | This creates idle gaps and forces batch-synchronous thinking. | Maintain `Completed / Recorded`, `Running`, and `Ready Queue` sections in `plan.md`; keep ready candidates at or above total_capacity (capacity_per_gpu × gpu_count) whenever unexplored regions remain. |
+| 7 | **Self-declaring exhaustion, convergence, or plateau** — concluding from your own reading of results that the search space is exhausted, a ceiling has been reached, or that further tuning is futile, then stopping or skipping Strategist on that basis | You lack the full search-history perspective; such judgments are highly error-prone. Only the Strategist has authority to declare exhaustion. | Never self-evaluate plateau, convergence, or exhaustion. When Ready Queue is insufficient, always spawn Strategist. Only when Strategist returns 0 candidates and explicitly declares exhaustion should you consider stopping — and even then a second independent Strategist must confirm. See Default Stopping Rules. **Signal**: if you find yourself about to write "this direction is exhausted", "a ceiling has been reached", or "lcdf is a dead end" — that sentence is the trigger to spawn Strategist, not to stop. |
 
 ### Continuous Rolling Execution (NOT batch-synchronous)
 
@@ -44,7 +44,11 @@ The default operating mode is **asynchronous rolling**: GPU slots are filled con
 6. Move run from `Running` to `Completed / Recorded` in `plan.md`; add run_id to the pending `runs_since_last_strategist` list
 7. Check GPU slots
 8. If slots are free, launch as many existing `Ready Queue` candidates as current resources allow NOW
-9. If ready candidates are not strictly greater than current free slots, spawn Strategist (passing `runs_since_last_strategist`) and write its returned candidates into `plan.md`; clear `runs_since_last_strategist` after Strategist returns. The only conditions that can suppress this spawn are: explicit user stop, explicit numeric target cleanly met with evidence, explicit run/wall-clock budget consumed, or required permission/resource unavailable. Plateau and exhaustion are never self-evaluatable and cannot gate this spawn.
+9. If Ready Queue count < total_capacity (total_capacity = sum of `capacity` fields across all allowed GPUs from `aet.py gpu-slots --json`; equals capacity_per_gpu × gpu_count when all GPUs share the same capacity setting):
+   - If queue is **empty**: spawn Strategist (blocking); apply returned observations and candidates before launching anything.
+   - If queue is **non-empty but below total_capacity**: spawn Strategist (Claude Code: `Agent(..., run_in_background=True)`; Codex: blocking). Record the run_ids passed at spawn time; when Strategist returns, only clear those IDs from `runs_since_last_strategist` — runs completed during analysis accumulate for the next call.
+   - In both cases: apply `observations_to_append` to `observations.md` and write returned candidates to `plan.md` Ready Queue when Strategist returns.
+   - Suppression conditions: explicit user stop, target cleanly met, budget consumed, permission unavailable, **or a background Strategist is already in flight** (Claude Code only — record the run_id in `runs_since_last_strategist` and wait for the in-flight Strategist to return before spawning again). Plateau and exhaustion cannot suppress.
 10. Only after steps 1-9: give a brief progress update
 
 **Never wait for all experiments in a batch to finish before acting.** Process each completion as it arrives. Keep all GPU slots occupied at all times.
@@ -57,7 +61,7 @@ Use `SESSION/plan.md` as a live execution board with three sections:
 
 - `Completed / Recorded`: terminal runs with metrics, trust status, and the follow-up learned from them.
 - `Running`: active runs with run id, GPU, output directory, log path, command/session id if available, and expected signal.
-- `Ready Queue`: launchable candidates without assigned run ids yet. Keep this count strictly greater than the current free GPU slots whenever useful unexplored regions remain. If free slots = N, maintain at least N+1 ready candidates; if free slots = 0, keep at least one ready candidate unless a valid stop condition is documented.
+- `Ready Queue`: launchable candidates without assigned run ids yet. Keep this count at or above total_capacity whenever useful unexplored regions remain. total_capacity = configured capacity_per_gpu × number_of_gpus (constant; read from `aet.py gpu-slots`). Strategist is spawned whenever count drops below total_capacity, ensuring the queue is always pre-stocked for upcoming slots.
 
 State transitions:
 - Strategist planning adds candidates to `Ready Queue`. Add as many as the evidence justifies, including multi-point grids or factorial groups when useful; do not force a one-finished-run to one-new-run cadence.
@@ -71,7 +75,7 @@ Read `references/subagents.md` before spawning or locally emulating a role. Use 
 
 | Trigger | Role | Main-agent follow-up |
 | ------- | ---- | -------------------- |
-| `Ready Queue` count <= free slots, or queue is empty | Strategist | Append returned `observations_to_append` to `observations.md`; clear `runs_since_last_strategist`; append returned rows to `plan.md`; update Stop/Continue Rule; launch ready rows |
+| `Ready Queue` count < total_capacity (constant: capacity_per_gpu × gpu_count from `aet.py gpu-slots`) | Strategist — blocking if queue empty, background (`run_in_background=True` Agent, Claude Code only) if queue non-empty | Append returned `observations_to_append` to `observations.md`; clear only the `runs_since_last_strategist` entries passed at spawn time; append returned rows to `plan.md`; update Stop/Continue Rule; launch ready rows |
 | Launch execution needs context isolation | Runner, optional | Confirm registration/running status, write `Running` row, then handle completion inline |
 
 Self-evaluatable conditions that may suppress a Strategist spawn: explicit user stop, explicit numeric target cleanly met with evidence, explicit run/wall-clock budget consumed, required permission/resource unavailable. Plateau and exhaustion are never self-evaluatable — Strategist must declare them.
@@ -147,7 +151,7 @@ Full details in `references/claude-code-adapter.md` (Safe Bash Patterns section)
 
 - Stop only for one of these reasons: explicit user stop, explicit metric target met with clean evidence, explicit run/wall-clock budget consumed, required permission/resource unavailable, destructive action required, or a plateau/exhaustion decision confirmed by two independent Strategist instances per the rules below.
 - The plateau/exhaustion stop condition cannot be self-evaluated. You have no authority to conclude the search space is exhausted, a ceiling has been reached, or that further tuning is futile. Only the Strategist may declare plateau or exhaustion, after evaluating the minimum evidence requirements.
-- Strategist spawning follows one rule throughout: candidates insufficient (Ready Queue count <= free slots) → spawn Strategist. This rule never changes. When a Strategist returns zero candidates, the Queue remains empty, so every subsequent experiment completion keeps triggering the same rule — Strategist is spawned again with a fresh result state each time.
+- Strategist spawning follows one rule throughout: Ready Queue count < total_capacity → spawn Strategist. total_capacity is constant (capacity_per_gpu × gpu_count). When queue is empty, spawn is blocking; when queue is non-empty, spawn is background (Claude Code) so experiments continue. This rule never changes. When a Strategist returns zero candidates, the Queue remains empty (0 < total_capacity), so every subsequent experiment completion keeps triggering the same rule — Strategist is spawned again with a fresh result state each time.
 - All Strategist prompts must use the standard neutral template from subagents.md. Never add context about previous Strategist verdicts, never ask "is the search exhausted?", never prime the conclusion in any direction.
 - Stop condition for plateau/exhaustion: two consecutive Strategist calls, both occurring when no experiments are running at the time of spawning, both returning zero candidates and independently declaring exhaustion. Only then is plateau confirmed. If any Strategist in the sequence returns candidates: append them, continue the loop, and discard all prior exhaustion declarations. The count resets to zero — next time the condition is triggered, start fresh.
 - When no explicit target or budget is supplied, assume the user wants continued tuning rather than a final answer. Send progress updates, keep filling available slots, and avoid a final response while useful experiments remain.
@@ -195,28 +199,26 @@ The `init` command prints the exact session directory, normally `PROJECT/aet/YYY
    - constraints that make a result untrustworthy
    - candidate knobs, ranges, and forbidden regions
    - likely parameter couplings and at least one broad interaction group before narrow sweeps
-   - per-GPU capacity, current free slots, and the `Ready Queue` invariant: ready candidates must be strictly greater than free slots while useful search remains
+   - per-GPU capacity, current free slots, total_capacity, and the `Ready Queue` invariant: ready candidates must be at or above total_capacity while useful search remains
    - the live execution board: `Completed / Recorded`, `Running`, and `Ready Queue`
 
 Fill `PROJECT/aet/YYYY-MM-DD/HH-MM-SS/plan.md` before launching. If that file is missing or damaged, read `assets/plan-template.md` only to restore the template into the same session `plan.md`; do not copy the template into any other path.
 
-4. Check capacity and create unique run output directories:
+4. Check capacity:
 
    Read `references/gpu-policy.md` for slot defaults and configurable parameters. Default: 1 experiment per GPU, hard cap 3, utilization ceiling 95%. Override via user instruction, project adapter, README, or project memory — in that priority order.
 
 ```bash
 nvidia-smi --query-gpu=index,utilization.gpu,memory.used,memory.total --format=csv,noheader
 python SKILL_DIR/scripts/aet.py gpu-slots
-python SKILL_DIR/scripts/aet.py unique-dir /path/to/project/experiments/results/dse_example/run_name --mkdir
 ```
 
-Use raw `nvidia-smi` for human-readable/agent-readable context; use `aet.py gpu-slots` for the normalized slot decision because it parses numeric fields internally and applies configured filters.
+Use raw `nvidia-smi` for human-readable/agent-readable context; use `aet.py gpu-slots` for the normalized slot decision because it parses numeric fields internally and applies configured filters. Output directory creation happens in Step 5 via `aet.py create-run`.
 
 5. Launch experiments:
-   - Select candidates from `plan.md` `Ready Queue`, highest priority first, for as many free slots as current resource checks allow. Assign run id/GPU/output/log fields only when launching.
-   - Use the `aet.py unique-dir ... --mkdir` output as the run's `output_dir`.
-   - Set `log_path` to a file inside that `output_dir`, normally `output_dir/train.log`; do not use a separate shared log directory.
-   - Before each launch, register the run with `aet.py create-run` so the session has a run id, params, command, GPU, output directory, and log path.
+   - Select candidates from `plan.md` `Ready Queue`, highest priority first, for as many free slots as current resource checks allow.
+   - Register each run with `aet.py create-run --name ... --params '...' --gpu-id G` (no `--run-id`). It auto-assigns the next safe ID, creates `runs/<id>/output/`, and prints three labeled lines: `run_dir`, `run_id`, `output_dir`. Use the printed `output_dir` directly — do not call `aet.py unique-dir` for session-internal output directories.
+   - Redirect stdout/stderr to `output_dir/train.log` in the launch command (`> output_dir/train.log 2>&1`); do not use a separate shared log directory. `create-run` records this as the default `log_path`; no need to pass `--log-path` unless overriding.
    - `create-run` appends a recovery row to `queue.jsonl`; do not treat `queue.jsonl` as the live `Ready Queue`.
    - After the process starts, call `aet.py record --status running` without routine notes so `results.csv` records `start_time`.
    - Move each launched row from `Ready Queue` to `Running` in `plan.md`.
@@ -227,7 +229,6 @@ Use raw `nvidia-smi` for human-readable/agent-readable context; use `aet.py gpu-
    - Use plain `python` unless the active environment is wrong; then use the correct interpreter path, for example `/path/to/venv/bin/python -u ...`.
    - Pass `--gpu_id`/equivalent explicitly.
    - Use a unique `--output_dir` for every configuration and never reuse an existing output directory.
-   - Register the in-output-dir log path with `aet.py create-run --log-path`.
 
 6. Record results inline on completion:
    - Verify output directory and metric files exist (runs/<id>/ artifacts).
@@ -251,8 +252,8 @@ python SKILL_DIR/scripts/aet.py record \
    - Summarize the session with `aet.py summarize`.
    - `aet.py create-run` creates `SESSION/runs/<id>/summary.md` from `assets/run-summary-template.md`, and `aet.py record` rewrites it when metrics/status change. Update that per-run file for important runs after the terminal `record`. If the file is missing, restore the template into `SESSION/runs/<id>/summary.md`, not a date-level note.
    - Update the benchmark table or experiment README in the project-required format.
-   - If `Ready Queue` count is not strictly greater than current free GPU slots, spawn Strategist and append its returned candidates. The number added can be 0, 1, or many. Suppress this spawn only for explicit self-evaluatable stop conditions (explicit user stop, explicit target met with evidence, explicit budget consumed, permission/resource unavailable). Plateau and exhaustion cannot suppress it — Strategist must declare them.
-   - Unless a stop condition is satisfied, keep `Ready Queue` count strictly greater than current free GPU slots and launch into any free GPU slots immediately.
+   - If `Ready Queue` count < total_capacity, spawn Strategist and append its returned candidates. The number added can be 0, 1, or many. Suppress this spawn only for explicit self-evaluatable stop conditions (explicit user stop, explicit target met with evidence, explicit budget consumed, permission/resource unavailable). Plateau and exhaustion cannot suppress it — Strategist must declare them.
+   - Unless a stop condition is satisfied, keep `Ready Queue` count at or above total_capacity and launch into any free GPU slots immediately.
    - Stop only when the objective is met, budget is exhausted, resources/permissions block continuation, or plateau/exhaustion has been confirmed by two independent Strategist instances per the Default Stopping Rules above.
 
 ## AET Helper Calls
@@ -260,9 +261,9 @@ python SKILL_DIR/scripts/aet.py record \
 Use `scripts/aet.py` as the durable state and safety helper for the tuning loop:
 
 - `init`: create `aet/YYYY-MM-DD/HH-MM-SS/` with `meta.json`, `results.csv`, `queue.jsonl`, `observations.md`, `plan.md`, and `runs/`, then print that session path. `plan.md` is rendered from `assets/plan-template.md`; `observations.md` is rendered from `assets/observations-template.md`. These generated files are the canonical files to edit. Required: `--project-root`, `--name`, `--objective`. Optional: `--goal max|min` (default `max`).
-- `create-run`: register a run before launch, create `runs/<id>/`, and append a recovery snapshot to `queue.jsonl`. Optional: `--session` or `--project-root` (latest session lookup), `--run-id`, `--name`, `--params` (JSON string or JSON file), `--command`, `--gpu-id`, `--output-dir`, `--log-path`, `--notes`. Prefer explicit `--run-id` when coordinating multiple agents. `queue.jsonl` is not the live `Ready Queue`; manage ready candidates in `plan.md`.
+- `create-run`: register a run before launch, create `runs/<id>/` and `runs/<id>/output/`, append a recovery snapshot to `queue.jsonl`, and print three labeled lines: `run_dir`, `run_id`, `output_dir`. The printed `output_dir` is already created — use it directly as the experiment output directory. Optional: `--session` or `--project-root` (latest session lookup), `--name`, `--params` (JSON string or JSON file), `--command`, `--gpu-id`, `--output-dir`, `--log-path`, `--notes`. Never pass `--run-id`; always let it auto-assign to avoid collisions when `plan.md` is stale. `queue.jsonl` is not the live `Ready Queue`; manage ready candidates in `plan.md`.
 - `record`: update a run whenever status or results change. Required: `--run-id`, `--status created|running|finished|failed|inconclusive|superseded`. Optional: `--session` or `--project-root`, `--name`, `--primary-metric`, `--metric-name`, `--metrics` (JSON string or JSON file), `--gpu-id`, `--output-dir`, `--log-path`, `--notes`. Use `running` to record `start_time`; terminal statuses record `end_time`. `--notes` appends to `observations.md`, so omit it for routine `running` updates and use it for terminal trust/failure notes.
-- `unique-dir`: choose a non-existing output directory. Positional: `path`. Optional: `--mkdir`; use it before launching so shell redirection to `<output_dir>/train.log` succeeds.
+- `unique-dir`: choose a non-existing path and optionally create it. Positional: `path`. Optional: `--mkdir`. Use only when `output_dir` must live outside the session directory (e.g., a project-level `[PROJECT]/tun_res/` tree). For session-internal run output, use `aet.py create-run` instead — it creates `runs/<id>/output/` automatically.
 - `gpu-slots`: estimate available GPU slots. Optional: `--kind default|light|heavy` (default `default`), `--capacity N`, `--saturated-util N` (default `95`), `--process-pattern REGEX` (default `python`), `--gpu-ids 0,1,3`, `--max-memory-used-mb N`, `--min-free-memory-mb N`, `--allow-over-cap`, `--json`. It internally queries `nvidia-smi` with machine-readable numeric output, then reports utilization, memory used/total/free, running process count, capacity, and free slots.
 - `parse-log`: extract metrics from a log only when structured metrics are unavailable. Positional: `log`. Optional: repeat `--pattern REGEX`; each pattern should have named groups `name` and `value`, or one numeric group. Treat regex output as a draft and inspect it before recording.
 - `status` / `summarize`: print session path, objective, run counts, status counts, and current best finished result. Optional: `--project-root`, `--session`, `--goal max|min`.

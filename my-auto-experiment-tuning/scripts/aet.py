@@ -192,16 +192,22 @@ def next_run_id(session: Path) -> int:
     for path in (session / "runs").iterdir():
         if path.is_dir() and path.name.isdigit():
             existing.append(int(path.name))
+    for row in read_rows(session / "results.csv"):
+        try:
+            existing.append(int(row["run_id"]))
+        except (KeyError, ValueError):
+            pass
     return 0 if not existing else max(existing) + 1
 
 
 def command_create_run(args: argparse.Namespace) -> None:
     session = require_session(args)
     meta = json.loads((session / "meta.json").read_text(encoding="utf-8"))
-    run_id = args.run_id if args.run_id is not None else next_run_id(session)
+    run_id = next_run_id(session)
     run_name = args.name or f"run-{run_id:04d}"
     run_dir = session / "runs" / str(run_id)
     run_dir.mkdir(parents=True, exist_ok=False)
+    (run_dir / "output").mkdir()
 
     params = load_json_arg(args.params)
     metrics: dict[str, Any] = {}
@@ -223,8 +229,8 @@ def command_create_run(args: argparse.Namespace) -> None:
         "primary_metric": "",
         "metric_name": "",
         "gpu_id": args.gpu_id or "",
-        "output_dir": args.output_dir or "",
-        "log_path": args.log_path or "",
+        "output_dir": args.output_dir or str(run_dir / "output"),
+        "log_path": args.log_path or str(Path(args.output_dir or str(run_dir / "output")) / "train.log"),
         "params_json": json.dumps(params, ensure_ascii=False, sort_keys=True),
         "command": args.command or "",
         "metrics_json": "{}",
@@ -237,7 +243,9 @@ def command_create_run(args: argparse.Namespace) -> None:
     write_rows(session / "results.csv", rows)
     with (session / "queue.jsonl").open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(row, ensure_ascii=False, sort_keys=True) + "\n")
-    print(run_dir)
+    print(f"run_dir: {run_dir}")
+    print(f"run_id: {run_id}")
+    print(f"output_dir: {row['output_dir']}")
 
 
 def command_record(args: argparse.Namespace) -> None:
@@ -458,7 +466,6 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("create-run")
     p.add_argument("--session")
     p.add_argument("--project-root", default=".")
-    p.add_argument("--run-id", type=int)
     p.add_argument("--name")
     p.add_argument("--params")
     p.add_argument("--command")

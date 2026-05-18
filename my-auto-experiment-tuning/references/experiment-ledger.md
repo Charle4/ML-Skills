@@ -25,7 +25,7 @@ Only this timestamped session directory holds session ledger files. Do not write
 
 ## AET Helper Ownership
 
-- Use `aet.py create-run` before launching any experiment. It creates `runs/<id>/`, writes objective artifacts, and appends the registration snapshot to `queue.jsonl`.
+- Use `aet.py create-run` before launching any experiment. It creates `runs/<id>/` and `runs/<id>/output/`, writes objective artifacts, appends the registration snapshot to `queue.jsonl`, and prints `run_dir`, `run_id`, and `output_dir` as labeled lines.
 - Use `aet.py record --status running` after the process starts so `results.csv` records `start_time`.
 - Use `aet.py record` again for terminal statuses and metrics. Terminal records update `end_time`, `metrics.json`, `results.csv`, and `summary.md`.
 - Treat `results.csv` as the current status source of truth. `queue.jsonl` is append-only and may still show the original `created` snapshot.

@@ -18,7 +18,8 @@ Canonical file: this template is rendered by `aet.py init` into `PROJECT/aet/YYY
 - Compute budget:
 - GPU parallelism:
 - Current free GPU slots:
-- Ready-queue invariant: keep `Ready Queue` count strictly greater than current free GPU slots whenever useful unexplored regions remain. If free slots = N, maintain at least N+1 ready candidates; if free slots = 0, keep at least 1 ready candidate unless stopping is valid.
+- total_capacity: (capacity_per_gpu × gpu_count, from `aet.py gpu-slots`)
+- Ready-queue invariant: keep `Ready Queue` count at or above total_capacity whenever useful unexplored regions remain. Strategist is spawned whenever count drops below total_capacity.
 - Invalid or untrusted conditions:
 - Forbidden parameter regions:
 
@@ -53,12 +54,17 @@ Keep this board current. Move rows between sections instead of leaving stale dup
 | -------- | ---------- | ---------- | --------- | -------- | --------------- | --------------- |
 
 <!-- Rolling queue protocol:
-1. Plan enough Ready Queue candidates so ready_count > current_free_gpu_slots.
+1. Plan enough Ready Queue candidates so ready_count >= total_capacity (capacity_per_gpu × gpu_count).
 2. When slots are free, take as many highest-priority ready rows as current resource checks allow, assign run id/GPU/output dir/log path, register each with `aet.py create-run`, launch each command, then record each accepted process with `aet.py record --status running` and move them to Running.
 3. When a run finishes, collect metrics, record terminal status with `aet.py record`, move that row from Running to Completed / Recorded, then update observations.
 4. Analyze current results and append informative candidates to Ready Queue when useful. This can be 0, 1, or many candidates, including a small grid/factorial group; do not force a one-finished-run to one-new-run cadence.
 5. If new evidence invalidates a ready candidate before launch, remove or rewrite that Ready Queue row and note why in observations.md.
 -->
+
+### Loop State (Claude Code — update after each completion/Strategist event)
+
+- `runs_since_last_strategist`: []  <!-- append run_id each time a run reaches terminal status -->
+- `background_strategist_in_flight`: false  <!-- set true when background Agent spawn issued; set false when it returns; skip re-spawn while true -->
 
 ### Per-HP Rationale (for non-obvious value choices, cite prior run evidence)
 

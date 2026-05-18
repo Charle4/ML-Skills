@@ -57,9 +57,13 @@ When a `run_in_background=True` command finishes, Claude Code receives an automa
 4. Determine terminal status: `finished`, `failed`, or `inconclusive`. Mark sandbox failures, dependency failures, code bugs, GPU contention, and partial crashes as `failed` or `inconclusive`.
 5. Call `aet.py record --status <status> --run-id <id> [--primary-metric <value> --metric-name <name> --metrics '<json>'] [--notes '<notes>']` (omit metric flags if no valid metric).
 6. If trust note is relevant: append to `runs/<id>/summary.md` (after record); move the row in `plan.md` from `Running` to `Completed / Recorded`; add run_id to `runs_since_last_strategist`.
-7. Check if a self-evaluatable stop condition is now met: explicit user stop, explicit numeric target cleanly met with evidence, explicit budget consumed, or required permission/resource unavailable. Do not evaluate plateau or exhaustion here.
+7. Check if a self-evaluatable stop condition is now met: explicit user stop, explicit numeric target cleanly met with evidence, explicit budget consumed, or required permission/resource unavailable. Do not evaluate plateau or exhaustion here. If you find yourself about to write that a parameter direction is "exhausted", "hit a ceiling", or "at a local optimum" — that is not a self-evaluatable stop condition. It is the signal that Strategist must be spawned at step 9.
 8. If not, re-check current GPU slots, select as many ready candidates as resources allow, register each with `aet.py create-run`, launch each with `run_in_background=True`, then record each with `aet.py record --status running`.
-9. If Ready Queue count <= free slots, spawn Strategist passing `runs_since_last_strategist`; after it returns, append `observations_to_append` to `observations.md` and clear the tracking list. Suppress this spawn only for explicit self-evaluatable conditions (explicit user stop, target cleanly met, budget consumed, permission unavailable). Plateau and exhaustion cannot suppress it.
+9. If Ready Queue count < total_capacity (capacity_per_gpu × gpu_count, constant):
+   - If `background_strategist_in_flight` is true in `plan.md` Loop State: **skip spawning**; run_id is already in `runs_since_last_strategist` and will be included when the in-flight Strategist returns.
+   - Queue **empty** (and not in-flight): `Agent(subagent_type="experiment-strategist", run_in_background=False, ...)`; wait before launching.
+   - Queue **non-empty** (and not in-flight): `Agent(subagent_type="experiment-strategist", run_in_background=True, ...)`; set `background_strategist_in_flight: true` in `plan.md`; continue processing other notifications while Strategist works. Record the run_ids passed at spawn time.
+   On Strategist return (either path): append `observations_to_append` to `observations.md`; append candidates to `plan.md` Ready Queue; clear only the `runs_since_last_strategist` entries that were passed at spawn time; set `background_strategist_in_flight: false`.
 
 Do not batch notifications — process each one as soon as it arrives, even if another experiment is still running. Incremental recording prevents data loss if the session is interrupted.
 
@@ -72,7 +76,7 @@ Claude Code's `/loop` command sends a recurring prompt at a fixed interval insid
 **Invoke `/loop` as a slash command in the conversation** (not in a shell). Pass the interval and the skill invocation prompt:
 
 ```
-/loop 1h /my-auto-experiment-tuning Continue fine-tuning. Target: PSNR > XX (substitute actual target). Keep GPUs occupied; expand the search range if stuck in a local optimum. If actively working, ignore this prompt.
+/loop 1h /my-auto-experiment-tuning Continue fine-tuning. Target: PSNR > XX (substitute actual target). Keep GPUs occupied. At the start of each invocation: (1) run `aet.py status` — if results.csv finished count exceeds plan.md Completed entries, rebuild plan.md from results.csv before anything else; (2) if Ready Queue count < total_capacity, spawn Strategist (blocking if queue empty, background if non-empty); pass recent run IDs from results.csv as runs_since_last_strategist. If actively working on steps 1–2 already, skip this prompt.
 ```
 
 Template to customize:
@@ -93,6 +97,7 @@ Claude Code uses the `Agent` tool (not Codex's `multi_tool_use.parallel` pattern
 - Pass the session path, ledger summary, and bounded write scope explicitly in the agent prompt, because subagents start without the parent's context.
 - Background jobs launched by a Runner subagent do NOT notify the parent directly — the Runner must collect results before returning, or the parent must re-check the output directories after the Runner finishes.
 - Use `run_in_background=True` in Runner subagents for their individual experiment launches; the Runner stays alive until its assigned runs finish, then reports back.
+- When Ready Queue is non-empty but below total_capacity, spawn Strategist with `run_in_background=True` so experiments continue uninterrupted. When queue is empty, spawn blocking (omit `run_in_background` or set to False).
 
 ## Workflow Differences Summary
 
@@ -129,6 +134,9 @@ print('hello')
 
 # ✗ writing a shell script to a file and executing it as a multi-run launcher
 bash /tmp/launch_batch.sh
+
+# ✗ unique-dir for session-internal output + manual --run-id (causes ID collisions when plan.md is stale)
+OUTPUT=$(aet.py unique-dir .../runs/run-0098 --mkdir) && aet.py create-run --run-id 98 ...
 ```
 
 ### Safe replacements
@@ -149,6 +157,18 @@ python -c "
 import json
 print('hello')
 "
+
+# ✓ session-internal run output: two-step Bash calls (no shell extraction)
+#
+#   Step 1: Bash("aet.py create-run ...")
+#           → tool output contains three labeled lines; read output_dir: value directly
+#               run_dir: /path/to/session/runs/42
+#               run_id: 42
+#               output_dir: /path/to/session/runs/42/output   ← already created
+#
+#   Step 2: Bash("python -u SCRIPT --output_dir OUTPUT_DIR > OUTPUT_DIR/train.log 2>&1",
+#                run_in_background=True)
+#           → substitute the literal path read from Step 1 output; no shell variable needed
 ```
 
 ### Multi-run launches: parallel tool calls, not loops

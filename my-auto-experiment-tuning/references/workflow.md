@@ -20,7 +20,7 @@ Default duration semantics:
 - Do not end after 1-3 planning groups just because a plausible local best was found. A local best is a signal for the next queue update, not a stopping reason.
 - If no explicit run or wall-clock budget is provided, assume the budget is open-ended until the user intervenes or the target is cleanly met.
 - Keep all usable GPU slots occupied within the configured contention limits. When any run finishes, immediately identify it, record inline: verify output files, parse metrics in priority order (JSON/CSV/NPZ → TensorBoard → log regex), determine status, call `aet.py record`, append trust details to `runs/<id>/summary.md`, move to `Completed / Recorded`, add to `runs_since_last_strategist`, re-check current resources, and launch as many `Ready Queue` candidates as the now-free slots allow — do not wait for other running experiments to finish first.
-- Keep `Ready Queue` count strictly greater than current free GPU slots whenever useful unexplored regions remain. If free slots = N, maintain at least N+1 ready candidates; if free slots = 0, keep at least one ready candidate unless a valid stop condition is documented.
+- Keep `Ready Queue` count at or above total_capacity (capacity_per_gpu × gpu_count, constant from `aet.py gpu-slots`) whenever useful unexplored regions remain. Strategist is spawned whenever count drops below total_capacity.
 - If the system forces a final response before the target is met, report the next ready candidates or search group and the reason continuation is blocked; do not present a local best as final.
 
 ## 1. Context Pass
@@ -77,7 +77,7 @@ Before launching, write and maintain the live plan in `SESSION/plan.md`:
 - expected follow-up if the candidate group improves, fails, or lands on a boundary
 - remaining stop blockers, such as unmet target, missing escape group, missing confirmation, or unused plausible parameter families
 - the rolling execution board with `Completed / Recorded`, `Running`, and `Ready Queue`
-- current free GPU slots and enough ready candidates so ready_count > free_slots
+- current free GPU slots and enough ready candidates so ready_count >= total_capacity
 
 Do not create separate planning notes such as `aet/YYYY-MM-DD/next.md`, `aet/YYYY-MM-DD/plan.md`, or `aet/plan.md`. If the session `plan.md` is missing or corrupted, restore it from `assets/plan-template.md` into `SESSION/plan.md`.
 
@@ -92,12 +92,13 @@ Launch every configuration in its own run directory.
 Launch rules:
 - one experiment per command/session
 - explicit GPU id
-- unique output directory created before launch, normally with `aet.py unique-dir ... --mkdir`
+- unique output directory created before launch. Default: call `aet.py create-run` (no `--run-id`); it prints three labeled lines (`run_dir`, `run_id`, `output_dir`) and creates `run_dir/output/` automatically — use the printed `output_dir` directly. Use `aet.py unique-dir` only when `output_dir` must live outside the session directory (rare).
+- never pass `--run-id` to `create-run`; always let it auto-assign. Manual IDs cause FileExistsError collisions when `plan.md` is stale after context compaction.
 - log path inside the unique output directory, normally `<output_dir>/train.log`; do not use a separate shared log directory
 - standard launch shape: `python -u <script.py> <script args including unique output_dir> > <output_dir>/train.log 2>&1`
 - use plain `python` by default so the command inherits the agent's startup environment; use an explicit interpreter path only when the active environment is wrong
 - simple shell: avoid `cd`, command substitution, loops, pipes, and multi-command launch blocks
-- before each launch wave, re-check resources, select as many `Ready Queue` rows as current free slots allow, assign run id/GPU/output/log fields, register each with `aet.py create-run`, record status `running` with `aet.py record --status running` after the process starts, and move each to `Running`
+- before each launch wave, re-check resources, select as many `Ready Queue` rows as current free slots allow, assign GPU, register each with `aet.py create-run` (no `--run-id`; take `run_id` and `output_dir` from its output), record status `running` with `aet.py record --status running` after the process starts, and move each to `Running`
 
 **Codex**: keep the command in a foreground tool session; do not add shell `&`. Poll active sessions with `write_stdin` at reasonable intervals.
 
@@ -150,7 +151,7 @@ Perform inline result recording after each run completes:
 
 Strategist synthesizes per-HP observations across recent runs when spawned:
 - returns `observations_to_append` (per-HP influence patterns, boundary hits, forbidden regions)
-- append returned observations to `observations.md` and clear the tracking list
+- append returned observations to `observations.md` and clear only the run_ids that were passed at spawn time from the tracking list
 
 Do not wait for a whole conceptual batch before recording. Record each run inline immediately as it completes.
 
@@ -160,12 +161,14 @@ Do not perform inline strategy derivation. After inline recording:
 
 1. Check whether a self-evaluatable stop condition is met: explicit user stop ("stop"/"end tuning"), explicit numeric target cleanly met with evidence, explicit run/wall-clock budget consumed, or required permission/resource unavailable. These you can evaluate inline. Do NOT evaluate plateau or exhaustion here — that is Strategist's job.
 2. Count current `Ready Queue` rows and current free GPU slots.
-3. If `Ready Queue` count <= free slots, or the queue is empty, spawn Strategist using `references/subagents.md`, passing `runs_since_last_strategist`.
-4. Apply the Strategist return: append `observations_to_append` to `observations.md`, clear `runs_since_last_strategist`; append Ready Queue rows to `plan.md`, update Stop/Continue Rule text, and remove or rewrite invalidated ready rows.
+3. If `Ready Queue` count < total_capacity (capacity_per_gpu × gpu_count from `aet.py gpu-slots`):
+   - Queue empty: blocking spawn; wait for results before launching.
+   - Queue non-empty: background spawn (Claude Code: `Agent(..., run_in_background=True)`; Codex: blocking). Record which run_ids were passed; on return, clear only those IDs from `runs_since_last_strategist`.
+4. Apply the Strategist return: append `observations_to_append` to `observations.md`, clear only the `runs_since_last_strategist` entries that were passed at spawn time; append Ready Queue rows to `plan.md`, update Stop/Continue Rule text, and remove or rewrite invalidated ready rows.
 5. Immediately move ready rows into `Running` for any free slots.
 
 If the Strategist returns zero Ready Queue candidates and declares plateau or exhaustion:
-- Continue the same rule: Queue is still empty (0 candidates <= free slots), so every subsequent experiment completion triggers Strategist again, with the standard neutral prompt. No mention of any prior verdict. Each Strategist call works with a fresh, complete result state.
+- Continue the same rule: Queue is still empty (0 < total_capacity), so every subsequent experiment completion triggers Strategist again, with the standard neutral prompt. No mention of any prior verdict. Each Strategist call works with a fresh, complete result state.
 - Stop condition: two consecutive Strategist calls where no experiments are running at the time of spawning, both returning zero candidates and independently declaring exhaustion. If any Strategist returns candidates: append them, continue, discard all prior exhaustion declarations, reset to zero.
 
 Candidate-selection principles are built into the `experiment-strategist` subagent.
@@ -197,4 +200,4 @@ After context compaction or interruption:
 4. Reconcile any finished-but-unrecorded runs.
 5. Resume from the next untested hypothesis.
 
-If the recovered session has no active processes and the target is unmet, do not summarize and stop. Treat the idle state as a failure to continue: read the last observations, refill `Ready Queue` so it exceeds free slots, and relaunch.
+If the recovered session has no active processes and the target is unmet, do not summarize and stop. Treat the idle state as a failure to continue: read the last observations, refill `Ready Queue` to at least total_capacity, and relaunch.

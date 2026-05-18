@@ -10,18 +10,18 @@ Returns: `observations_to_append` (per-HP influence notes for `runs_since_last_s
 
 ### Runner (`experiment-runner`)
 
-Runner is optional. Use it only when launch execution needs context isolation or parallel delegation. Normally register, launch, and record `running` directly.
+Runner is optional. Use it only when launch execution needs context isolation or parallel delegation. Normally the parent calls `create-run`, launches, and records `running` directly without spawning Runner. If Runner is spawned, the parent has already called `create-run`; Runner only verifies, launches, and records `running`.
 
 ## When to Delegate
 
 | Trigger | Spawn | Required |
 | ------- | ----- | -------- |
-| Ready Queue count <= current free slots, or Queue is empty | Strategist | Yes |
+| Ready Queue count < total_capacity (capacity_per_gpu × gpu_count, constant) | Strategist — blocking if queue empty; background Agent (Claude Code) if queue non-empty | Yes |
 | Launching many independent runs and context isolation is useful | Runner | Optional |
 
 Self-evaluatable conditions that may suppress a Strategist spawn: explicit user stop, explicit numeric target cleanly met with evidence, explicit run/wall-clock budget consumed, required permission/resource unavailable. Plateau and exhaustion are never self-evaluatable — Strategist must be the one to declare them; they cannot gate this spawn.
 
-Prompt neutrality: always use the standard prompt template when calling Strategist. Never add context about previous Strategist verdicts, never ask "is the search exhausted?", never prime the Strategist's conclusion in any direction — including during double-verification.
+Prompt neutrality: always use the standard prompt template when calling Strategist. Never add context about previous Strategist verdicts, never ask "is the search exhausted?", never prime the Strategist's conclusion in any direction — including during double-verification. Do not echo plateau, ceiling, or exhaustion language from `observations.md` or `plan.md` into the prompt (e.g., "all parameters are at local optima", "text images have hit a ceiling").
 
 Record each completed run inline immediately (verify files → parse metrics → determine status → call `aet.py record` → append trust details → move row → add to `runs_since_last_strategist`). Do not wait for a whole batch to finish before recording.
 
@@ -51,15 +51,17 @@ experiment_scripts: SCRIPT_PATHS
 cli_notes: CLI_NOTES
 algorithm_context: METRIC/TARGET/RISKS/COUPLINGS
 current_free_slots: N
+total_capacity: M  # capacity_per_gpu × gpu_count (constant); target ready_count >= this
 current_best: RUN_ID/METRIC as a locator only
 runs_since_last_strategist: [run_id list with recorded status, primary_metric, metric_name from results.csv]
+# Values above are raw fields from results.csv — not interpreted conclusions about trends or plateau.
 
 Read SESSION_PATH/meta.json, results.csv, observations.md, plan.md, and important runs/<id>/ artifacts directly.
 
 Tasks:
 0. Generate observations: for runs in runs_since_last_strategist, read their artifacts directly (runs/<id>/metrics.json, params.json, summary.md, train.log) and synthesize per-HP influence notes (patterns, boundary hits, forbidden regions, settings that help only under specific companion knobs). Return as observations_to_append. Omit if nothing new.
 1. Determine whether the next candidates should broaden, refine, confirm, expand a boundary, or run an escape group.
-2. Return enough Ready Queue candidates so ready_count will be greater than current_free_slots while useful search remains.
+2. Return enough Ready Queue candidates so ready_count will be at or above total_capacity (capacity_per_gpu × gpu_count) while useful search remains.
 3. Include per-HP rationale for non-obvious values, cited from run evidence.
 4. Return stop/continue rule updates and any existing Ready Queue rows the parent should rewrite or remove.
 
@@ -92,18 +94,17 @@ experiment_script: SCRIPT_PATH
 
 Tasks:
 1. Verify script and output directory exist.
-2. Register the run with SKILL_DIR/scripts/aet.py create-run if not already registered.
-3. Launch exactly the assigned command.
-4. Record running with SKILL_DIR/scripts/aet.py record --status running after the process starts.
+2. The parent agent has already called `create-run`; verify `run_dir/output` exists, then launch exactly the assigned command.
+3. Record running with SKILL_DIR/scripts/aet.py record --status running after the process starts.
 
-Return run_id, command, gpu_id, output_dir, log_path, process/session status, and create-run/record status.
+Return run_id, command, gpu_id, output_dir, log_path, process/session status, and record --status running completion status.
 ```
 
 ## Interpreting Returns
 
 ### After Strategist Returns
 
-0. If `observations_to_append` provided: append to `SESSION/observations.md`; clear the `runs_since_last_strategist` tracking list.
+0. If `observations_to_append` provided: append to `SESSION/observations.md`; clear only the `runs_since_last_strategist` entries that were passed at spawn time (runs completed during background analysis accumulate for the next call).
 1. Apply or lightly edit returned rows, then append them to `plan.md` `Ready Queue`.
 2. Update the `Stop/Continue Rule` section.
 3. Remove or rewrite invalidated ready rows if the strategist identified any.
@@ -113,6 +114,6 @@ Return run_id, command, gpu_id, output_dir, log_path, process/session status, an
 
 ### After Runner Returns
 
-1. Confirm `create-run` and `record --status running` completed.
+1. Confirm `record --status running` completed.
 2. Record run id, output directory, log path, GPU, and process/session status in `plan.md` `Running`.
 3. Wait for normal completion handling; record each terminal run inline.

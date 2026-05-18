@@ -63,6 +63,7 @@ CLI mapping:
 | `gpu_ids: [0, 1, 3]` | `--gpu-ids 0,1,3` |
 | `max_per_gpu: 2` | `--capacity 2` |
 | `max_util: 80%` | `--saturated-util 80` |
+| "util unlimited" / "util 无限制" | `--saturated-util 101` (> 100 disables the ceiling entirely) |
 | `max_memory_used_mb: 70000` | `--max-memory-used-mb 70000` |
 | `min_free_memory_mb: 20000` | `--min-free-memory-mb 20000` |
 
