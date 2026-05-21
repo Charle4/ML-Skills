@@ -12,7 +12,10 @@
       - [Install](#install-1)
       - [Example invocation](#example-invocation-1)
       - [What to tell the agent](#what-to-tell-the-agent-1)
-    - [Coming Soon](#coming-soon)
+    - [`my-en-academic-writing`](#my-en-academic-writing)
+      - [Install](#install-2)
+      - [Example invocation](#example-invocation-2)
+      - [What to tell the agent](#what-to-tell-the-agent-2)
   - [See Also](#see-also)
 
 <!-- /TOC -->
@@ -193,7 +196,101 @@ _Default output behavior:_
 - File edits keep the target document clean: no review labels, modification logs, or skill metadata are inserted into the file unless explicitly requested.
 - If the original text is already clear and publishable, the skill may preserve it and explain that no substantive edit is needed.
 
-### Coming Soon
+### `my-en-academic-writing`
+
+English academic writing assistant for LaTeX polishing, Chinese-to-English translation, AI-like wording reduction, section drafting, related-work synthesis, grammar checking, and focused proofreading.
+
+**Core features:**
+
+- Polish / rewrite: conservative cleanup or deep publication-level rewriting of English LaTeX
+- De-AI rewrite: remove formulaic, inflated, model-generated phrasing while preserving technical content
+- Chinese-to-English translation: translate Chinese drafts into rigorous English academic LaTeX, with Chinese back-translation for checking
+- Section drafting: draft a complete section from an outline or notes without adding unsupported claims
+- Related-work synthesis: summarize and position literature thematically with factual limitations
+- Grammar check / focused proofreading: surface-level correction for near-submission text
+- External review pass: when Codex or Gemini MCP tools are configured, the agent dispatches an independent cold-context review and synthesizes the feedback before finalizing output
+
+#### Install
+
+Claude Code:
+
+```bash
+ln -s $(pwd)/my-en-academic-writing ~/.claude/skills/my-en-academic-writing
+```
+
+Codex:
+
+```bash
+ln -s $(pwd)/my-en-academic-writing ~/.codex/skills/my-en-academic-writing
+```
+
+#### Example invocation
+
+Polish an English LaTeX passage:
+
+```
+/my-en-academic-writing Deep polish the following paragraph for ICLR submission. Preserve all LaTeX commands.
+
+Despite the success of diffusion-based methods in image restoration, existing approaches typically require
+the degradation type to be known \textit{a priori}, which significantly limits their practical applicability.
+To address this limitation, we propose \texttt{BlindDiff}, a blind image restoration framework that jointly
+estimates the degradation kernel and performs restoration under a unified diffusion prior.
+```
+
+Chinese-to-English translation:
+
+```
+/my-en-academic-writing 把下面这段话翻译成 NeurIPS 风格的英文学术 LaTeX，保留公式符号，输出 Part 1 [LaTeX] 和 Part 2 [Translation]。
+
+尽管基于扩散模型的方法在图像复原中取得了显著进展，现有方法通常要求退化类型已知，
+这严重限制了其在真实场景中的适用性。
+```
+
+De-AI rewrite:
+
+```
+/my-en-academic-writing De-AI this paragraph. Remove mechanical connectors and inflated claims. Keep all \cite{} and \eqref{} unchanged.
+
+In the realm of image restoration, our method leverages cutting-edge diffusion priors to foster robust
+and versatile recovery, paving the way for unprecedented performance across diverse degradation scenarios.
+```
+
+#### What to tell the agent
+
+The skill selects the editing mode from your request automatically. Naming the mode explicitly ("deep polish", "de-AI", "translate", "grammar check") gives the most precise result.
+
+_Task modes:_
+
+| Mode                   | Use when                                             | Example request                                                      |
+| ---------------------- | ---------------------------------------------------- | -------------------------------------------------------------------- |
+| Conservative polish    | Text is nearly ready; minimize changes               | `"只做必要修改，保留句式结构"` / `"light touch, preserve structure"` |
+| Deep polish / rewrite  | Substantial improvement needed for publication       | `"deep polish for NeurIPS"` / `"rewrite for top-conference quality"` |
+| De-AI rewrite          | Text sounds model-generated, inflated, or mechanical | `"de-AI this paragraph"` / `"remove AI-like phrasing"`               |
+| Chinese-to-English     | Input is Chinese; need English academic LaTeX        | `"翻译成英文学术 LaTeX"` / `"translate and polish"`                  |
+| Section drafting       | You have an outline or notes                         | `"draft the Related Work section from this outline"`                 |
+| Related-work synthesis | You have a reference list to synthesize              | `"write a related work paragraph grouping these by method family"`   |
+| Grammar check          | Identify errors without rewriting                    | `"grammar check only, list issues in a table"`                       |
+| Focused proofreading   | Near-submission, want surface fixes only             | `"proofread without restructuring"`                                  |
+| Venue adaptation       | Tune style to a specific target                      | `"adapt for applied mathematics journal"`                            |
+
+_Recommended context:_
+
+| Information                 | Example                                                        |
+| --------------------------- | -------------------------------------------------------------- |
+| Target venue or style       | `"NeurIPS"` / `"IEEE Transactions"` / `"CCF A"`                |
+| Editing strength            | `"minimal"` / `"deep rewrite"` / `"only fix grammar"`          |
+| Text scope                  | `"only Section 3.2"` / `"just the abstract"`                   |
+| Terms to preserve           | `"keep LLM, diffusion model, PSNR, and all \cite{} unchanged"` |
+| Output format               | `"只输出英文"` / `"no modification log"`                       |
+| Claims that cannot be added | `"do not add new experimental results or citations"`           |
+
+_Default output (chat mode):_
+
+- English LaTeX polishing returns `Part 1 [LaTeX]` + `Part 2 [Translation]` + `Part 3 [Modification Log]`.
+- Chinese-to-English translation returns `Part 1 [LaTeX]` + `Part 2 [Translation]`.
+- Grammar check returns a Markdown table of issues and suggested corrections.
+- Say `只输出英文` / `manuscript only` / `no explanation` to suppress the translation and log.
+- File edits keep the manuscript clean: no modification logs or skill metadata are inserted into the file.
 
 ---
 
