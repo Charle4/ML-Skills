@@ -65,6 +65,7 @@ Keep this board current. Move rows between sections instead of leaving stale dup
 
 - `runs_since_last_strategist`: []  <!-- append run_id each time a run reaches terminal status -->
 - `background_strategist_in_flight`: false  <!-- set true when background Agent spawn issued; set false when it returns; skip re-spawn while true -->
+- `strategist_agent_id`: null  <!-- set to agentId when Strategist returns from a fresh spawn; null if never spawned or previous agentId is no longer valid -->
 
 ### Per-HP Rationale (for non-obvious value choices, cite prior run evidence)
 

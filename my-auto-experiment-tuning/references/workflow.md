@@ -164,9 +164,10 @@ Do not perform inline strategy derivation. After inline recording:
 1. Check whether a self-evaluatable stop condition is met: explicit user stop ("stop"/"end tuning"), explicit numeric target cleanly met with evidence, explicit run/wall-clock budget consumed, or required permission/resource unavailable. These you can evaluate inline. Do NOT evaluate plateau or exhaustion here — that is Strategist's job.
 2. Count current `Ready Queue` rows and current free GPU slots.
 3. If `Ready Queue` count < total_capacity (capacity_per_gpu × gpu_count from `aet.py gpu-slots`):
-   - Queue empty: blocking spawn; wait for results before launching.
-   - Queue non-empty: background spawn (Claude Code: `Agent(..., run_in_background=True)`; Codex: blocking). Record which run_ids were passed; on return, clear only those IDs from `runs_since_last_strategist`.
+   - Queue empty: blocking spawn; wait for results before launching. (Claude Code: if `strategist_agent_id` is set in plan.md Loop State, use `SendMessage` instead — it runs in background; set `background_strategist_in_flight: true` and do not launch while waiting.)
+   - Queue non-empty: background spawn. Claude Code: use `SendMessage` if `strategist_agent_id` is set, otherwise `Agent(..., run_in_background=True)`; set `background_strategist_in_flight: true`. Codex: blocking. Record which run_ids were passed; on return, clear only those IDs from `runs_since_last_strategist`.
    - No other suppression is valid. Do not skip because Strategist was recently called or because `runs_since_last_strategist` is empty.
+   - Full Claude Code continuation protocol: `references/subagents.md` (Continuation Protocol) and `references/claude-code-adapter.md` (step 9).
 4. Apply the Strategist return: append `observations_to_append` to `observations.md`, clear only the `runs_since_last_strategist` entries that were passed at spawn time; append Ready Queue rows to `plan.md`, update Stop/Continue Rule text, and remove or rewrite invalidated ready rows.
 5. Immediately move ready rows into `Running` for any free slots.
 

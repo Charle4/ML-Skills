@@ -16,10 +16,20 @@ Runner is optional. Use it only when launch execution needs context isolation or
 
 | Trigger | Spawn | Required |
 | ------- | ----- | -------- |
-| Ready Queue count < total_capacity (capacity_per_gpu × gpu_count, constant) | Strategist — blocking if queue empty; background Agent (Claude Code) if queue non-empty | Yes |
+| Ready Queue count < total_capacity (capacity_per_gpu × gpu_count, constant) | Strategist — blocking if queue empty (fresh spawn only); background if queue non-empty; **Claude Code**: prefer `SendMessage` resume if `strategist_agent_id` is set (see Continuation Protocol below) | Yes |
 | Launching many independent runs and context isolation is useful | Runner | Optional |
 
 Self-evaluatable conditions that may suppress a Strategist spawn: explicit user stop, explicit numeric target cleanly met with evidence, explicit run/wall-clock budget consumed, required permission/resource unavailable. Plateau and exhaustion are never self-evaluatable — Strategist must be the one to declare them; they cannot gate this spawn. **Recency of the last Strategist call and empty `runs_since_last_strategist` are not suppression conditions.**
+
+## Strategist Continuation Protocol (Claude Code only)
+
+After the first successful Strategist spawn, prefer resuming it via `SendMessage` over spawning fresh:
+
+1. Check `strategist_agent_id` in plan.md Loop State before every Strategist spawn.
+2. **Not null**: call `SendMessage(to: strategist_agent_id, summary="New runs for Strategist", message="runs_since_last_strategist: [...], current_free_slots: N, current_best: RUN_ID/METRIC")`. The Strategist retains full session context; do not re-send the full prompt.
+3. **Null** (first call or previous ID no longer valid): use `Agent(subagent_type="experiment-strategist", ...)` with the full standard prompt template. On return, write the `agentId` from the spawn result to `strategist_agent_id` in plan.md Loop State.
+4. If `SendMessage` returns an error (agent unreachable): fall back to fresh `Agent` spawn and update `strategist_agent_id`.
+5. `SendMessage` is always background: always set `background_strategist_in_flight: true` before sending, regardless of queue state. Queue empty: do not launch new experiments while waiting for the return notification. Queue non-empty: continue processing other notifications while Strategist works.
 
 Prompt neutrality: always use the standard prompt template when calling Strategist. Never add context about previous Strategist verdicts, never ask "is the search exhausted?", never prime the Strategist's conclusion in any direction — including during double-verification. Do not echo plateau, ceiling, or exhaustion language from `observations.md` or `plan.md` into the prompt (e.g., "all parameters are at local optima", "text images have hit a ceiling").
 
@@ -108,7 +118,8 @@ Return run_id, command, gpu_id, output_dir, log_path, process/session status, an
 1. Apply or lightly edit returned rows, then append them to `plan.md` `Ready Queue`.
 2. Update the `Stop/Continue Rule` section.
 3. Remove or rewrite invalidated ready rows if the strategist identified any.
-4. Re-check GPU slots and launch the highest-priority ready rows until usable slots are filled.
+4. **Claude Code only**: set `background_strategist_in_flight: false`. If this was a fresh `Agent` spawn (not a `SendMessage` resume), also write the returned `agentId` to `strategist_agent_id` in plan.md Loop State.
+5. Re-check GPU slots and launch the highest-priority ready rows until usable slots are filled.
    - Codex: run the standard command with `exec_command`, one foreground tool session per experiment; if it yields a `session_id`, record `session_id -> run_id/output_dir/log_path` and poll with `write_stdin`.
    - Claude Code: use one `Bash(run_in_background=True)` call per experiment.
 

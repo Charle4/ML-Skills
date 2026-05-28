@@ -22,10 +22,10 @@ Claude Code has a `/loop` command that sends a recurring prompt at a fixed inter
 **Command to run** (in conversation, not in shell):
 
 ```
-/loop 1h /my-auto-experiment-tuning Continue fine-tuning. Target: PSNR > XX (substitute actual target). At the start of each invocation: (1) run `aet.py status` — if results.csv finished count exceeds plan.md Completed entries, rebuild plan.md from results.csv first; (2) if Ready Queue count < total_capacity, spawn Strategist (blocking if queue empty; Claude Code: background `Agent(run_in_background=True)` if non-empty; Codex: always blocking); pass recent run IDs from results.csv as runs_since_last_strategist. Keep GPUs occupied. If actively working on steps 1–2 already, skip this prompt.
+/loop 1h /my-auto-experiment-tuning Continue fine-tuning. Target: PSNR > XX (substitute actual target). Keep GPUs occupied. At the start of each invocation: (1) run `aet.py status` — if results.csv finished count exceeds plan.md Completed entries, rebuild plan.md from results.csv before anything else; (2) regardless of whether step (1) found new completions, check: if Ready Queue count < total_capacity AND `background_strategist_in_flight` is false in plan.md Loop State, spawn Strategist NOW (blocking if queue empty, background if non-empty); pass recent run IDs from results.csv as runs_since_last_strategist. Skip this prompt only if you are currently mid-execution of steps 1–2 in this exact conversation turn (i.e., you already ran `aet.py status` this turn and haven't finished processing the results yet).
 ```
 
-If the user provided a numeric target (e.g., `PSNR > 25`), embed it in the prompt. If not, omit the target clause. The "ignore if working normally" tail means the loop does nothing when the session is already busy, making it safe to leave running.
+If the user provided a numeric target (e.g., `PSNR > 25`), embed it in the prompt. If not, omit the target clause. The escape clause prevents re-entry only when you are already mid-execution in the same turn — it does NOT apply just because experiments are running or no new completions occurred.
 
 **Interval guideline**: 1 h is appropriate for long tuning sessions. Use 30 m if runs are short and you want tighter keep-alive. Do not set shorter than 20 m — it creates noise.
 

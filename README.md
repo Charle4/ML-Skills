@@ -43,6 +43,9 @@ mkdir -p ~/.claude/skills ~/.claude/agents
 ln -s $(pwd)/my-auto-experiment-tuning ~/.claude/skills/my-auto-experiment-tuning
 ln -s $(pwd)/my-auto-experiment-tuning/agents/experiment-runner.md ~/.claude/agents/experiment-runner.md
 ln -s $(pwd)/my-auto-experiment-tuning/agents/experiment-strategist.md ~/.claude/agents/experiment-strategist.md
+
+# Set environment variables
+CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1
 ```
 
 Codex:
@@ -298,3 +301,4 @@ _Default output (chat mode):_
 
 - [Using DeepSeek with Claude Code](https://api-docs.deepseek.com/zh-cn/guides/agent_integrations/claude_code)
 - [Using GLM with Claude Code](https://docs.bigmodel.cn/cn/guide/develop/claude)
+- [Using MiMo with Claude Code](https://platform.xiaomimimo.com/docs/zh-CN/integration/claudecode)

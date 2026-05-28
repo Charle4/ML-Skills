@@ -61,11 +61,21 @@ When a `run_in_background=True` command finishes, Claude Code receives an automa
 8. If not, re-check current GPU slots, select as many ready candidates as resources allow, register each with `aet.py create-run`, launch each with `run_in_background=True`, then record each with `aet.py record --status running`.
 9. If Ready Queue count < total_capacity (capacity_per_gpu × gpu_count, constant):
    - If `background_strategist_in_flight` is true in `plan.md` Loop State: **skip spawning**; run_id is already in `runs_since_last_strategist` and will be included when the in-flight Strategist returns.
-   - Queue **empty** (and not in-flight): `Agent(subagent_type="experiment-strategist", run_in_background=False, ...)`; wait before launching. **Why blocking**: you have no candidates to launch while waiting, so there is nothing to do in parallel. Strategist must return before you can launch anything.
-   - Queue **non-empty** (and not in-flight): `Agent(subagent_type="experiment-strategist", run_in_background=True, ...)`; set `background_strategist_in_flight: true` in `plan.md`; continue processing other notifications while Strategist works. Record the run_ids passed at spawn time. **Why background**: existing ready candidates can keep GPUs occupied while Strategist analyzes — background mode preserves throughput.
-   On Strategist return (either path): append `observations_to_append` to `observations.md`; append candidates to `plan.md` Ready Queue; clear only the `runs_since_last_strategist` entries that were passed at spawn time; set `background_strategist_in_flight: false`.
+   - Otherwise, choose spawn method based on `strategist_agent_id` in plan.md Loop State:
 
-   These three cases are the only valid reasons to skip spawning. Do not add "Strategist was recently called" or "runs_since_last_strategist is empty" as reasons to skip — those are not suppression conditions (see anti-pattern #8 in SKILL.md).
+   **`strategist_agent_id` not null → resume via SendMessage:**
+   `SendMessage(to: strategist_agent_id, summary="New runs for Strategist", message="runs_since_last_strategist: [run_ids with recorded status/primary_metric/metric_name], current_free_slots: N, current_best: RUN_ID/METRIC")`
+   Set `background_strategist_in_flight: true` (SendMessage is always background). Queue empty: do not launch while waiting for the notification. Queue non-empty: continue processing other notifications while Strategist works.
+   If SendMessage returns an error (agent unreachable): fall back to fresh `Agent` spawn and update `strategist_agent_id`.
+
+   **`strategist_agent_id` null → fresh Agent spawn:**
+   - Queue **empty**: `Agent(subagent_type="experiment-strategist", run_in_background=False, ...)` — blocking, do not set `background_strategist_in_flight`. Wait before launching anything.
+   - Queue **non-empty**: `Agent(subagent_type="experiment-strategist", run_in_background=True, ...)` — set `background_strategist_in_flight: true`; continue processing other notifications.
+   Use the full standard prompt from `references/subagents.md`. On return, write the `agentId` to `strategist_agent_id` in plan.md Loop State.
+
+   On Strategist return (any path): append `observations_to_append` to `observations.md`; append candidates to `plan.md` Ready Queue; clear only the `runs_since_last_strategist` entries that were passed at spawn time; set `background_strategist_in_flight: false`.
+
+   These three cases are the only valid reasons to skip spawning. Do not add "Strategist was recently called", "runs_since_last_strategist is empty", or "no new completions this invocation" as reasons to skip — those are not suppression conditions (see anti-patterns #8 and #9 in SKILL.md).
 
 Do not batch notifications — process each one as soon as it arrives, even if another experiment is still running. Incremental recording prevents data loss if the session is interrupted.
 
@@ -78,7 +88,7 @@ Claude Code's `/loop` command sends a recurring prompt at a fixed interval insid
 **Invoke `/loop` as a slash command in the conversation** (not in a shell). Pass the interval and the skill invocation prompt:
 
 ```
-/loop 1h /my-auto-experiment-tuning Continue fine-tuning. Target: PSNR > XX (substitute actual target). Keep GPUs occupied. At the start of each invocation: (1) run `aet.py status` — if results.csv finished count exceeds plan.md Completed entries, rebuild plan.md from results.csv before anything else; (2) if Ready Queue count < total_capacity AND `background_strategist_in_flight` is false in plan.md Loop State, spawn Strategist (blocking if queue empty, background if non-empty); pass recent run IDs from results.csv as runs_since_last_strategist. If actively working on steps 1–2 already, skip this prompt.
+/loop 1h /my-auto-experiment-tuning Continue fine-tuning. Target: PSNR > XX (substitute actual target). Keep GPUs occupied. At the start of each invocation: (1) run `aet.py status` — if results.csv finished count exceeds plan.md Completed entries, rebuild plan.md from results.csv before anything else; (2) regardless of whether step (1) found new completions, check: if Ready Queue count < total_capacity AND `background_strategist_in_flight` is false in plan.md Loop State, spawn Strategist NOW (blocking if queue empty, background if non-empty); if `strategist_agent_id` in plan.md Loop State is not null, resume via SendMessage instead of fresh spawn; pass recent run IDs from results.csv as runs_since_last_strategist. Skip this prompt only if you are currently mid-execution of steps 1–2 in this exact conversation turn (i.e., you already ran `aet.py status` this turn and haven't finished processing the results yet).
 ```
 
 Template to customize:
@@ -86,7 +96,7 @@ Template to customize:
 - Use `30m` instead of `1h` if individual runs are short (< 20 min) and you want tighter loop cadence.
 - Minimum recommended interval: `20m`. Shorter intervals create noise.
 
-**Effect**: every hour (or whatever interval), the skill is re-invoked with the keepalive prompt. The tail "if actively working, ignore this prompt" prevents duplicate launches when experiments are already running.
+**Effect**: every hour (or whatever interval), the skill is re-invoked with the keepalive prompt. The escape clause prevents re-entry only when you are already mid-execution in the same turn — it does NOT apply just because experiments are running or no new completions occurred.
 
 **When to stop the loop**: `/loop stop` only when the user ends the session or a valid stop condition has been recorded and the session is being closed. Do not stop the loop merely because one run hit a local or provisional target.
 

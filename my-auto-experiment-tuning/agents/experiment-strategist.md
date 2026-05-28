@@ -238,11 +238,12 @@ End your response with the following block verbatim (this is for the main agent 
 
 After receiving this return, in order:
 0. If `observations_to_append` provided: append to `SESSION/observations.md`; clear only the `runs_since_last_strategist` entries that were passed at spawn time (runs completed during background analysis accumulate for the next call)
+0b. **Claude Code only**: set `background_strategist_in_flight: false`. If this was a fresh `Agent` spawn (not a `SendMessage` resume), also write the returned `agentId` to `strategist_agent_id` in plan.md Loop State.
 1. Append Ready Queue Candidates to `SESSION/plan.md` Ready Queue section
 2. Update Stop/Continue Rule section in `SESSION/plan.md`
 3. Apply any Queue Edits (remove/rewrite invalidated rows)
 4. Check GPU slots: `aet.py gpu-slots`; compute total_capacity = sum of `capacity` fields across all allowed GPUs.
-   If Ready Queue count < total_capacity: spawn Strategist again (blocking if queue empty; Claude Code can use run_in_background=True if non-empty).
+   If Ready Queue count < total_capacity: spawn Strategist again (blocking if queue empty; Claude Code can use run_in_background=True if non-empty). **Claude Code**: prefer `SendMessage` resume if `strategist_agent_id` is set; see `references/claude-code-adapter.md` step 9.
 5. For each free slot, take the top-priority Ready Queue row:
    a. Register and create output dir in one step: `aet.py create-run --session SESSION --name ... --params '...' --gpu-id G`
       Output is three labeled lines: `run_dir`, `run_id`, `output_dir` (already created). Use the printed `output_dir` directly — do not call `aet.py unique-dir` for session-internal paths and never pass `--run-id` manually.
