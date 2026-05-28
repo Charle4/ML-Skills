@@ -19,7 +19,7 @@ Runner is optional. Use it only when launch execution needs context isolation or
 | Ready Queue count < total_capacity (capacity_per_gpu × gpu_count, constant) | Strategist — blocking if queue empty; background Agent (Claude Code) if queue non-empty | Yes |
 | Launching many independent runs and context isolation is useful | Runner | Optional |
 
-Self-evaluatable conditions that may suppress a Strategist spawn: explicit user stop, explicit numeric target cleanly met with evidence, explicit run/wall-clock budget consumed, required permission/resource unavailable. Plateau and exhaustion are never self-evaluatable — Strategist must be the one to declare them; they cannot gate this spawn.
+Self-evaluatable conditions that may suppress a Strategist spawn: explicit user stop, explicit numeric target cleanly met with evidence, explicit run/wall-clock budget consumed, required permission/resource unavailable. Plateau and exhaustion are never self-evaluatable — Strategist must be the one to declare them; they cannot gate this spawn. **Recency of the last Strategist call and empty `runs_since_last_strategist` are not suppression conditions.**
 
 Prompt neutrality: always use the standard prompt template when calling Strategist. Never add context about previous Strategist verdicts, never ask "is the search exhausted?", never prime the Strategist's conclusion in any direction — including during double-verification. Do not echo plateau, ceiling, or exhaustion language from `observations.md` or `plan.md` into the prompt (e.g., "all parameters are at local optima", "text images have hit a ceiling").
 
@@ -59,7 +59,7 @@ runs_since_last_strategist: [run_id list with recorded status, primary_metric, m
 Read SESSION_PATH/meta.json, results.csv, observations.md, plan.md, and important runs/<id>/ artifacts directly.
 
 Tasks:
-0. Generate observations: for runs in runs_since_last_strategist, read their artifacts directly (runs/<id>/metrics.json, params.json, summary.md, train.log) and synthesize per-HP influence notes (patterns, boundary hits, forbidden regions, settings that help only under specific companion knobs). Return as observations_to_append. Omit if nothing new.
+0. Generate observations: for runs in runs_since_last_strategist, read their artifacts directly (runs/<id>/metrics.json, params.json, summary.md, train.log) and synthesize per-HP influence notes (patterns, boundary hits, forbidden regions, settings that help only under specific companion knobs). Return as observations_to_append. Omit if nothing new. **If runs_since_last_strategist is empty (session start / first call), skip observations entirely and proceed directly to task 1 — plan initial candidates from plan.md's objective, hypotheses, and coupled parameters.**
 1. Determine whether the next candidates should broaden, refine, confirm, expand a boundary, or run an escape group.
 2. Return enough Ready Queue candidates so ready_count will be at or above total_capacity (capacity_per_gpu × gpu_count) while useful search remains.
 3. Include per-HP rationale for non-obvious values, cited from run evidence.

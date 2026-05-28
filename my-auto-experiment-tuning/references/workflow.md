@@ -83,6 +83,8 @@ Do not create separate planning notes such as `aet/YYYY-MM-DD/next.md`, `aet/YYY
 
 Prefer candidate groups that distinguish hypotheses. The Strategist owns detailed candidate selection when delegation is available; write the returned candidates into `plan.md`.
 
+**Before proceeding to section 4**: if `Ready Queue` count < total_capacity, spawn Strategist (same trigger as the rolling cycle). Strategist plans candidates from `plan.md`'s objective and coupled parameters; no completed runs are required. Only then launch from the returned queue.
+
 Use "batch" only as a search-design label. Execution is rolling: a completion, a resource change, or a changed result can trigger an immediate row transition, slot refill, and queue refill before the rest of the conceptual batch finishes. Strategist may return zero, one, or many ready candidates at once, not exactly one candidate per finished run.
 
 ## 4. Launch
@@ -164,6 +166,7 @@ Do not perform inline strategy derivation. After inline recording:
 3. If `Ready Queue` count < total_capacity (capacity_per_gpu × gpu_count from `aet.py gpu-slots`):
    - Queue empty: blocking spawn; wait for results before launching.
    - Queue non-empty: background spawn (Claude Code: `Agent(..., run_in_background=True)`; Codex: blocking). Record which run_ids were passed; on return, clear only those IDs from `runs_since_last_strategist`.
+   - No other suppression is valid. Do not skip because Strategist was recently called or because `runs_since_last_strategist` is empty.
 4. Apply the Strategist return: append `observations_to_append` to `observations.md`, clear only the `runs_since_last_strategist` entries that were passed at spawn time; append Ready Queue rows to `plan.md`, update Stop/Continue Rule text, and remove or rewrite invalidated ready rows.
 5. Immediately move ready rows into `Running` for any free slots.
 

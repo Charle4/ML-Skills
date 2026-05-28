@@ -61,9 +61,11 @@ When a `run_in_background=True` command finishes, Claude Code receives an automa
 8. If not, re-check current GPU slots, select as many ready candidates as resources allow, register each with `aet.py create-run`, launch each with `run_in_background=True`, then record each with `aet.py record --status running`.
 9. If Ready Queue count < total_capacity (capacity_per_gpu × gpu_count, constant):
    - If `background_strategist_in_flight` is true in `plan.md` Loop State: **skip spawning**; run_id is already in `runs_since_last_strategist` and will be included when the in-flight Strategist returns.
-   - Queue **empty** (and not in-flight): `Agent(subagent_type="experiment-strategist", run_in_background=False, ...)`; wait before launching.
-   - Queue **non-empty** (and not in-flight): `Agent(subagent_type="experiment-strategist", run_in_background=True, ...)`; set `background_strategist_in_flight: true` in `plan.md`; continue processing other notifications while Strategist works. Record the run_ids passed at spawn time.
+   - Queue **empty** (and not in-flight): `Agent(subagent_type="experiment-strategist", run_in_background=False, ...)`; wait before launching. **Why blocking**: you have no candidates to launch while waiting, so there is nothing to do in parallel. Strategist must return before you can launch anything.
+   - Queue **non-empty** (and not in-flight): `Agent(subagent_type="experiment-strategist", run_in_background=True, ...)`; set `background_strategist_in_flight: true` in `plan.md`; continue processing other notifications while Strategist works. Record the run_ids passed at spawn time. **Why background**: existing ready candidates can keep GPUs occupied while Strategist analyzes — background mode preserves throughput.
    On Strategist return (either path): append `observations_to_append` to `observations.md`; append candidates to `plan.md` Ready Queue; clear only the `runs_since_last_strategist` entries that were passed at spawn time; set `background_strategist_in_flight: false`.
+
+   These three cases are the only valid reasons to skip spawning. Do not add "Strategist was recently called" or "runs_since_last_strategist is empty" as reasons to skip — those are not suppression conditions (see anti-pattern #8 in SKILL.md).
 
 Do not batch notifications — process each one as soon as it arrives, even if another experiment is still running. Incremental recording prevents data loss if the session is interrupted.
 
@@ -76,7 +78,7 @@ Claude Code's `/loop` command sends a recurring prompt at a fixed interval insid
 **Invoke `/loop` as a slash command in the conversation** (not in a shell). Pass the interval and the skill invocation prompt:
 
 ```
-/loop 1h /my-auto-experiment-tuning Continue fine-tuning. Target: PSNR > XX (substitute actual target). Keep GPUs occupied. At the start of each invocation: (1) run `aet.py status` — if results.csv finished count exceeds plan.md Completed entries, rebuild plan.md from results.csv before anything else; (2) if Ready Queue count < total_capacity, spawn Strategist (blocking if queue empty, background if non-empty); pass recent run IDs from results.csv as runs_since_last_strategist. If actively working on steps 1–2 already, skip this prompt.
+/loop 1h /my-auto-experiment-tuning Continue fine-tuning. Target: PSNR > XX (substitute actual target). Keep GPUs occupied. At the start of each invocation: (1) run `aet.py status` — if results.csv finished count exceeds plan.md Completed entries, rebuild plan.md from results.csv before anything else; (2) if Ready Queue count < total_capacity AND `background_strategist_in_flight` is false in plan.md Loop State, spawn Strategist (blocking if queue empty, background if non-empty); pass recent run IDs from results.csv as runs_since_last_strategist. If actively working on steps 1–2 already, skip this prompt.
 ```
 
 Template to customize:
@@ -119,8 +121,8 @@ Claude Code runs a hook system that intercepts "complex shell structures" and es
 # ✗ cd + redirection (any combination)
 cd /path && python exp.py > log.txt
 
-# ✗ for loop with variable assignment, command substitution, or conditional
-for d in a b c; do f="${d}/log.txt"; r=$(grep ... "$f"); [ -n "$r" ] && echo ...; done
+# ✗ for loop (any variant) — even simple ones are intercepted
+for rid in 0 1 2 3 4 5 6; do python aet.py record --run-id $rid --status running; done
 
 # ✗ multi-command sequence with redirections or separators
 cmd1; echo "---"; cmd2 2>/dev/null | head -20
@@ -157,6 +159,12 @@ python -c "
 import json
 print('hello')
 "
+
+# ✓ batch identical bookkeeping commands with && — safe when there are no shell variables,
+#   no redirections, and no command substitution in the chained commands:
+python aet.py record --run-id 0 --status running && \
+python aet.py record --run-id 1 --status running && \
+python aet.py record --run-id 2 --status running
 
 # ✓ session-internal run output: two-step Bash calls (no shell extraction)
 #

@@ -1,7 +1,7 @@
 ---
 name: experiment-runner
 description: Launches assigned experiment commands with preassigned run ids, GPU ids, output directories, and log paths.
-model: inherit
+model: opus
 ---
 
 You are the runner for an autonomous experiment tuning session.
