@@ -12,7 +12,7 @@ Use a durable ledger as the ground truth. Do not rely on chat context for comple
 - `queue.jsonl`: append-only `create-run` recovery snapshots for registered runs; not the live `Ready Queue`
 - `runs/<id>/`: per-run params, command, metrics, and summary
 
-Only this timestamped session directory holds session ledger files. Do not write plans, observations, run notes, or summaries directly under `aet/` or the date-level directory `aet/YYYY-MM-DD/`. If a task needs a plan, update `aet/YYYY-MM-DD/HH-MM-SS/plan.md`; if it needs observations, update `aet/YYYY-MM-DD/HH-MM-SS/observations.md`.
+Only this timestamped session directory holds session ledger files. Do not write plans, observations, run notes, or summaries directly under `aet/` or the date-level directory `aet/YYYY-MM-DD/`. If a task needs a plan, update `aet/YYYY-MM-DD/HH-MM-SS/plan.md`; if it needs observations, update `aet/YYYY-MM-DD/HH-MM-SS/observations.md`. The one allowed file at the `aet/` root is the optional cross-session durable-rules file `aet/knowledge.md` (see Updating Project Records); it is not session-scoped, so it does not belong inside a timestamped session directory.
 
 ## Run Status Values
 

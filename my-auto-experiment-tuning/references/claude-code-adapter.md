@@ -1,6 +1,8 @@
+Read this file only when you are Claude Code and have loaded the `my-auto-experiment-tuning` skill.
+
 # Claude Code Adapter
 
-Read this file immediately when you are Claude Code and have loaded the `my-auto-experiment-tuning` skill. It supplements the main skill with capabilities Codex does not have.
+It supplements the main skill with capabilities Codex does not have.
 
 ## SKILL_DIR
 
@@ -60,7 +62,11 @@ When a `run_in_background=True` command finishes, Claude Code receives an automa
 7. Check if a self-evaluatable stop condition is now met: explicit user stop, explicit numeric target cleanly met with evidence, explicit budget consumed, or required permission/resource unavailable. Do not evaluate plateau or exhaustion here. If you find yourself about to write that a parameter direction is "exhausted", "hit a ceiling", or "at a local optimum" — that is not a self-evaluatable stop condition. It is the signal that Strategist must be spawned at step 9.
 8. If not, re-check current GPU slots, select as many ready candidates as resources allow, register each with `aet.py create-run`, launch each with `run_in_background=True`, then record each with `aet.py record --status running`.
 9. If Ready Queue count < total_capacity (capacity_per_gpu × gpu_count, constant):
-   - If `background_strategist_in_flight` is true in `plan.md` Loop State: **skip spawning**; run_id is already in `runs_since_last_strategist` and will be included when the in-flight Strategist returns.
+   - If `background_strategist_in_flight` is true in `plan.md` Loop State: **skip calling**; run_id is already in `runs_since_last_strategist` and will be included when the in-flight Strategist returns.
+   - **Exhaustion-confirmation gate** — if `pending_exhaustion_confirmation` is true in Loop State: the continuous-context Primary already declared exhaustion while quiescent; the next spawn MUST be an independent **fresh confirmer**, never a SendMessage resume. Spawn `Agent(subagent_type="experiment-strategist", run_in_background=False, ...)` with the full standard neutral prompt (the handshake only fires when no runs are in flight and the queue is empty, so blocking is correct). Do NOT prime it with the Primary's verdict. On return:
+     - **0 candidates + exhaustion declared** → two independent contexts agree; plateau/exhaustion is confirmed. Stop per Default Stopping Rules and record the reason in the ledger.
+     - **Returns candidates** → the Primary's verdict is overturned. Append `observations_to_append` to `observations.md`; append candidates to `plan.md` Ready Queue; clear the `runs_since_last_strategist` entries passed at call time. **Promote the confirmer to Primary**: set `strategist_agent_id` ← the confirmer's `agentId`, set `pending_exhaustion_confirmation: false`; the old Primary is no longer addressed. Continue the loop and launch ready rows.
+     This gate overrides the `strategist_agent_id` cases below.
    - Otherwise, choose spawn method based on `strategist_agent_id` in plan.md Loop State:
 
    **`strategist_agent_id` not null → resume via SendMessage:**
@@ -73,9 +79,9 @@ When a `run_in_background=True` command finishes, Claude Code receives an automa
    - Queue **non-empty**: `Agent(subagent_type="experiment-strategist", run_in_background=True, ...)` — set `background_strategist_in_flight: true`; continue processing other notifications.
    Use the full standard prompt from `references/subagents.md`. On return, write the `agentId` to `strategist_agent_id` in plan.md Loop State.
 
-   On Strategist return (any path): append `observations_to_append` to `observations.md`; append candidates to `plan.md` Ready Queue; clear only the `runs_since_last_strategist` entries that were passed at spawn time; set `background_strategist_in_flight: false`.
+   On Strategist return (SendMessage or fresh non-confirmer spawn): append `observations_to_append` to `observations.md`; append candidates to `plan.md` Ready Queue; clear only the `runs_since_last_strategist` entries that were passed at call time; set `background_strategist_in_flight: false`. **Then set the handshake**: if this Primary return gave **0 candidates + an explicit exhaustion declaration** AND no experiments are running AND Ready Queue is empty (fully quiescent), set `pending_exhaustion_confirmation: true` so the next spawn is the fresh confirmer above; otherwise leave it false (a verdict only counts when quiescent). Because nothing is running to produce a later completion notification, proceed to that confirmer spawn immediately in the same turn — do not wait for the next `/loop` tick.
 
-   These three cases are the only valid reasons to skip spawning. Do not add "Strategist was recently called", "runs_since_last_strategist is empty", or "no new completions this invocation" as reasons to skip — those are not suppression conditions (see anti-patterns #8 and #9 in SKILL.md).
+   The `background_strategist_in_flight` / `pending_exhaustion_confirmation` branches above are the only valid reasons to deviate from a plain call. Do not add "Strategist was recently called", "runs_since_last_strategist is empty", or "no new completions this invocation" as reasons to skip — those are not suppression conditions (see anti-patterns #8 and #9 in SKILL.md).
 
 Do not batch notifications — process each one as soon as it arrives, even if another experiment is still running. Incremental recording prevents data loss if the session is interrupted.
 
@@ -88,7 +94,7 @@ Claude Code's `/loop` command sends a recurring prompt at a fixed interval insid
 **Invoke `/loop` as a slash command in the conversation** (not in a shell). Pass the interval and the skill invocation prompt:
 
 ```
-/loop 1h /my-auto-experiment-tuning Continue fine-tuning. Target: PSNR > XX (substitute actual target). Keep GPUs occupied. At the start of each invocation: (1) run `aet.py status` — if results.csv finished count exceeds plan.md Completed entries, rebuild plan.md from results.csv before anything else; (2) regardless of whether step (1) found new completions, check: if Ready Queue count < total_capacity AND `background_strategist_in_flight` is false in plan.md Loop State, spawn Strategist NOW (blocking if queue empty, background if non-empty); if `strategist_agent_id` in plan.md Loop State is not null, resume via SendMessage instead of fresh spawn; pass recent run IDs from results.csv as runs_since_last_strategist. Skip this prompt only if you are currently mid-execution of steps 1–2 in this exact conversation turn (i.e., you already ran `aet.py status` this turn and haven't finished processing the results yet).
+/loop 1h /my-auto-experiment-tuning Continue fine-tuning. Target: PSNR > XX (substitute actual target). Keep GPUs occupied. At the start of each invocation: (1) run `aet.py status` — if results.csv finished count exceeds plan.md Completed entries, rebuild plan.md from results.csv before anything else; (2) regardless of whether step (1) found new completions, check: if Ready Queue count < total_capacity AND `background_strategist_in_flight` is false in plan.md Loop State, call Strategist NOW (blocking if queue empty, background if non-empty); if `strategist_agent_id` in plan.md Loop State is not null, resume via SendMessage instead of fresh spawn, EXCEPT when `pending_exhaustion_confirmation` is true — then spawn a fresh confirmer instead of resuming (see adapter step 9); pass recent run IDs from results.csv as runs_since_last_strategist. Skip this prompt only if you are currently mid-execution of steps 1–2 in this exact conversation turn (i.e., you already ran `aet.py status` this turn and haven't finished processing the results yet).
 ```
 
 Template to customize:
@@ -104,12 +110,9 @@ Template to customize:
 
 Claude Code uses the `Agent` tool (not Codex's `multi_tool_use.parallel` pattern):
 
-- Launch Strategist and Runner as parallel `Agent` tool calls in a single message when both are needed.
-- Each agent is an independent process with its own tool access.
-- Pass the session path, ledger summary, and bounded write scope explicitly in the agent prompt, because subagents start without the parent's context.
-- Background jobs launched by a Runner subagent do NOT notify the parent directly — the Runner must collect results before returning, or the parent must re-check the output directories after the Runner finishes.
-- Use `run_in_background=True` in Runner subagents for their individual experiment launches; the Runner stays alive until its assigned runs finish, then reports back.
-- When Ready Queue is non-empty but below total_capacity, spawn Strategist with `run_in_background=True` so experiments continue uninterrupted. When queue is empty, spawn blocking (omit `run_in_background` or set to False).
+- The Strategist is an independent process with its own tool access.
+- Pass the session path, ledger summary, and bounded write scope explicitly in the agent prompt, because the subagent starts without the parent's context.
+- When Ready Queue is non-empty but below total_capacity, call Strategist with `run_in_background=True` so experiments continue uninterrupted. When queue is empty, use a blocking call (omit `run_in_background` or set to False).
 
 ## Workflow Differences Summary
 
@@ -119,7 +122,7 @@ Claude Code uses the `Agent` tool (not Codex's `multi_tool_use.parallel` pattern
 | Launch candidate group (parallel) | One foreground session per run, serialized | Multiple `run_in_background=True` in same turn |
 | Monitor progress | Poll with `write_stdin` or wait | Receive completion notification automatically |
 | Keepalive between turns | External cron/systemd required | `/loop 1h` native |
-| Subagents | Codex `exec_command` delegation | `Agent` tool, parallel calls |
+| Strategist subagent | `spawn_agent(message="...", fork_context=true)` with the registered custom agent selected as `experiment-strategist` when context inheritance is needed; `send_input(target=strategist_agent_id, ...)` for continuation | `Agent(subagent_type="experiment-strategist")` or `SendMessage` continuation |
 
 ## Safe Bash Patterns (Claude Code)
 

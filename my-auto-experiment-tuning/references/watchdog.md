@@ -1,3 +1,5 @@
+Read this file only when setting up a keepalive or external watchdog for a long tuning session.
+
 # Keepalive / Watchdog
 
 Use this file to set up periodic self-reminders that prevent an autonomous tuning session from going idle.
@@ -22,7 +24,7 @@ Claude Code has a `/loop` command that sends a recurring prompt at a fixed inter
 **Command to run** (in conversation, not in shell):
 
 ```
-/loop 1h /my-auto-experiment-tuning Continue fine-tuning. Target: PSNR > XX (substitute actual target). Keep GPUs occupied. At the start of each invocation: (1) run `aet.py status` — if results.csv finished count exceeds plan.md Completed entries, rebuild plan.md from results.csv before anything else; (2) regardless of whether step (1) found new completions, check: if Ready Queue count < total_capacity AND `background_strategist_in_flight` is false in plan.md Loop State, spawn Strategist NOW (blocking if queue empty, background if non-empty); pass recent run IDs from results.csv as runs_since_last_strategist. Skip this prompt only if you are currently mid-execution of steps 1–2 in this exact conversation turn (i.e., you already ran `aet.py status` this turn and haven't finished processing the results yet).
+/loop 1h /my-auto-experiment-tuning Continue fine-tuning. Target: PSNR > XX (substitute actual target). Keep GPUs occupied. At the start of each invocation: (1) run `aet.py status` — if results.csv finished count exceeds plan.md Completed entries, rebuild plan.md from results.csv before anything else; (2) regardless of whether step (1) found new completions, check: if Ready Queue count < total_capacity AND `background_strategist_in_flight` is false in plan.md Loop State, call Strategist NOW (blocking if queue empty, background if non-empty); if `strategist_agent_id` in plan.md Loop State is not null, resume via SendMessage instead of fresh spawn, EXCEPT when `pending_exhaustion_confirmation` is true — then spawn a fresh confirmer instead of resuming (see adapter step 9); pass recent run IDs from results.csv as runs_since_last_strategist. Skip this prompt only if you are currently mid-execution of steps 1–2 in this exact conversation turn (i.e., you already ran `aet.py status` this turn and haven't finished processing the results yet).
 ```
 
 If the user provided a numeric target (e.g., `PSNR > 25`), embed it in the prompt. If not, omit the target clause. The escape clause prevents re-entry only when you are already mid-execution in the same turn — it does NOT apply just because experiments are running or no new completions occurred.
@@ -44,12 +46,12 @@ See `references/claude-code-adapter.md` for the full background job pattern.
 
 Codex cannot self-wake and has no background completion notification. During an active turn, a long-running `exec_command` may return a `session_id`; record `session_id -> run_id/output_dir/log_path` in `plan.md` and poll it with `write_stdin`. After the turn ends, an external scheduler must send a follow-up prompt if continued supervision is required.
 
-## Keepalive Prompt
+## Keepalive Message
 
 If an external scheduler can send a message to the active conversation, use a short prompt like:
 
 ```text
-$my-auto-experiment-tuning Continue the existing tuning session. Keep GPUs occupied within contention limits. Do not stop unless a valid stop condition is recorded: clean target evidence, exhausted budget, user stop, or blocked continuation. If the Ready Queue is insufficient or a stop condition is not clearly met, spawn Strategist with the standard neutral prompt. Record results and update the benchmark ledger.
+$my-auto-experiment-tuning Continue the existing tuning session. Keep GPUs occupied within contention limits. Do not stop unless a valid stop condition is recorded: clean target evidence, exhausted budget, user stop, or blocked continuation. If the Ready Queue is insufficient or a stop condition is not clearly met, call Strategist with the standard neutral prompt. Record results and update the benchmark ledger.
 ```
 
 If the objective has a numeric target, include it:

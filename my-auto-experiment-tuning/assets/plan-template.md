@@ -19,7 +19,7 @@ Canonical file: this template is rendered by `aet.py init` into `PROJECT/aet/YYY
 - GPU parallelism:
 - Current free GPU slots:
 - total_capacity: (capacity_per_gpu × gpu_count, from `aet.py gpu-slots`)
-- Ready-queue invariant: keep `Ready Queue` count at or above total_capacity whenever useful unexplored regions remain. Strategist is spawned whenever count drops below total_capacity.
+- Ready-queue invariant: keep `Ready Queue` count at or above total_capacity whenever useful unexplored regions remain. Call Strategist whenever count drops below total_capacity.
 - Invalid or untrusted conditions:
 - Forbidden parameter regions:
 
@@ -54,18 +54,19 @@ Keep this board current. Move rows between sections instead of leaving stale dup
 | -------- | ---------- | ---------- | --------- | -------- | --------------- | --------------- |
 
 <!-- Rolling queue protocol:
-1. Plan enough Ready Queue candidates so ready_count >= total_capacity (capacity_per_gpu × gpu_count).
+1. Plan enough Ready Queue candidates that after free slots are filled, ready_count stays >= total_capacity (target ≈ current_free_slots + total_capacity; = 2× total_capacity at session start).
 2. When slots are free, take as many highest-priority ready rows as current resource checks allow, assign run id/GPU/output dir/log path, register each with `aet.py create-run`, launch each command, then record each accepted process with `aet.py record --status running` and move them to Running.
 3. When a run finishes, collect metrics, record terminal status with `aet.py record`, move that row from Running to Completed / Recorded, then update observations.
 4. Analyze current results and append informative candidates to Ready Queue when useful. This can be 0, 1, or many candidates, including a small grid/factorial group; do not force a one-finished-run to one-new-run cadence.
 5. If new evidence invalidates a ready candidate before launch, remove or rewrite that Ready Queue row and note why in observations.md.
 -->
 
-### Loop State (Claude Code — update after each completion/Strategist event)
+### Loop State (update after each completion/Strategist event)
 
 - `runs_since_last_strategist`: []  <!-- append run_id each time a run reaches terminal status -->
-- `background_strategist_in_flight`: false  <!-- set true when background Agent spawn issued; set false when it returns; skip re-spawn while true -->
-- `strategist_agent_id`: null  <!-- set to agentId when Strategist returns from a fresh spawn; null if never spawned or previous agentId is no longer valid -->
+- `background_strategist_in_flight`: false  <!-- Claude Code: set true when a background Agent/SendMessage call is issued; set false when it returns; skip re-calling while true. Codex normally leaves false because Strategist calls are blocking. -->
+- `strategist_agent_id`: null  <!-- set to the Strategist agent id after a fresh spawn; null if never spawned or previous id is no longer valid; Codex resumes with send_input(target=...); Claude Code resumes with SendMessage; on exhaustion-confirmer promotion, overwrite with the confirmer's agent id -->
+- `pending_exhaustion_confirmation`: false  <!-- set true after the continuous-context (Primary) Strategist returns 0 candidates + exhaustion while fully quiescent (no runs in flight, Ready Queue empty); while true the next Strategist call MUST be a fresh confirmer spawn (ignore strategist_agent_id; no SendMessage/send_input resume); cleared on confirmed stop or whenever any Strategist returns candidates -->
 
 ### Per-HP Rationale (for non-obvious value choices, cite prior run evidence)
 

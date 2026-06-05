@@ -4,7 +4,7 @@ Use this file when preparing an uninterrupted autonomous tuning run.
 
 ## What the Skill Can and Cannot Grant
 
-A skill cannot grant filesystem, network, GPU, or shell permissions by itself. It only tells Codex how to work. Actual permission decisions still come from the active Codex sandbox, the approval policy, and the user's approved command-prefix rules.
+A skill cannot grant filesystem, network, GPU, or shell permissions by itself. It only tells you how to work. Actual permission decisions still come from the active sandbox, the approval policy, and the user's approved command-prefix rules (Codex sandbox/approval policy, or Claude Code allow/deny rules in settings.json).
 
 If a command is blocked, the agent must request escalation once with a narrowly scoped prefix rule. After the user approves that prefix, later matching commands can run without repeated interruption.
 

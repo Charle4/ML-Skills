@@ -13,7 +13,7 @@ The parent agent provides:
 - `project_root`, relevant experiment script paths, and CLI argument notes.
 - `algorithm_context`: metric meaning, tuning objective, known parameter couplings, benchmark constraints, and known bad-data risks.
 - `current_free_slots`: current usable GPU slots.
-- `total_capacity`: capacity_per_gpu × gpu_count (constant); return enough candidates so ready_count >= total_capacity.
+- `total_capacity`: capacity_per_gpu × gpu_count (constant). Return enough candidates that after the parent fills current_free_slots, ready_count stays >= total_capacity — target ready_count ≈ current_free_slots + total_capacity (= 2× total_capacity at session start).
 - `current_best`: best run id and metric as a locator only.
 - `runs_since_last_strategist`: list of run_ids completed since the last Strategist call, along with their recorded status, primary_metric, and metric_name (from results.csv). Strategist uses these to generate targeted observations before planning. If the list is empty (session start / first call), skip observations and plan initial candidates from `plan.md` directly.
 
@@ -53,7 +53,7 @@ If nothing new was learned, return an empty observations block.
 
 - Plan by hypotheses, not blind value lists.
 - Analyze hyperparameters as a coupled system; avoid repeated one-knob local tweaks unless interactions are already understood or the user explicitly requested local refinement.
-- Return enough Ready Queue candidates so ready_count will be at or above total_capacity (capacity_per_gpu × gpu_count) whenever useful search remains; usually return no more than about 2x configured capacity unless runs are very short.
+- Return enough Ready Queue candidates that after the parent fills the current free slots, ready_count stays at or above total_capacity — target ready_count ≈ current_free_slots + total_capacity. At session start (empty queue, all slots free) this means at least 2× total_capacity, so the first launch wave does not immediately empty the queue and force a redundant blocking re-call. The soft upper bound stays about 2× total_capacity unless runs are very short.
 - Prefer early broad interaction groups, then local refinement, clean confirmation, and escape groups.
 - If the current best sits at a tested boundary, include boundary expansion plus an anchor near the current best.
 - Include a confirmation candidate when the best result is surprising, benchmark-facing, seed-sensitive, or produced under different GPU load.
@@ -139,7 +139,7 @@ A good planning group has:
 - output names that encode all varied knobs
 
 For open-ended/high-resource tuning:
-- Maintain a `Ready Queue`, not just a same-size batch. Ready candidates must be at or above total_capacity (capacity_per_gpu × gpu_count) whenever useful unexplored regions remain.
+- Maintain a `Ready Queue`, not just a same-size batch. Ready candidates must be at or above total_capacity (capacity_per_gpu × gpu_count) whenever useful unexplored regions remain. Size each return so the queue survives the next launch wave: target current_free_slots + total_capacity (= 2× total_capacity at session start).
 - Keep the ready queue compact enough to stay relevant: usually no more than about 2x configured total capacity unless runs are very short or the method tolerates a larger backlog.
 - Fill GPU slots from `Ready Queue` immediately as they open; do not wait for the rest of the planning group to finish.
 - After analyzing a completed run, append 0, 1, or several candidates depending on what the result teaches. Do not force one-new-run per finished run.
@@ -237,13 +237,16 @@ End your response with the following block verbatim (this is for the main agent 
 ## Main Agent: Next Steps
 
 After receiving this return, in order:
-0. If `observations_to_append` provided: append to `SESSION/observations.md`; clear only the `runs_since_last_strategist` entries that were passed at spawn time (runs completed during background analysis accumulate for the next call)
+0. If `observations_to_append` provided: append to `SESSION/observations.md`; clear only the `runs_since_last_strategist` entries that were passed at call time (runs completed during background analysis accumulate for the next call)
 0b. **Claude Code only**: set `background_strategist_in_flight: false`. If this was a fresh `Agent` spawn (not a `SendMessage` resume), also write the returned `agentId` to `strategist_agent_id` in plan.md Loop State.
+0c. **Claude Code only — exhaustion handshake** (full rules: adapter step 9):
+   - If this return was a **fresh confirmer** (`pending_exhaustion_confirmation` was true): 0 candidates + exhaustion → confirmed, stop per Default Stopping Rules; candidates → promote (set `strategist_agent_id` ← this confirmer's `agentId`, clear `pending_exhaustion_confirmation`) and continue.
+   - Otherwise (Primary return): if it returned 0 candidates + exhaustion while fully quiescent (no runs in flight, Ready Queue empty), set `pending_exhaustion_confirmation: true`; otherwise leave it false.
 1. Append Ready Queue Candidates to `SESSION/plan.md` Ready Queue section
 2. Update Stop/Continue Rule section in `SESSION/plan.md`
 3. Apply any Queue Edits (remove/rewrite invalidated rows)
 4. Check GPU slots: `aet.py gpu-slots`; compute total_capacity = sum of `capacity` fields across all allowed GPUs.
-   If Ready Queue count < total_capacity: spawn Strategist again (blocking if queue empty; Claude Code can use run_in_background=True if non-empty). **Claude Code**: prefer `SendMessage` resume if `strategist_agent_id` is set; see `references/claude-code-adapter.md` step 9.
+   If Ready Queue count < total_capacity: call Strategist again (blocking if queue empty; Claude Code can use run_in_background=True if non-empty). **Claude Code**: prefer `SendMessage` resume if `strategist_agent_id` is set, except spawn a fresh confirmer when `pending_exhaustion_confirmation` is true; see `references/claude-code-adapter.md` step 9.
 5. For each free slot, take the top-priority Ready Queue row:
    a. Register and create output dir in one step: `aet.py create-run --session SESSION --name ... --params '...' --gpu-id G`
       Output is three labeled lines: `run_dir`, `run_id`, `output_dir` (already created). Use the printed `output_dir` directly — do not call `aet.py unique-dir` for session-internal paths and never pass `--run-id` manually.
