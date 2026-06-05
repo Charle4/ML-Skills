@@ -1,6 +1,6 @@
-# Permissions
+Read this file only when running under an approval-gated sandbox (not full auto/bypass) or when a command is blocked and you need a narrowly scoped escalation.
 
-Use this file when preparing an uninterrupted autonomous tuning run.
+# Permissions
 
 ## What the Skill Can and Cannot Grant
 
@@ -30,15 +30,6 @@ Recommended:
 - if the project venv interpreter is used directly, mirror the same narrow shape with that interpreter path
 
 Avoid broad approvals such as `["python"]`, `["bash"]`, or `["bash", "-lc"]`; those are too permissive and can hide unsafe commands inside a generic shell.
-
-## Commands That Should Still Ask
-
-Always ask for approval before:
-- deleting experiment directories or logs
-- killing processes not started in the current run
-- installing packages or accessing the network
-- writing outside the project, `/tmp`, or configured writable roots
-- destructive git operations
 
 ## Working Inside the Sandbox
 

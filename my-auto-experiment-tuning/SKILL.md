@@ -125,6 +125,7 @@ Create exactly ONE AET session (`aet.py init`) per user tuning objective. Do NOT
 - Treat failed and bad runs as data. Record the failure pattern and avoid repeating it.
 - If a standard baseline is far below expected behavior, pause pure hyperparameter sweeps and audit implementation fidelity, preprocessing, objective terms, schedules, seeds, and metric definitions.
 - Prefer project CLI arguments over editing experiment scripts. If edits are required, read first and keep them scoped.
+- Always ask before destructive or scope-expanding actions, even under auto/bypass approval where no prompt fires: deleting experiment directories or logs, killing processes not started in the current run, installing packages or accessing the network, writing outside the project / `/tmp` / configured writable roots, or destructive git operations. Auto-approval removes the human gate, so enforcing this boundary is yours.
 
 ### Shell Command Safety (Claude Code — CRITICAL)
 
@@ -177,7 +178,7 @@ Throughout this skill, `SKILL_DIR` means the install root above. Substitute it w
 ## Quick Start
 
 1. Read project-local operating context:
-   - Read these core references immediately after this file: `references/workflow.md`, `references/subagents.md`, `references/experiment-ledger.md`, `references/gpu-policy.md`, and `references/permissions.md`.
+   - Read these core references immediately after this file: `references/workflow.md`, `references/subagents.md`, and `references/gpu-policy.md`. `references/workflow.md` carries the full autonomous loop, the durable ledger/state schema, and the per-cycle GPU capacity rules; `references/gpu-policy.md` holds the configurable-parameter and CLI-flag tables for the GPU scheduling you arrange.
    - `AGENTS.md`, `CLAUDE.md`, experiment README files, and existing memory/notes if present.
    - Check `references/project-adapter-*.md` for project-specific adapters. Each adapter should state its match criteria near the top, such as project root paths, repository markers, or required files. If one matches the current project, read it before planning.
    - **Semantic search — don't trust filenames alone**: After reviewing file names, use your available search tool (`grep`, `rg`, `search`, or equivalent) to scan all reference files for keywords from the actual task: project root path fragments, script names, method names, metric names, and parameter names the user mentioned. If any file matches, read it fully. This step takes seconds and prevents missing critical tuning rules that happen to live in a file whose name looks irrelevant.
@@ -214,7 +215,7 @@ Fill `PROJECT/aet/YYYY-MM-DD/HH-MM-SS/plan.md` before launching. If that file is
 
 4. Check capacity:
 
-   Read `references/gpu-policy.md` for slot defaults and configurable parameters. Default: 1 experiment per GPU, hard cap 3, utilization ceiling 95%. Override via user instruction, project adapter, README, or project memory — in that priority order.
+   GPU scheduling is normally something you arrange explicitly (which GPUs, jobs per GPU, thresholds). `references/workflow.md` section 6 covers the scheduling-source priority chain (user > adapter > README > memory), the runtime slot check, the `total_capacity` definition, and the conservative fallback defaults used only when no scheduling is specified. `references/gpu-policy.md` holds the configurable-parameter table and the `aet.py gpu-slots` CLI-flag mapping for the scheduling you arrange.
 
 ```bash
 nvidia-smi --query-gpu=index,utilization.gpu,memory.used,memory.total --format=csv,noheader
@@ -287,11 +288,10 @@ Session-aware commands (`create-run`, `record`, `status`, and `summarize`) accep
 
 ## Resource Map
 
-- `references/workflow.md`: core; read at session start for the full autonomous loop and recovery protocol.
-- `references/experiment-ledger.md`: core; read at session start for durable state schema and what to record after each run.
+- `references/workflow.md`: core; read at session start. Carries the full autonomous loop, the durable ledger/state schema (session files, run-status values, per-run fields, contamination rules), the per-cycle GPU capacity rules, project-record and cross-session-knowledge handling, and the recovery protocol.
 - `references/project-adapter-*.md`: optional project adapters. Each adapter should state match criteria at the top and point to the authoritative project README, benchmark docs, launch conventions, and known tuning constraints.
-- `references/gpu-policy.md`: core; read at session start. GPU slot defaults (1 per GPU, cap 3, util ceiling 95%), configurable parameters (`gpu_ids`, `max_per_gpu`, memory headroom, `max_util`), helper CLI mappings, and override priority (user > adapter > README > memory).
-- `references/permissions.md`: core; read at session start. Covers sandbox permission model, approved command-prefix patterns, recommended pre-approvals, and what always requires confirmation.
+- `references/gpu-policy.md`: core; read at session start. Holds the configurable-parameter table, the `aet.py gpu-slots` CLI-flag mapping, and the multi-per-GPU conditions for the GPU scheduling you arrange. The scheduling-source priority chain, the runtime slot check, `total_capacity`, and the conservative fallback defaults live in `workflow.md` section 6.
+- `references/permissions.md`: conditional; read only when running under an approval-gated sandbox (not full auto/bypass) or when a command is blocked and you need a narrowly scoped escalation. Covers command-shape/prefix hygiene, recommended pre-approval prefixes, and the escalation pattern.
 - `references/watchdog.md`: read when setting up a keepalive for a long session (Claude Code `/loop` or external cron for Codex). Not needed for short runs.
 - `references/subagents.md`: core; read at session start (already listed in Quick Start step 1). Contains trigger rules, the Strategist prompt template, and the post-return protocol to follow after each Strategist call.
 - `references/claude-code-adapter.md`: **Claude Code only** — read at session start (already listed in Quick Start step 1). Covers `run_in_background`, completion notifications, `/loop`, and subagent differences vs Codex.

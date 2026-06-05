@@ -237,23 +237,19 @@ End your response with the following block verbatim (this is for the main agent 
 ## Main Agent: Next Steps
 
 After receiving this return, in order:
-0. If `observations_to_append` provided: append to `SESSION/observations.md`; clear only the `runs_since_last_strategist` entries that were passed at call time (runs completed during background analysis accumulate for the next call)
-0b. **Claude Code only**: set `background_strategist_in_flight: false`. If this was a fresh `Agent` spawn (not a `SendMessage` resume), also write the returned `agentId` to `strategist_agent_id` in plan.md Loop State.
-0c. **Claude Code only — exhaustion handshake** (full rules: adapter step 9):
+0. If `observations_to_append` provided: append to `SESSION/observations.md`; clear only the `runs_since_last_strategist` entries that were passed at call time (runs completed during background analysis accumulate for the next call).
+0b. Set `background_strategist_in_flight: false`. If this was a fresh `Agent` spawn (not a `SendMessage` resume), also write the returned `agentId` to `strategist_agent_id` in plan.md Loop State.
+0c. Exhaustion handshake (full rules: `references/claude-code-adapter.md` step 9):
    - If this return was a **fresh confirmer** (`pending_exhaustion_confirmation` was true): 0 candidates + exhaustion → confirmed, stop per Default Stopping Rules; candidates → promote (set `strategist_agent_id` ← this confirmer's `agentId`, clear `pending_exhaustion_confirmation`) and continue.
    - Otherwise (Primary return): if it returned 0 candidates + exhaustion while fully quiescent (no runs in flight, Ready Queue empty), set `pending_exhaustion_confirmation: true`; otherwise leave it false.
-1. Append Ready Queue Candidates to `SESSION/plan.md` Ready Queue section
-2. Update Stop/Continue Rule section in `SESSION/plan.md`
-3. Apply any Queue Edits (remove/rewrite invalidated rows)
-4. Check GPU slots: `aet.py gpu-slots`; compute total_capacity = sum of `capacity` fields across all allowed GPUs.
-   If Ready Queue count < total_capacity: call Strategist again (blocking if queue empty; Claude Code can use run_in_background=True if non-empty). **Claude Code**: prefer `SendMessage` resume if `strategist_agent_id` is set, except spawn a fresh confirmer when `pending_exhaustion_confirmation` is true; see `references/claude-code-adapter.md` step 9.
+1. Append Ready Queue Candidates to `SESSION/plan.md` Ready Queue section.
+2. Update Stop/Continue Rule section in `SESSION/plan.md`.
+3. Apply any Queue Edits (remove/rewrite invalidated rows).
+4. Check GPU slots: `aet.py gpu-slots`; compute total_capacity = sum of `capacity` fields across all allowed GPUs. If Ready Queue count < total_capacity: call Strategist again — prefer a `SendMessage` resume if `strategist_agent_id` is set (blocking wait if queue empty, `run_in_background=True` if non-empty), except spawn a fresh confirmer when `pending_exhaustion_confirmation` is true; see `references/claude-code-adapter.md` step 9.
 5. For each free slot, take the top-priority Ready Queue row:
-   a. Register and create output dir in one step: `aet.py create-run --session SESSION --name ... --params '...' --gpu-id G`
-      Output is three labeled lines: `run_dir`, `run_id`, `output_dir` (already created). Use the printed `output_dir` directly — do not call `aet.py unique-dir` for session-internal paths and never pass `--run-id` manually.
-   b. Launch using the runtime-appropriate method:
-      - Claude Code: `Bash(command="python -u SCRIPT --gpu_id G --output_dir OUTPUT_DIR > OUTPUT_DIR/train.log 2>&1", run_in_background=True)`
-      - Codex: run the same command with `exec_command` as one foreground tool session per experiment; no shell `&`, no `run_in_background`; if Codex returns a `session_id`, record `session_id -> run_id/output_dir/log_path` and poll with `write_stdin`
-   c. Record running: `aet.py record --session SESSION --run-id RUN_ID --status running --output-dir OUTPUT_DIR --log-path OUTPUT_DIR/train.log`
-   d. Move row from Ready Queue to Running in plan.md
-6. Safe Bash: absolute paths only, no `cd`, no `for` loops, no shell `&`
+   a. Register and create output dir in one step: `aet.py create-run --session SESSION --name ... --params '...' --gpu-id G`. Output is three labeled lines: `run_dir`, `run_id`, `output_dir` (already created). Use the printed `output_dir` directly — do not call `aet.py unique-dir` for session-internal paths and never pass `--run-id` manually.
+   b. Launch one call per experiment: `Bash(command="python -u SCRIPT --gpu_id G --output_dir OUTPUT_DIR > OUTPUT_DIR/train.log 2>&1", run_in_background=True)`.
+   c. Record running: `aet.py record --session SESSION --run-id RUN_ID --status running`.
+   d. Move row from Ready Queue to Running in plan.md.
+6. Safe Bash: absolute paths only, no `cd`, no `for` loops, no shell `&`.
 ---

@@ -1,30 +1,10 @@
 # GPU Slot Policy
 
-## Defaults
-
-These apply whenever no override is in effect:
-
-| Parameter | Default | Hard limit |
-|---|---|---|
-| Concurrent experiments per GPU | 1 | 3 per GPU |
-| GPU utilization ceiling | 95% | — |
-| Memory cap per GPU slot | none | — |
-| GPU selection | all GPUs nvidia-smi reports | — |
-
-The default of 1 per GPU is conservative and safe for most methods. Raise it only when evidence supports it (see "When to use multiple per GPU" below).
-
-## Override Sources (checked in priority order)
-
-1. **User instruction in the current session** — highest priority; honor immediately
-2. **Project adapter** (`references/project-adapter-*.md`) — project-specific scheduling rules
-3. **Project README or experiment notes** — documented conventions for the codebase
-4. **Project memory** (`aet/knowledge.md` or the project's memory system) — rules recorded from prior sessions
-
-When an override specifies which GPU indices to use, launch only on those GPUs. Do not use unlisted GPUs without asking.
+Slot defaults, the override-priority chain, the runtime slot check, and the `total_capacity` definition are in `references/workflow.md` section 6. This file holds the override configuration tables and the conditions for running more than one experiment per GPU.
 
 ## Configurable Parameters
 
-Users and project adapters can provide any of the following:
+Users and project adapters can provide any of the following overrides:
 
 | Parameter | Example | Effect |
 |---|---|---|
@@ -36,27 +16,9 @@ Users and project adapters can provide any of the following:
 
 If the user says "use GPU 2 and 3, up to 2 jobs each", record that in the session `meta.json` and plan accordingly.
 
-## Runtime Slot Check
+## CLI Mapping
 
-Before each launch, check available slots:
-
-```bash
-nvidia-smi --query-gpu=index,utilization.gpu,memory.used,memory.total --format=csv,noheader
-python SKILL_DIR/scripts/aet.py gpu-slots
-```
-
-The raw `nvidia-smi` command is for readable context and keeps units. The helper command uses `nvidia-smi --format=csv,noheader,nounits` internally so it can parse memory and utilization reliably.
-
-A GPU slot is **available** if all of the following hold:
-- GPU utilization is below `max_util` (default 95%)
-- Active experiments on that GPU are below `max_per_gpu` (default 1)
-- If a memory limit is set: used memory is below `max_memory_used_mb` and/or remaining memory is at least `min_free_memory_mb`
-
-If all configured GPUs are at capacity, wait for the next completion notification rather than forcing a launch.
-
-Use `--kind default|light|heavy` for generic estimates. If a project adapter or user instruction gives a project-specific limit, pass it explicitly with `--capacity N`, `--gpu-ids`, `--saturated-util`, `--max-memory-used-mb`, or `--min-free-memory-mb` rather than adding project-specific method names to the helper script.
-
-CLI mapping:
+Pass project-specific limits explicitly to `aet.py gpu-slots` rather than adding project-specific method names to the helper script. Use `--kind default|light|heavy` only for generic estimates.
 
 | Policy setting | `aet.py gpu-slots` flag |
 |---|---|

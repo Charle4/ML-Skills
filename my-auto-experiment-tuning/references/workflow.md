@@ -1,8 +1,8 @@
 # Workflow
 
-Use this file when starting or resuming an autonomous tuning job.
+Use this file when starting or resuming an autonomous tuning job. It carries the full autonomous loop, the durable ledger/state schema, the GPU capacity rules needed every cycle, and the recovery protocol.
 
-## Autonomy Contract
+## 1. Autonomy Contract
 
 After the user states the tuning target, benchmark setting, constraints, and budget/principles, continue without asking for approval at each iteration. You own the loop:
 - infer the current state
@@ -20,10 +20,10 @@ Default duration semantics:
 - Do not end after 1-3 planning groups just because a plausible local best was found. A local best is a signal for the next queue update, not a stopping reason.
 - If no explicit run or wall-clock budget is provided, assume the budget is open-ended until the user intervenes or the target is cleanly met.
 - Keep all usable GPU slots occupied within the configured contention limits. When any run finishes, immediately identify it, record inline: verify output files, parse metrics in priority order (JSON/CSV/NPZ → TensorBoard → log regex), determine status, call `aet.py record`, append trust details to `runs/<id>/summary.md`, move to `Completed / Recorded`, add to `runs_since_last_strategist`, re-check current resources, and launch as many `Ready Queue` candidates as the now-free slots allow — do not wait for other running experiments to finish first.
-- Keep `Ready Queue` count at or above total_capacity (capacity_per_gpu × gpu_count, constant from `aet.py gpu-slots`) whenever useful unexplored regions remain. Call Strategist whenever count drops below total_capacity.
+- Keep `Ready Queue` count at or above total_capacity (see section 6) whenever useful unexplored regions remain. Call Strategist whenever count drops below total_capacity.
 - If the system forces a final response before the target is met, report the next ready candidates or search group and the reason continuation is blocked; do not present a local best as final.
 
-## 1. Context Pass
+## 2. Context Pass
 
 Read the minimum files that define the experiment contract:
 - repository agent instructions
@@ -33,7 +33,9 @@ Read the minimum files that define the experiment contract:
 
 Do not repeatedly reread large files after extracting stable rules. Write durable summaries to the session observations or the project's memory mechanism.
 
-## 2. Session Setup
+## 3. Session Setup and Ledger Schema
+
+Keep a durable ledger as the ground truth. Do not rely on chat context for completed runs.
 
 Create one `aet/YYYY-MM-DD/HH-MM-SS/` session per tuning objective.
 This two-level timestamped directory is the canonical session root. Store session files inside it, not directly under `aet/` or `aet/YYYY-MM-DD/`.
@@ -56,17 +58,43 @@ python SKILL_DIR/scripts/aet.py init --project-root PROJECT --name NAME --object
 
 Capture the printed session path. `aet.py init` creates `plan.md` from `assets/plan-template.md` and `observations.md` from `assets/observations-template.md` in that exact directory; edit those generated files directly.
 
-## 2.1 AET Helper Contract
+### Session Files
+
+`aet/YYYY-MM-DD/HH-MM-SS/` contains:
+- `meta.json`: objective, metric direction, project root, creation time
+- `plan.md`: current hypotheses plus the rolling execution board (`Completed / Recorded`, `Running`, `Ready Queue`)
+- `results.csv`: one row per run
+- `observations.md`: short analysis notes and reusable rules
+- `queue.jsonl`: append-only `create-run` recovery snapshots for registered runs; not the live `Ready Queue`
+- `runs/<id>/`: per-run params, command, metrics, and summary
+
+Only this timestamped session directory holds session ledger files. Do not write plans, observations, run notes, or summaries directly under `aet/` or the date-level directory `aet/YYYY-MM-DD/`. If a task needs a plan, update `aet/YYYY-MM-DD/HH-MM-SS/plan.md`; if it needs observations, update `aet/YYYY-MM-DD/HH-MM-SS/observations.md`. The one allowed file at the `aet/` root is the optional cross-session durable-rules file `aet/knowledge.md` (see section 12); it is not session-scoped, so it does not belong inside a timestamped session directory.
+
+### Run Status Values
+
+- `created`: run directory exists but command has not started
+- `running`: process is active
+- `finished`: completed and metrics are trustworthy
+- `failed`: command failed or output is unusable
+- `inconclusive`: completed but contaminated, mismatched, or not comparable
+- `superseded`: no longer relevant because a later clean run replaces it
+
+## 4. AET Helper Contract
 
 Use `aet.py` for objective run bookkeeping, not for semantic search decisions:
-- `plan.md` is the human/agent-managed rolling execution board. `Ready Queue` lives there.
-- `queue.jsonl` is an append-only recovery map written by `create-run` for registered runs. It is not the live `Ready Queue` and it does not reflect later status updates.
+- `plan.md` is the human/agent-managed rolling execution board. `Ready Queue` lives there. Manage semantic queue decisions in `plan.md`; do not expect `aet.py` to choose, prioritize, or retire candidates.
+- `queue.jsonl` is an append-only recovery map written by `create-run` for registered runs. It is not the live `Ready Queue` and it may still show the original `created` snapshot after later status updates.
 - `results.csv` is the status/metric source of truth. Use `aet.py record` for every transition to `running`, `finished`, `failed`, `inconclusive`, or `superseded`.
 - `runs/<id>/params.json`, `metrics.json`, `command.sh`, and `summary.md` are per-run objective artifacts. Do not create parallel run-note files.
+
+Helper call ownership for each run:
+- Use `aet.py create-run` before launching any experiment. It creates `runs/<id>/` and `runs/<id>/output/`, writes objective artifacts, appends the registration snapshot to `queue.jsonl`, and prints `run_dir`, `run_id`, and `output_dir` as labeled lines.
+- Use `aet.py record --status running` after the process starts so `results.csv` records `start_time`.
+- Use `aet.py record` again for terminal statuses and metrics. Terminal records update `end_time`, `metrics.json`, `results.csv`, and `summary.md`.
 - `record --notes` appends a run note to `observations.md`; use notes mainly for terminal statuses or important anomalies. For routine `running` transitions, omit `--notes` to avoid noisy duplicate observations.
 - `record` rewrites `runs/<id>/summary.md` from the template. Add detailed trust-check edits after the final terminal `record`, or be prepared to reapply them if status changes later.
 
-## 3. Planning
+## 5. Planning and Queue Invariant
 
 Before launching, write and maintain the live plan in `SESSION/plan.md`:
 - hypothesis being tested
@@ -83,11 +111,40 @@ Do not create separate planning notes such as `aet/YYYY-MM-DD/next.md`, `aet/YYY
 
 Prefer candidate groups that distinguish hypotheses. The Strategist owns detailed candidate selection when delegation is available; write the returned candidates into `plan.md`.
 
-**Before proceeding to section 4**: if `Ready Queue` count < total_capacity, call Strategist (same trigger as the rolling cycle). Strategist plans candidates from `plan.md`'s objective and coupled parameters; no completed runs are required. At session start all slots are free, so expect at least 2× total_capacity candidates (current_free_slots + total_capacity): only total_capacity would let the first launch wave empty the queue and force a redundant blocking re-call against the same empty result state. Only then launch from the returned queue.
+**Before proceeding to section 7**: if `Ready Queue` count < total_capacity, call Strategist (same trigger as the rolling cycle). Strategist plans candidates from `plan.md`'s objective and coupled parameters; no completed runs are required. At session start all slots are free, so expect at least 2× total_capacity candidates (current_free_slots + total_capacity): only total_capacity would let the first launch wave empty the queue and force a redundant blocking re-call against the same empty result state. Only then launch from the returned queue.
 
 Use "batch" only as a search-design label. Execution is rolling: a completion, a resource change, or a changed result can trigger an immediate row transition, slot refill, and queue refill before the rest of the conceptual batch finishes. Strategist may return zero, one, or many ready candidates at once, not exactly one candidate per finished run.
 
-## 4. Launch
+## 6. Capacity Check
+
+Before every launch wave, check available GPU slots. Memory alone is insufficient; high utilization can contaminate metrics for some methods.
+
+```bash
+nvidia-smi --query-gpu=index,utilization.gpu,memory.used,memory.total --format=csv,noheader
+python SKILL_DIR/scripts/aet.py gpu-slots
+```
+
+Raw `nvidia-smi` keeps units for readable context; `aet.py gpu-slots` queries `--format=csv,noheader,nounits` internally so it can parse memory and utilization reliably, then reports the free slot count. Run `aet.py gpu-slots --json` once at session start to read the per-GPU `capacity` fields needed for `total_capacity` (defined below).
+
+GPU scheduling is normally arranged explicitly — which GPU indices to use, how many jobs per GPU, memory and utilization thresholds. Take that arrangement from the highest-priority source available, in this order:
+1. user instruction in the current session — honor immediately
+2. project adapter (`references/project-adapter-*.md`)
+3. project README or experiment notes
+4. project memory (`aet/knowledge.md` or the project's memory system)
+
+When the arrangement names specific GPU indices, launch only on those GPUs; do not use unlisted GPUs without asking. Record it (e.g., "use GPU 2 and 3, up to 2 jobs each") in the session `meta.json`, and pass it to `aet.py gpu-slots` via the flags in `references/gpu-policy.md`.
+
+Apply the arrangement per dimension. For each scheduling dimension a higher-priority source does not fix, fall back to its conservative default — so if the user names GPUs 2 and 3 but not jobs-per-GPU, those GPUs still take the default 1 job each. The per-dimension defaults: 1 experiment per GPU, utilization ceiling 95%, no per-slot memory cap, all GPUs that `nvidia-smi` reports. These defaults guard against GPU contention that can contaminate metrics; they are a floor, not the expected operating point. The hard cap of 3 experiments per GPU holds regardless of arrangement — never exceed it without an explicit user instruction naming a higher number.
+
+A GPU slot is **available** when all hold: utilization is below the applicable util ceiling, active experiments on that GPU are below the applicable `max_per_gpu`, and any configured memory limit is satisfied (used memory below `max_memory_used_mb` and/or free memory at least `min_free_memory_mb`). If all allowed GPUs are at capacity, wait for the next completion rather than forcing a launch.
+
+`total_capacity` = sum of the `capacity` fields across all allowed GPUs from `aet.py gpu-slots --json` (equals capacity_per_gpu × gpu_count when all GPUs share the same capacity). It is constant for the session and drives the Ready Queue invariant in section 5.
+
+For the configurable parameters (`gpu_ids`, `max_per_gpu`, `max_memory_used_mb`, `min_free_memory_mb`, `max_util`), the `aet.py gpu-slots` CLI flag mapping, and the conditions under which more than one experiment per GPU is allowed, read `references/gpu-policy.md`.
+
+Use `pgrep -af` only as a sanity check. It may match the `pgrep` command itself and does not prove which output directory belongs to a process. Prefer precise patterns such as `experiments/exp_` or the exact script name; broad patterns like `exp_` can match unrelated system threads.
+
+## 7. Launch
 
 Launch every configuration in its own run directory.
 
@@ -100,7 +157,7 @@ Launch rules:
 - standard launch shape: `python -u <script.py> <script args including unique output_dir> > <output_dir>/train.log 2>&1`
 - use plain `python` by default so the command inherits the agent's startup environment; use an explicit interpreter path only when the active environment is wrong
 - simple shell: avoid `cd`, command substitution, loops, pipes, and multi-command launch blocks
-- before each launch wave, re-check resources, select as many `Ready Queue` rows as current free slots allow, assign GPU, register each with `aet.py create-run` (no `--run-id`; take `run_id` and `output_dir` from its output), record status `running` with `aet.py record --status running` after the process starts, and move each to `Running`
+- before each launch wave, re-check resources (section 6), select as many `Ready Queue` rows as current free slots allow, assign GPU, register each with `aet.py create-run` (no `--run-id`; take `run_id` and `output_dir` from its output), record status `running` with `aet.py record --status running` after the process starts, and move each to `Running`
 
 **Codex**: keep the command in a foreground tool session; do not add shell `&`. Poll active sessions with `write_stdin` at reasonable intervals.
 
@@ -108,7 +165,7 @@ Launch rules:
 
 When a run finishes, immediately identify the run, then record inline: verify output files, parse metrics (JSON/CSV/NPZ → TensorBoard → log regex), determine status, call `aet.py record`, append trust details to `summary.md`, move the row to `Completed / Recorded`, add to `runs_since_last_strategist`, re-check resources, and fill all currently usable slots from `Ready Queue`.
 
-## 4.1 Task Management by Runtime
+## 8. Task Management by Runtime
 
 **Codex task management:**
 - Keep the `Running` table in the session plan before launching: run id, hypothesis, GPU id, output directory, command, and expected metric file. `queue.jsonl` is only a recovery map created by `create-run`.
@@ -128,42 +185,70 @@ When a run finishes, immediately identify the run, then record inline: verify ou
 - On notification: identify the run from `Running`; record inline (verify output files, parse metrics, determine status, call `aet.py record`, append trust details to `summary.md`, move to `Completed / Recorded`, add to `runs_since_last_strategist`); re-check resources and launch as many `Ready Queue` candidates as current slots allow.
 - Do not wait for all jobs in a candidate group to finish before analyzing and recording the ones that completed first — incremental recording reduces exposure to context compaction loss.
 
-**Both runtimes:**
-- Check `nvidia-smi --query-gpu=index,utilization.gpu,memory.used,memory.total --format=csv,noheader` before launching and during suspicious slowdowns. Memory alone is insufficient; high utilization can contaminate metrics for some methods. Use `references/gpu-policy.md` and `aet.py gpu-slots` to determine available slots (default: 1 per GPU, cap 3, util ceiling 95%); the helper normalizes the same fields for numeric filtering.
-- Use `pgrep -af` only as a sanity check. It may match the `pgrep` command itself, and it does not prove which output directory belongs to a process. Prefer precise patterns such as `experiments/exp_` or the exact script name; broad patterns like `exp_` can match unrelated system threads.
-
-## 5. Collection
+## 9. Collection and Result Integrity
 
 For each finished run:
 1. Verify output directory, metrics JSON/CSV/NPZ, images, and the in-output-dir log file exist.
-2. Parse primary metric in priority order: structured JSON/CSV/NPZ → TensorBoard event files → log regex via `aet.py parse-log` → manual extraction as last resort.
+2. Parse primary metric in priority order: structured JSON/CSV/NPZ → TensorBoard event files → log regex via `aet.py parse-log` → manual extraction as last resort (and record that it was manual).
 3. Determine terminal status: `finished`, `failed`, or `inconclusive`. Mark sandbox failures, dependency failures, code bugs, mismatched output directories, GPU contention, and partial crashes as `failed` or `inconclusive`.
 4. Call `aet.py record --status <status> --run-id <id> [--primary-metric <v> --metric-name <n> --metrics '<json>'] [--notes '<note>']`
 5. If trust note is relevant: append to `runs/<id>/summary.md` (after record, since record rewrites that file).
 6. Move the row from `Running` to `Completed / Recorded` in `plan.md`; add run_id to the `runs_since_last_strategist` tracking list.
 7. Re-check GPU slots and continue the rolling queue protocol.
 
-## 6. Analysis
+### Required Per-Run Fields
 
-Recording is inline (see section 5). Analysis is delegated, not done inline: synthesizing per-HP influence patterns across runs is the Strategist's job.
+Record:
+- run id and name
+- command
+- output directory
+- log path under the output directory, normally `train.log`
+- GPU id
+- parameters as JSON
+- seed or initialization source, if the method is initialization-sensitive
+- preprocessing/channel mode, postprocessing mode, and metric definition when these can affect comparability
+- schedule/switch sentinel values, especially when they are intended to disable a behavior
+- status
+- primary metric and metric name
+- all useful secondary metrics
+- notes explaining trustworthiness
+
+### Optional Per-Run Fields (record when available)
+
+- per-HP rationale: brief justification (from prior results) for the specific value chosen for each non-default hyperparameter in this run. Stored in the run's `params.json` or the session plan, not necessarily the CSV row.
+- trust evidence: concise notes on metric source, output/log path match, GPU contention, code/data comparability, and any anomaly that affects benchmark use.
+
+### Contamination and Code Changes
+
+- Record sandbox, dependency, CUDA visibility, and permission failures as failures or inconclusive runs; do not fold them into method performance.
+- If a candidate group used a later-discovered implementation bug, wrong color conversion, wrong crop, stale metric, or mismatched output directory, mark the affected runs `inconclusive`.
+- When adding CLI knobs or changing experiment code during tuning, record the code-diff summary, default behavior, and whether older benchmark rows remain comparable.
+- Keep raw logs under each run's output directory for bad, failed, and contaminated runs. They are often the only evidence that prevents repeating the same mistake.
+
+If a run is contaminated, record it as `inconclusive` rather than deleting it.
+
+## 10. Analysis
+
+Recording is inline (see section 9). Analysis is delegated, not done inline: synthesizing per-HP influence patterns across runs is the Strategist's job.
 - Strategist returns `observations_to_append` (per-HP influence patterns, boundary hits, forbidden regions) when called.
 - Append returned observations to `observations.md` and clear only the run_ids that were passed at call time from the tracking list.
 
 Do not wait for a whole conceptual batch before recording. Record each run inline immediately as it completes.
 
-## 7. Next Queue
+## 11. Next Queue and Stopping Handshake
 
 Do not perform inline strategy derivation. After inline recording:
 
 1. Check whether a self-evaluatable stop condition is met: explicit user stop ("stop"/"end tuning"), explicit numeric target cleanly met with evidence, explicit run/wall-clock budget consumed, or required permission/resource unavailable. These you can evaluate inline. Do NOT evaluate plateau or exhaustion here — that is Strategist's job.
 2. Count current `Ready Queue` rows and current free GPU slots.
-3. If `Ready Queue` count < total_capacity (capacity_per_gpu × gpu_count from `aet.py gpu-slots`):
+3. If `Ready Queue` count < total_capacity (section 6):
+   - **Claude Code in-flight check first**: if `background_strategist_in_flight` is true in plan.md Loop State, **skip the call** — a background Strategist is already working; the new run_ids are already in `runs_since_last_strategist` and will be picked up when it returns. (Codex Strategist calls are blocking, so this flag is normally false there.)
    - Queue empty: blocking call; wait for results before launching. Claude Code: if `strategist_agent_id` is set in plan.md Loop State, use `SendMessage` instead — it runs in background; set `background_strategist_in_flight: true` and do not launch while waiting. Codex: if `strategist_agent_id` is set, use `send_input(target=strategist_agent_id, ...)`, then `wait_agent`.
    - Queue non-empty: background spawn where supported. Claude Code: use `SendMessage` if `strategist_agent_id` is set, otherwise `Agent(..., run_in_background=True)`; set `background_strategist_in_flight: true`. Codex: blocking `send_input` if `strategist_agent_id` is set, otherwise blocking `spawn_agent`. Record which run_ids were passed; on return, clear only those IDs from `runs_since_last_strategist`.
    - **Claude Code exhaustion-confirmation exception**: if `pending_exhaustion_confirmation` is true, ignore `strategist_agent_id` and spawn a fresh confirmer (`Agent`, blocking) instead of a SendMessage resume — the exhaustion handshake requires an independent context (see the exhaustion handling below and adapter step 9).
    - **Codex exhaustion-confirmation exception**: if `pending_exhaustion_confirmation` is true, ignore `strategist_agent_id` and spawn a fresh confirmer (`spawn_agent`, blocking) instead of a `send_input` resume — the exhaustion handshake requires an independent context.
    - Codex `send_input` edge cases: if the target agent is still running, input queues by default; use `interrupt=true` only when intentionally replacing the current task. If the agent was closed, `resume_agent(id=...)` before sending when continuity is still useful; if resume/send fails, fresh-spawn and update `strategist_agent_id`.
-   - No other suppression is valid. Do not skip because Strategist was recently called or because `runs_since_last_strategist` is empty.
+   - Apart from the Claude Code in-flight check above, no other suppression is valid. Do not skip because Strategist was recently called or because `runs_since_last_strategist` is empty.
    - Full continuation protocols: Codex in `references/subagents.md`; Claude Code in `references/subagents.md` and `references/claude-code-adapter.md` (step 9).
 4. Apply the Strategist return: append `observations_to_append` to `observations.md`, clear only the `runs_since_last_strategist` entries that were passed at call time; append Ready Queue rows to `plan.md`, update Stop/Continue Rule text, and remove or rewrite invalidated ready rows.
 5. Immediately move ready rows into `Running` for any free slots.
@@ -195,7 +280,13 @@ When a valid stop condition is met, produce a **Session Final Analysis** before 
 
 Write the final analysis to the session's `observations.md` under a `## Final Analysis` heading, and include it in the response to the user. Run `aet.py summarize` alongside it for the quantitative run-count and metric statistics.
 
-## 8. Recovery
+## 12. Project Records and Cross-Session Knowledge
+
+If a project has a benchmark table, update it immediately when a clean result improves the current best. Keep detailed comparisons in the result section or observations file; keep the benchmark table as a current-best quick lookup.
+
+If a project has a memory system, store durable rules there. If not, append rules to `observations.md` and optionally create `aet/knowledge.md` (the only file allowed at the `aet/` root; it is cross-session, not session-scoped).
+
+## 13. Recovery
 
 After context compaction or interruption:
 1. Locate latest session with `aet.py status --project-root PROJECT`.

@@ -13,7 +13,7 @@ The parent agent provides:
 - `current_free_slots`: current usable GPU slots.
 - `total_capacity`: capacity_per_gpu × gpu_count (constant). Return enough candidates that after the parent fills current_free_slots, ready_count stays >= total_capacity — target ready_count ≈ current_free_slots + total_capacity (= 2× total_capacity at session start).
 - `current_best`: best run id and metric as a locator only.
-- `runs_since_last_strategist`: list of run_ids completed since the last Strategist call, along with their recorded status, primary_metric, and metric_name (from results.csv). Strategist uses these to generate targeted observations before planning.
+- `runs_since_last_strategist`: list of run_ids completed since the last Strategist call, along with their recorded status, primary_metric, and metric_name (from results.csv). Strategist uses these to generate targeted observations before planning. If the list is empty (session start / first call), skip observations and plan initial candidates from `plan.md` directly.
 
 Read files directly. Treat parent-provided summaries as hints, not evidence.
 
@@ -35,6 +35,8 @@ Read as needed:
 Before proposing new candidates, synthesize what was learned from the runs listed in
 `runs_since_last_strategist`. Read their artifacts directly from session files; do not
 rely on summaries passed in context.
+
+**If `runs_since_last_strategist` is empty** (e.g., session start / first call), skip observations entirely. Read `plan.md` and `meta.json` instead and proceed directly to planning initial candidates from the stated objective, hypotheses, and coupled parameters.
 
 For each parameter or interaction that shows a pattern:
 - Note repeated signals, boundary hits, forbidden regions, and settings that only
@@ -243,9 +245,7 @@ After receiving this return, in order:
 5. For each free slot, take the top-priority Ready Queue row:
    a. Register and create output dir: `aet.py create-run --session SESSION --name ... --params '...' --gpu-id G`
       → output prints `run_dir:`, `run_id:`, `output_dir:` — read these values from tool output
-   b. Launch using the runtime-appropriate method:
-      - Claude Code: `Bash(command="python -u SCRIPT --gpu_id G --output_dir OUTPUT_DIR > OUTPUT_DIR/train.log 2>&1", run_in_background=True)`
-      - Codex: run the same command with `exec_command` as one foreground tool session per experiment; no shell `&`, no `run_in_background`; if Codex returns a `session_id`, record `session_id -> run_id/output_dir/log_path` and poll with `write_stdin`
+   b. Launch with `exec_command` as one foreground tool session per experiment: `python -u SCRIPT --gpu_id G --output_dir OUTPUT_DIR > OUTPUT_DIR/train.log 2>&1`; no shell `&`, no `run_in_background`. If Codex returns a `session_id`, record `session_id -> run_id/output_dir/log_path` and poll with `write_stdin`.
    c. Record running: `aet.py record --session SESSION --run-id N --status running`
    d. Move row from Ready Queue to Running in plan.md
 6. Safe Bash: absolute paths only, no `cd`, no `for` loops, no shell `&`
