@@ -105,6 +105,7 @@ Write in standard academic English. Rules:
 - Always use full forms: "it is", "he would" — never contractions.
 - No stylistic double quotes or dashes.
 - No unverified data or figures. No exaggeration or figurative language.
+- Use direct academic claims with concrete scope and evidence boundaries.
 - Tense: past tense for what prior authors did and for completed experiment conclusions; present tense for algorithms, methods, and findings that hold generally.
 - Non-proper-noun technical terms are not capitalised in running text.
 ```
@@ -196,8 +197,9 @@ Agent(
     You are reviewing a passage of academic English for a [venue] paper.
     Read the following text carefully and provide:
     1. A list of any phrases that sound unnatural, AI-like, or imprecise.
-    2. Any logical gaps or unclear transitions between sentences.
-    3. Specific suggestions for improvement (quote the original phrase, propose the replacement).
+    2. Any defensive framing that can be replaced by a direct, scoped claim.
+    3. Any logical gaps or unclear transitions between sentences.
+    4. Specific suggestions for improvement (quote the original phrase, propose the replacement).
 
     Editing constraints (Block D):
     - Preserve all LaTeX commands exactly.

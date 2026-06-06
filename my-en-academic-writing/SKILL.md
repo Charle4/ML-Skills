@@ -1,6 +1,6 @@
 ---
 name: my-en-academic-writing
-description: English academic writing, LaTeX polishing, Chinese-to-English academic translation, AI-like wording reduction, related-work synthesis, section drafting, grammar checking, focused proofreading, journal-style applied mathematics writing, and top-conference CS paper editing. Use when the user asks to polish, rewrite, translate, draft, proofread, de-AI, improve English academic prose, edit LaTeX snippets, prepare related work, adapt writing for journals, or improve papers for NeurIPS, ICLR, ICML, ACL, CVPR, IEEE, SCI journals, or CCF A venues.
+description: English academic writing, LaTeX polishing, Chinese-to-English academic translation, AI-like wording reduction, claim-first academic framing, related-work synthesis, section drafting, grammar checking, focused proofreading, journal-style applied mathematics writing, and top-conference CS paper editing. Use when the user asks to polish, rewrite, translate, draft, proofread, de-AI, reduce defensive or formulaic academic wording, improve English academic prose, edit LaTeX snippets, prepare related work, adapt writing for journals, or improve papers for NeurIPS, ICLR, ICML, ACL, CVPR, IEEE, SCI journals, or CCF A venues.
 ---
 
 # English Academic Writing
@@ -24,7 +24,7 @@ Navigate the reference by task:
 - `Venue and Style Profiles`: applied mathematics, top CS/ML, systems, or IEEE expectations when relevant.
 - `Output Formats`: follow the requested or mode-specific output format.
 - `Conflict Resolution`: resolve contradictory prompt rules.
-- `Source Prompt Profiles Preserved in This Skill`: use original prompt profiles when the user request matches them closely.
+- `Mode-Specific Profiles`: use specialized profiles when the user request matches them closely.
 - `Self-Check Before Output`: verify the final answer before responding.
 
 ## Mode Routing
@@ -113,6 +113,7 @@ Before responding, confirm that:
 - The manuscript portion is in the requested language, usually English.
 - The text uses precise, restrained academic English.
 - No unsupported claims, numbers, citations, baselines, or causal statements were added.
+- Claim scope is stated directly, with necessary boundaries embedded in the technical statement.
 - LaTeX commands, formulas, labels, references, and variables are preserved.
 - Literal special characters are escaped when generating LaTeX from plain text.
 - Tense, terminology, and capitalization match the selected mode and venue.

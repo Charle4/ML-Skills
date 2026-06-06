@@ -46,6 +46,7 @@ Identify the user's requested mode before editing:
 - Write in a natural human style rather than a formulaic model-generated style.
 - Keep the author's technical meaning, evidence boundary, and argument structure.
 - Do not optimize sentences in isolation. Maintain paragraph-level logic and sentence-to-sentence coherence.
+- State claims, scope, and contributions directly. Embed necessary boundaries in the technical statement.
 - Do not introduce new claims, numbers, citations, baselines, experimental conclusions, or causal explanations.
 - Do not exaggerate, dramatize, or use figurative language.
 - Do not use unverified data or figures.
@@ -218,6 +219,7 @@ Requirements:
 
 - Prefer plain, precise academic words.
 - Remove formulaic connectors such as `First and foremost`, `It is worth noting that`, and mechanical paragraph scaffolding.
+- Replace defensive framing with direct claims whose scope is explicit in the sentence.
 - Reduce ornamental vocabulary and vague intensifiers.
 - Replace broad claims with bounded, technical statements when the source supports them.
 - Trim redundancy.
@@ -296,6 +298,7 @@ Requirements:
 - Write in academic English suitable for the stated venue.
 - Each paragraph should have a clear topic sentence and logical internal structure.
 - Make transitions between paragraphs explicit when needed.
+- Use claim-first topic sentences with necessary scope built into the sentence.
 - Do not introduce claims not implied by the outline.
 - For applied mathematics journals, motivate each algorithmic step with mathematical reasoning and keep theoretical claims prominent.
 - Avoid ML-conference rhetorical patterns such as `surprisingly`, `we find that`, or oversold contribution language.
@@ -528,6 +531,16 @@ Replace vague terms with specific ones when evidence exists:
 
 Avoid excessive `may`, `might`, `can`, and `potentially` unless uncertainty is real. Keep uncertainty where the evidence is limited.
 
+### Claim-First Framing
+
+Use direct academic claims with explicit scope:
+
+- Prefer topic sentences that say what the paper studies, proves, proposes, or observes.
+- Put scope in concrete modifiers such as `under Assumption 1`, `for nonconvex objectives`, or `on the evaluated benchmarks`.
+- Convert low-information caveat prefaces into the actual claim, scope, or evidence boundary.
+- Replace negative-to-positive scaffolding with a single affirmative claim whenever the scope is already clear.
+- In de-AI editing, treat defensive framing as a paragraph-level issue: revise the sentence so the argument becomes clearer and more direct.
+
 ### Active and Passive Voice
 
 Prefer active constructions when they improve clarity:
@@ -598,7 +611,7 @@ The source prompts contain rules designed for different scenarios. Resolve them 
 
 If an active user instruction conflicts with these rules and the conflict cannot be handled by mode selection, ask the user before editing.
 
-## Mode-Specific Prompt Templates
+## Mode-Specific Profiles
 
 ### Standard Academic English Polishing
 
@@ -702,6 +715,8 @@ Use this profile when the user asks to reduce AI-like wording:
 - Prefer plain, precise academic vocabulary.
 - Avoid overused complex vocabulary unless technically required.
 - Remove mechanical transitions such as `First and foremost` and `It is worth noting that`.
+- Replace defensive framing with direct, scoped academic claims.
+- Replace negative-to-positive scaffolding with a single affirmative claim.
 - Reduce dash usage.
 - Do not use bold or italic emphasis in the manuscript.
 - Keep LaTeX clean.
@@ -741,8 +756,9 @@ Check every output against the following list:
 7. Literal special characters are escaped when generating LaTeX from plain text.
 8. Tense is consistent with the selected mode.
 9. Non-proper-noun technical terms are not incorrectly capitalized.
-10. Existing formatting is preserved, and no new emphasis formatting was added.
-11. Paragraph logic is coherent; transitions are natural rather than mechanical.
-12. Related-work text is grouped thematically and states limitations factually.
-13. Applied mathematics text contains mathematical motivation and avoids ML-conference hype.
-14. Output format exactly matches the user's requested or mode-specific format.
+10. Claims use direct framing with concrete scope and evidence boundaries.
+11. Existing formatting is preserved, and no new emphasis formatting was added.
+12. Paragraph logic is coherent; transitions are natural rather than mechanical.
+13. Related-work text is grouped thematically and states limitations factually.
+14. Applied mathematics text contains mathematical motivation and avoids ML-conference hype.
+15. Output format exactly matches the user's requested or mode-specific format.

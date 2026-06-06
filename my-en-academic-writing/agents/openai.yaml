@@ -1,4 +1,4 @@
 interface:
   display_name: "English Academic Writing"
-  short_description: "Polish, translate, draft, and de-AI academic English."
-  default_prompt: "Use $my-en-academic-writing to polish this academic English or translate the Chinese draft into rigorous, natural English LaTeX."
+  short_description: "Polish, translate, draft, de-AI, and sharpen academic English."
+  default_prompt: "Use $my-en-academic-writing to polish this academic English, translate a Chinese draft into rigorous English LaTeX, or reduce defensive academic wording."
