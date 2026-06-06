@@ -14,18 +14,18 @@ Users and project adapters can provide any of the following overrides:
 | `min_free_memory_mb` | `20000` | Skip a GPU unless at least this much memory is free |
 | `max_util` | `80%` | Do not launch onto a GPU whose utilization is at or above this threshold |
 
-If the user says "use GPU 2 and 3, up to 2 jobs each", record that in the session `meta.json` and plan accordingly.
+If the user says "use GPU 2 and 3, up to 2 jobs each", persist it once with `aet.py set-policy --gpu-ids 2,3 --max-per-gpu 2` (or pass the same flags to `aet.py init`). It is stored in `meta.json` `gpu_policy`, and `gpu-slots` / `loop-state` / `strategist-begin` all read that one stored policy, so capacity is computed consistently across commands.
 
 ## CLI Mapping
 
-Pass project-specific limits explicitly to `aet.py gpu-slots` rather than adding project-specific method names to the helper script. Use `--kind default|light|heavy` only for generic estimates.
+Persist limits once via `aet.py set-policy` (or `init`); the flags below are also accepted as one-off overrides on `aet.py gpu-slots`. Do not add project-specific method names to the helper script. Use `--kind default|light|heavy` only for generic estimates when no policy is stored.
 
 | Policy setting | `aet.py gpu-slots` flag |
 |---|---|
 | `gpu_ids: [0, 1, 3]` | `--gpu-ids 0,1,3` |
 | `max_per_gpu: 2` | `--capacity 2` |
-| `max_util: 80%` | `--saturated-util 80` |
-| "util unlimited" / "util 无限制" | `--saturated-util 101` (> 100 disables the ceiling entirely) |
+| `max_util: 80%` | `--max-util 80` |
+| "util unlimited" / "util 无限制" | `--max-util 101` (> 100 disables the ceiling entirely) |
 | `max_memory_used_mb: 70000` | `--max-memory-used-mb 70000` |
 | `min_free_memory_mb: 20000` | `--min-free-memory-mb 20000` |
 

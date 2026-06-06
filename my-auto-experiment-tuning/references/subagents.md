@@ -1,50 +1,63 @@
 # Subagent Delegation Guide
 
-Use this file before spawning the registered Strategist subagent.
+Use this file before spawning or resuming the registered Strategist subagent.
 
 ## Agent Roles
 
 ### Strategist (`experiment-strategist`)
 
-Returns: `observations_to_append` (per-HP influence notes for `runs_since_last_strategist`) and Ready Queue candidates plus stop/continue text. Does not write `plan.md` or `observations.md`; apply all returned outputs.
+Returns: `observations_to_append` (per-HP influence notes for the runs handed to it) and Ready Queue candidates plus stop/continue text. Does not write `plan.md` or `observations.md`; apply all returned outputs.
 
 ## When to Delegate
 
 | Trigger | Spawn | Required |
 | ------- | ----- | -------- |
-| Ready Queue count < total_capacity (capacity_per_gpu × gpu_count, constant) | Strategist — blocking if queue empty; background if queue non-empty where the runtime supports it. **Claude Code**: prefer `SendMessage` resume if `strategist_agent_id` is set, except a fresh confirmer spawn when `pending_exhaustion_confirmation` is true. **Codex**: prefer `send_input(target=strategist_agent_id, ...)` if `strategist_agent_id` is set, except a fresh confirmer spawn when `pending_exhaustion_confirmation` is true (see continuation protocols below) | Yes |
+| Ready Queue count < total_capacity (capacity_per_gpu × gpu_count, constant) | Strategist | Yes |
 
-Self-evaluatable conditions that may suppress a Strategist call: explicit user stop, explicit numeric target cleanly met with evidence, explicit run/wall-clock budget consumed, required permission/resource unavailable. Plateau and exhaustion are never self-evaluatable — Strategist must be the one to declare them; they cannot gate this call. **Recency of the last Strategist call and empty `runs_since_last_strategist` are not suppression conditions.**
+Self-evaluatable conditions that may suppress a Strategist call: explicit user stop, explicit numeric target cleanly met with evidence, explicit run/wall-clock budget consumed, required permission/resource unavailable. Plateau and exhaustion are never self-evaluatable — Strategist must be the one to declare them; they cannot gate this call. **Recency of the last Strategist call and an empty pending set are not suppression conditions.**
 
-## Strategist Continuation Protocol (Claude Code only)
+## The Strategist Transaction: begin → tool_use → return
 
-After the first successful Strategist spawn, prefer resuming it via `SendMessage` over spawning fresh:
+Calling the Strategist is your own tool_use (Agent/SendMessage on Claude Code, spawn_agent/send_input on Codex). It is bracketed by two `aet.py` bookkeeping calls that own the loop state machine. Run all three beats in order, every time:
 
-1. Check `pending_exhaustion_confirmation` first, then `strategist_agent_id`, in plan.md Loop State before every Strategist call.
-2. **`pending_exhaustion_confirmation` is true** (the continuous-context Primary already declared exhaustion while quiescent): spawn a **fresh confirmer** — `Agent(subagent_type="experiment-strategist", run_in_background=False, ...)` with the full standard neutral prompt. Do NOT `SendMessage` the Primary: confirming an exhaustion verdict by re-messaging the context that produced it gives no independence. On return: if the confirmer also returns 0 candidates + exhaustion → confirmed, stop per SKILL.md Default Stopping Rules; if it returns candidates → overturn the Primary, append candidates, **promote** (set `strategist_agent_id` ← confirmer `agentId`, set `pending_exhaustion_confirmation: false`), and continue. This gate overrides the `strategist_agent_id` cases below.
-3. **`strategist_agent_id` not null** (and not pending confirmation): call `SendMessage(to: strategist_agent_id, summary="New runs for Strategist", message="runs_since_last_strategist: [...], current_free_slots: N, current_best: RUN_ID/METRIC")`. The Strategist retains full session context; do not re-send the full prompt.
-4. **`strategist_agent_id` null** (first call or previous ID no longer valid): use `Agent(subagent_type="experiment-strategist", ...)` with the full standard prompt template. On return, write the `agentId` from the spawn result to `strategist_agent_id` in plan.md Loop State.
-5. If `SendMessage` returns an error (agent unreachable): fall back to fresh `Agent` spawn and update `strategist_agent_id`.
-6. `SendMessage` is always background: always set `background_strategist_in_flight: true` before sending, regardless of queue state. Queue empty: do not launch new experiments while waiting for the return notification. Queue non-empty: continue processing other notifications while Strategist works.
+**Beat 1 — `aet.py strategist-begin --session S`**
+Bookkeeping only; it does not call the subagent. It snapshots the current pending runs, computes the route from `loop_state.json`, opens an `active_strategist_call`, and prints:
+- `call_id`, `role` (`primary`|`confirmer`), `invocation` (`fresh`|`resume`), target agent id, blocking/background mode
+- the exact spawn/resume tool call to make
+- the payload (run list with status/metric pulled from `results.csv`) to pass to the subagent
 
-**Setting the handshake**: after any Primary return (SendMessage resume, or a fresh non-confirmer spawn), if it returned **0 candidates + an explicit exhaustion declaration** AND no experiments are running AND Ready Queue is empty, set `pending_exhaustion_confirmation: true` so the next spawn is the fresh confirmer above. A verdict only counts when fully quiescent — if runs are still in flight or candidates were returned, leave it false.
+If an `active_strategist_call` is already open, `strategist-begin` refuses. An open call means YOU still owe a `strategist-return` for it — it is not evidence the subagent is still running (the script cannot see the subagent). Resolve it against the subagent's real state: if it returned, `strategist-return` with its result; if its output is lost from your context, resume the same agent to re-request it; use `strategist-abort` only if that resume confirms the subagent is dead.
 
-## Strategist Continuation Protocol (Codex only)
+**Beat 2 — your subagent tool_use**, using Beat 1's branch and payload:
+- Claude Code fresh: `Agent(subagent_type="experiment-strategist", prompt=<payload>, run_in_background=<mode>)`
+- Claude Code resume: `SendMessage(to=<target_agent_id>, message=<payload>)` (always background)
+- Codex fresh / confirmer: `spawn_agent(message=<payload>, fork_context=true)` with the registered custom agent `experiment-strategist`
+- Codex resume: `send_input(target=<target_agent_id>, message=<payload>)`, then `wait_agent` when the result is needed
 
-After the first successful Strategist spawn, prefer resuming it via `send_input` over spawning fresh:
+On a resume route, `SendMessage` is the literal tool named `SendMessage` — invoke it by name. A resume is not an `Agent` spawn: calling `Agent(subagent_type="experiment-strategist")` here cold-starts a new strategist and discards the accumulated context that is the entire reason to resume. `SendMessage` may be a deferred tool; load it before this beat if it is not already in your active toolset. Fall back to a fresh `Agent` spawn only when `SendMessage` actually returns `success:false` (e.g. the transcript was cleaned up) — then pass `--resume-failed` to `strategist-return`. A resume that succeeds resumes the same agent id, so pass that same id (or omit `--agent-id`); a new id on a resume route without `--resume-failed` is recorded as a silent substitution and warned.
 
-1. Check `pending_exhaustion_confirmation` first, then `strategist_agent_id`, in plan.md Loop State before every Strategist call.
-2. **`pending_exhaustion_confirmation` is true**: spawn a **fresh confirmer** with the full standard neutral prompt. Do NOT `send_input` the Primary: confirming an exhaustion verdict by re-messaging the context that produced it gives no independence. On return: if the confirmer also returns 0 candidates + exhaustion → confirmed, stop per SKILL.md Default Stopping Rules; if it returns candidates → overturn the Primary, append candidates, **promote** (set `strategist_agent_id` ← confirmer agent id, set `pending_exhaustion_confirmation: false`), and continue.
-3. **`strategist_agent_id` not null** (and not pending confirmation): call `send_input(target=strategist_agent_id, message="runs_since_last_strategist: [...], current_free_slots: N, current_best: RUN_ID/METRIC")`, then `wait_agent` when the Strategist result is needed. The Strategist retains full session context; do not re-send the full prompt.
-4. **`strategist_agent_id` null** (first call or previous ID no longer valid): use `spawn_agent(message=STANDARD_PROMPT, fork_context=true)` with the registered custom agent selected as `experiment-strategist` when the Strategist needs current main-thread context beyond durable files and prompt fields. Omit `fork_context` when the prompt plus durable files are sufficient. On return, write the spawned agent id to `strategist_agent_id` in plan.md Loop State.
-5. If the target agent is still running, `send_input` queues by default. Use `interrupt=true` only when abandoning the current Strategist task is intentional; otherwise wait for the queued result.
-6. If the agent was closed, use `resume_agent(id=strategist_agent_id)` before `send_input` when continuity is still useful. If resume/send fails because the agent is unreachable, fall back to a fresh `spawn_agent` and update `strategist_agent_id`.
+On a resume the Strategist keeps its prior session context, so the payload's new-run list plus current free slots and current best is enough — the full prompt template is only needed for a fresh spawn (or confirmer).
 
-**Setting the handshake**: after any Primary return (`send_input` resume, or a fresh non-confirmer spawn), if it returned **0 candidates + an explicit exhaustion declaration** AND no experiments are running AND Ready Queue is empty, set `pending_exhaustion_confirmation: true` so the next call is the fresh confirmer above. A verdict only counts when fully quiescent — if runs are still in flight or candidates were returned, leave it false.
+The subagent returns its five sections plus a short "Main Agent: Next Steps" block pointing back here.
 
-Prompt neutrality: always use the standard prompt template when calling Strategist. Never add context about previous Strategist verdicts, never ask "is the search exhausted?", never prime the Strategist's conclusion in any direction — including during double-verification. Do not echo plateau, ceiling, or exhaustion language from `observations.md` or `plan.md` into the prompt (e.g., "all parameters are at local optima", "text images have hit a ceiling").
+**Beat 3 — `aet.py strategist-return --session S --call-id C --candidates-count K [--agent-id A] [--observations-present] [--queue-edits-present] [--stop-update-present]`** (`K` = how many Ready Queue candidates the Strategist returned; the script derives exhaustion from `K == 0`)
+Validates the `call_id`, clears exactly the snapshot it opened (version-guarded, so runs that completed during analysis stay pending), records the agent id, applies the exhaustion handshake deterministically, and prints the `YOU` doc-update obligations. Follow its `YOU` block — append observations/candidates, update Stop/Continue, then `aet.py loop-state` to route the next action.
 
-Record each completed run inline immediately (verify files → parse metrics → determine status → call `aet.py record` → append trust details → move row → add to `runs_since_last_strategist`). Do not wait for a whole batch to finish before recording.
+Between Beat 1 and Beat 3 (background Strategist on Claude Code), keep processing completion notifications; each `aet.py record` adds the new run to pending without disturbing the open call. Do not `sleep` or poll the Strategist's output file to wait for it — a background Strategist notifies you on completion. With nothing else to do, end the turn; that notification will wake you for Beat 3.
+
+### Routing and the exhaustion handshake (owned by aet.py)
+
+You do not hand-derive fresh-vs-resume-vs-confirmer, set flags, or evaluate plateau/exhaustion. `strategist-begin` computes the branch from `loop_state.json`; `strategist-return` applies the state transition:
+- Primary returns candidates → continue.
+- Returning zero candidates IS the exhaustion signal.
+- Primary returns 0 candidates while quiescent (no `created`/`running` runs and `ready_count==0`, both computed by the script) → the next `strategist-begin` is forced to a **fresh confirmer** (independent context).
+- Confirmer returns 0 candidates while quiescent → `CONFIRMED_EXHAUSTION`; **you** own the final stop decision.
+- Confirmer returns candidates → the Primary's exhaustion signal is overturned; the confirmer is promoted to Primary and the loop continues.
+- A foreign-runtime or dead agent id makes the `SendMessage`/`send_input` resume return `success:false`; only then fall back to a fresh spawn and pass the new `--agent-id` plus `--resume-failed` to `strategist-return`. Do not skip the resume tool_use and spawn fresh preemptively — a new agent id on a resume route without `--resume-failed` is flagged as a substitution (a fresh strategist was spawned instead of resuming, losing context).
+
+Prompt neutrality: always use the standard prompt template below. Never add context about previous Strategist conclusions, never ask "is the search exhausted?", never prime the conclusion in any direction — including during confirmation. Do not echo plateau, ceiling, or exhaustion language from `observations.md` or `plan.md` into the prompt.
+
+Record each completed run inline immediately (verify files → parse metrics → determine status → call `aet.py record` → append trust details → move row). `record` adds terminal runs to the pending set for you. Do not wait for a whole batch to finish before recording.
 
 ## Shared Call Inputs
 
@@ -55,15 +68,9 @@ Pass paths and stable context, not a parent-agent interpretation of results:
 - `algorithm_context`: metric meaning, target, benchmark constraints, known data/implementation risks, and important parameter couplings
 - runtime notes: Codex vs Claude Code launch behavior, GPU policy, and current free slots when relevant
 
-Pass only session-specific context in the prompt; the Strategist's role instructions are already loaded via its registered system prompt (`experiment-strategist`).
+Pass only session-specific context in the prompt; the Strategist's role instructions are already loaded via its registered system prompt (`experiment-strategist`). `strategist-begin` prints the run list for `runs_since_last_strategist`; fill the rest of the template from session files.
 
 ## Strategist Call Template
-
-**Claude Code:** `Agent(subagent_type="experiment-strategist", description="Plan next queue candidates", prompt="""...""")`
-
-**Codex first call / fresh confirmer:** `spawn_agent(message="""...""", fork_context=true)` with the registered custom agent selected as `experiment-strategist`; omit `fork_context` when current main-thread context is not needed.
-
-**Codex continuation:** `send_input(target=strategist_agent_id, message="""...""")`, then `wait_agent` when the result is needed.
 
 ```text
 You are not alone in the codebase; other agents may be working. Do not revert unrelated changes.
@@ -76,7 +83,7 @@ algorithm_context: METRIC/TARGET/RISKS/COUPLINGS
 current_free_slots: N
 total_capacity: M  # capacity_per_gpu × gpu_count (constant). Refill target: after the parent fills current_free_slots, ready_count must stay >= total_capacity, so target ready_count ≈ current_free_slots + total_capacity (= 2× total_capacity at session start when the queue is empty and all slots are free).
 current_best: RUN_ID/METRIC as a locator only
-runs_since_last_strategist: [run_id list with recorded status, primary_metric, metric_name from results.csv]
+runs_since_last_strategist: [run_id list with recorded status, primary_metric, metric_name from results.csv — copy the line printed by strategist-begin]
 # Values above are raw fields from results.csv — not interpreted conclusions about trends or plateau.
 
 Read SESSION_PATH/meta.json, results.csv, observations.md, plan.md, and important runs/<id>/ artifacts directly.
@@ -90,7 +97,7 @@ Tasks:
 
 Do not write plan.md or observations.md.
 Return:
-0. observations_to_append (per-HP influence notes for runs_since_last_strategist; omit if nothing new).
+0. observations_to_append (per-HP influence notes; omit if nothing new).
 1. Ready Queue Candidates as rows compatible with plan.md.
 2. Stop/Continue Rule Update.
 3. Queue Edits.
@@ -99,20 +106,11 @@ Return:
 
 ## Interpreting Returns
 
-### After Strategist Returns
+Run `aet.py strategist-return` (Beat 3) and follow its `YOU` block. The script clears the snapshot, records the agent id, and applies the handshake; its `YOU` output lists exactly which durable docs to update — gated by the `--observations-present` / `--queue-edits-present` / `--stop-update-present` flags you pass and by the returned candidate count:
+- append `observations_to_append` to `SESSION/observations.md`
+- append returned candidates to `SESSION/plan.md` Ready Queue
+- update the Stop/Continue Rule section
+- apply Queue Edits (rewrite/remove invalidated ready rows)
+- then `aet.py loop-state` and launch the highest-priority ready rows into any free slots (Claude Code: one `Bash(run_in_background=True)` per experiment; Codex: one `exec_command` foreground session per experiment, recording any `session_id -> run_id/output_dir/log_path`).
 
-0. If `observations_to_append` provided: append to `SESSION/observations.md`; clear only the `runs_since_last_strategist` entries that were passed at call time (runs completed during background analysis accumulate for the next call).
-1. Apply or lightly edit returned rows, then append them to `plan.md` `Ready Queue`.
-2. Update the `Stop/Continue Rule` section.
-3. Remove or rewrite invalidated ready rows if the strategist identified any.
-4. **Claude Code only**: set `background_strategist_in_flight: false`. If this was a fresh `Agent` spawn (not a `SendMessage` resume), also write the returned `agentId` to `strategist_agent_id` in plan.md Loop State.
-4b. **Claude Code only — exhaustion handshake** (see Continuation Protocol above and `references/claude-code-adapter.md` step 9):
-   - If this return was a **fresh confirmer** (`pending_exhaustion_confirmation` was true): 0 candidates + exhaustion → confirmed, stop per Default Stopping Rules; candidates → promote (set `strategist_agent_id` ← confirmer `agentId`, clear `pending_exhaustion_confirmation`) and continue.
-   - Otherwise (Primary return): if it returned 0 candidates + exhaustion while fully quiescent (no runs in flight, Ready Queue empty), set `pending_exhaustion_confirmation: true` and spawn the confirmer immediately in the same turn (nothing is running to notify you later); otherwise leave it false.
-4c. **Codex only — continuation and exhaustion handshake**:
-   - If this was a fresh `spawn_agent` call (not a `send_input` resume), write the returned agent id to `strategist_agent_id` in plan.md Loop State.
-   - If this return was a **fresh confirmer** (`pending_exhaustion_confirmation` was true): 0 candidates + exhaustion → confirmed, stop per Default Stopping Rules; candidates → promote (set `strategist_agent_id` ← confirmer agent id, clear `pending_exhaustion_confirmation`) and continue.
-   - Otherwise (Primary return): if it returned 0 candidates + exhaustion while fully quiescent (no runs in flight, Ready Queue empty), set `pending_exhaustion_confirmation: true` and call the fresh confirmer next; otherwise leave it false.
-5. Re-check GPU slots and launch the highest-priority ready rows until usable slots are filled.
-   - Codex: run the standard command with `exec_command`, one foreground tool session per experiment; if it yields a `session_id`, record `session_id -> run_id/output_dir/log_path` and poll with `write_stdin`.
-   - Claude Code: use one `Bash(run_in_background=True)` call per experiment.
+On `CONFIRMED_EXHAUSTION`, the script hands you the stop: verify the target/budget is genuinely unmet, write `## Final Analysis` to `observations.md`, run `aet.py summarize`, then stop the keepalive. You may still continue if you judge it premature; the next `strategist-begin` forms a fresh handshake.

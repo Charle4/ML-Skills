@@ -49,7 +49,9 @@ Each will notify independently when it finishes. Process each notification as it
 
 ## Background Completion Notifications
 
-When a `run_in_background=True` command finishes, Claude Code receives an automatic notification containing the return code and a summary. You do not need to poll.
+When a `run_in_background=True` command finishes, Claude Code receives an automatic notification containing the return code and a summary. You do not need to poll. This applies equally to a background Strategist subagent — both a `SendMessage` (background) resume and an `Agent(..., run_in_background=True)` spawn notify you on completion, and that notification is your cue to run Beat 3 (`strategist-return`).
+
+Never `sleep`, `tail`, or otherwise busy-wait on a background job's output file (an experiment log or a subagent task-output file) to wait for it to finish — the notification already does that, so polling only burns wall-clock inside your turn. When a background Strategist call is open and you have nothing else to do (all GPU slots full, no other completion to record), end the turn; the Strategist's completion notification will wake you to run Beat 3. The only reason to read a running job's log is a one-off progress check the user asked for, never a wait loop.
 
 **On receiving a notification:**
 
@@ -58,30 +60,15 @@ When a `run_in_background=True` command finishes, Claude Code receives an automa
 3. Parse primary metric in priority order: structured JSON/CSV/NPZ → TensorBoard event files → log regex via `aet.py parse-log` → manual extraction as last resort.
 4. Determine terminal status: `finished`, `failed`, or `inconclusive`. Mark sandbox failures, dependency failures, code bugs, GPU contention, and partial crashes as `failed` or `inconclusive`.
 5. Call `aet.py record --status <status> --run-id <id> [--primary-metric <value> --metric-name <name> --metrics '<json>'] [--notes '<notes>']` (omit metric flags if no valid metric).
-6. If trust note is relevant: append to `runs/<id>/summary.md` (after record); move the row in `plan.md` from `Running` to `Completed / Recorded`; add run_id to `runs_since_last_strategist`.
-7. Check if a self-evaluatable stop condition is now met: explicit user stop, explicit numeric target cleanly met with evidence, explicit budget consumed, or required permission/resource unavailable. Do not evaluate plateau or exhaustion here. If you find yourself about to write that a parameter direction is "exhausted", "hit a ceiling", or "at a local optimum" — that is not a self-evaluatable stop condition. It is the signal that Strategist must be spawned at step 9.
+6. If trust note is relevant: append to `runs/<id>/summary.md` (after record); move the row in `plan.md` from `Running` to `Completed / Recorded`. `aet.py record` already added the terminal run to the pending set in `loop_state.json`.
+7. Check if a self-evaluatable stop condition is now met: explicit user stop, explicit numeric target cleanly met with evidence, explicit budget consumed, or required permission/resource unavailable. Do not evaluate plateau or exhaustion here. If you find yourself about to write that a parameter direction is "exhausted", "hit a ceiling", or "at a local optimum" — that is not a self-evaluatable stop condition. It is the signal to run the Strategist transaction at step 9.
 8. If not, re-check current GPU slots, select as many ready candidates as resources allow, register each with `aet.py create-run`, launch each with `run_in_background=True`, then record each with `aet.py record --status running`.
-9. If Ready Queue count < total_capacity (capacity_per_gpu × gpu_count, constant):
-   - If `background_strategist_in_flight` is true in `plan.md` Loop State: **skip calling**; run_id is already in `runs_since_last_strategist` and will be included when the in-flight Strategist returns.
-   - **Exhaustion-confirmation gate** — if `pending_exhaustion_confirmation` is true in Loop State: the continuous-context Primary already declared exhaustion while quiescent; the next spawn MUST be an independent **fresh confirmer**, never a SendMessage resume. Spawn `Agent(subagent_type="experiment-strategist", run_in_background=False, ...)` with the full standard neutral prompt (the handshake only fires when no runs are in flight and the queue is empty, so blocking is correct). Do NOT prime it with the Primary's verdict. On return:
-     - **0 candidates + exhaustion declared** → two independent contexts agree; plateau/exhaustion is confirmed. Stop per Default Stopping Rules and record the reason in the ledger.
-     - **Returns candidates** → the Primary's verdict is overturned. Append `observations_to_append` to `observations.md`; append candidates to `plan.md` Ready Queue; clear the `runs_since_last_strategist` entries passed at call time. **Promote the confirmer to Primary**: set `strategist_agent_id` ← the confirmer's `agentId`, set `pending_exhaustion_confirmation: false`; the old Primary is no longer addressed. Continue the loop and launch ready rows.
-     This gate overrides the `strategist_agent_id` cases below.
-   - Otherwise, choose spawn method based on `strategist_agent_id` in plan.md Loop State:
+9. Run `aet.py loop-state` (it counts the Ready Queue from `plan.md`) and follow its `YOU` block. When ready_count < total_capacity it routes you into the Strategist transaction (begin → tool_use → return) described in `references/subagents.md`:
+   - **Beat 1** `aet.py strategist-begin` snapshots pending, computes the branch (fresh / resume / fresh confirmer), opens the call, and prints the exact tool call + payload. If a call is already open it refuses.
+   - **Beat 2** make the printed tool_use. For a resume, that is the literal `SendMessage` tool (invoked by name, background) targeting the existing agent id — NOT `Agent`. Spawning `Agent(subagent_type="experiment-strategist")` on a resume route cold-starts a new strategist and throws away the context that makes resume worthwhile; do not substitute it. `SendMessage` may be a deferred tool — load it before this beat if it is not in your active toolset. Only when `SendMessage` returns `success:false` do you fall back to a fresh `Agent` spawn and pass `--resume-failed` to Beat 3. Use `Agent(subagent_type="experiment-strategist", run_in_background=...)` directly only for a genuine fresh spawn / confirmer. Between this beat and Beat 3, keep processing other completion notifications; each `record` adds to pending without disturbing the open call.
+   - **Beat 3** `aet.py strategist-return --call-id C --candidates-count K [--agent-id A] [--observations-present] [--queue-edits-present] [--stop-update-present]` clears the snapshot, records the agent id, derives exhaustion from `K == 0`, and applies the handshake. Follow its `YOU` block.
 
-   **`strategist_agent_id` not null → resume via SendMessage:**
-   `SendMessage(to: strategist_agent_id, summary="New runs for Strategist", message="runs_since_last_strategist: [run_ids with recorded status/primary_metric/metric_name], current_free_slots: N, current_best: RUN_ID/METRIC")`
-   Set `background_strategist_in_flight: true` (SendMessage is always background). Queue empty: do not launch while waiting for the notification. Queue non-empty: continue processing other notifications while Strategist works.
-   If SendMessage returns an error (agent unreachable): fall back to fresh `Agent` spawn and update `strategist_agent_id`.
-
-   **`strategist_agent_id` null → fresh Agent spawn:**
-   - Queue **empty**: `Agent(subagent_type="experiment-strategist", run_in_background=False, ...)` — blocking, do not set `background_strategist_in_flight`. Wait before launching anything.
-   - Queue **non-empty**: `Agent(subagent_type="experiment-strategist", run_in_background=True, ...)` — set `background_strategist_in_flight: true`; continue processing other notifications.
-   Use the full standard prompt from `references/subagents.md`. On return, write the `agentId` to `strategist_agent_id` in plan.md Loop State.
-
-   On Strategist return (SendMessage or fresh non-confirmer spawn): append `observations_to_append` to `observations.md`; append candidates to `plan.md` Ready Queue; clear only the `runs_since_last_strategist` entries that were passed at call time; set `background_strategist_in_flight: false`. **Then set the handshake**: if this Primary return gave **0 candidates + an explicit exhaustion declaration** AND no experiments are running AND Ready Queue is empty (fully quiescent), set `pending_exhaustion_confirmation: true` so the next spawn is the fresh confirmer above; otherwise leave it false (a verdict only counts when quiescent). Because nothing is running to produce a later completion notification, proceed to that confirmer spawn immediately in the same turn — do not wait for the next `/loop` tick.
-
-   The `background_strategist_in_flight` / `pending_exhaustion_confirmation` branches above are the only valid reasons to deviate from a plain call. Do not add "Strategist was recently called", "runs_since_last_strategist is empty", or "no new completions this invocation" as reasons to skip — those are not suppression conditions (see anti-patterns #8 and #9 in SKILL.md).
+   The script owns fresh-vs-resume-vs-confirmer, the exhaustion handshake (`pending_exhaustion_confirmation`, promotion of a confirmer to Primary), and quiescence (computed by the script from the live experiment state and the Ready Queue count). Do not hand-evaluate any of it. On a `CONFIRMED_EXHAUSTION` result the handshake is complete and the next steps run in the same turn — nothing is running to notify you later. The only valid reasons to not begin a call are the self-evaluatable stop conditions and an already-open call (begin refuses); "recently called", "pending is empty", and "no new completions" are not suppression conditions (see anti-patterns #8 and #9 in SKILL.md).
 
 Do not batch notifications — process each one as soon as it arrives, even if another experiment is still running. Incremental recording prevents data loss if the session is interrupted.
 
@@ -94,7 +81,7 @@ Claude Code's `/loop` command sends a recurring prompt at a fixed interval insid
 **Invoke `/loop` as a slash command in the conversation** (not in a shell). Pass the interval and the skill invocation prompt:
 
 ```
-/loop 1h /my-auto-experiment-tuning Continue fine-tuning. Target: PSNR > XX (substitute actual target). Keep GPUs occupied. At the start of each invocation: (1) run `aet.py status` — if results.csv finished count exceeds plan.md Completed entries, rebuild plan.md from results.csv before anything else; (2) regardless of whether step (1) found new completions, check: if Ready Queue count < total_capacity AND `background_strategist_in_flight` is false in plan.md Loop State, call Strategist NOW (blocking if queue empty, background if non-empty); if `strategist_agent_id` in plan.md Loop State is not null, resume via SendMessage instead of fresh spawn, EXCEPT when `pending_exhaustion_confirmation` is true — then spawn a fresh confirmer instead of resuming (see adapter step 9); pass recent run IDs from results.csv as runs_since_last_strategist. Skip this prompt only if you are currently mid-execution of steps 1–2 in this exact conversation turn (i.e., you already ran `aet.py status` this turn and haven't finished processing the results yet).
+/loop 1h /my-auto-experiment-tuning Continue fine-tuning. Target: PSNR > XX (substitute actual target, or omit if none). Keep GPUs occupied. At the start of each invocation: (1) run `aet.py status` — if results.csv finished count exceeds plan.md Completed entries, reconcile plan.md from results.csv first; (2) run `aet.py loop-state` (it counts the Ready Queue from plan.md itself) and follow its YOU block — it routes any launches and the Strategist transaction (begin -> subagent tool_use -> return) for you; the script owns the Strategist routing and exhaustion handshake. Skip this prompt only if you are currently mid-execution of these steps in this exact conversation turn.
 ```
 
 Template to customize:
@@ -112,7 +99,7 @@ Claude Code uses the `Agent` tool (not Codex's `multi_tool_use.parallel` pattern
 
 - The Strategist is an independent process with its own tool access.
 - Pass the session path, ledger summary, and bounded write scope explicitly in the agent prompt, because the subagent starts without the parent's context.
-- When Ready Queue is non-empty but below total_capacity, call Strategist with `run_in_background=True` so experiments continue uninterrupted. When queue is empty, use a blocking call (omit `run_in_background` or set to False).
+- `aet.py strategist-begin` prints the blocking/background mode (and the resume vs fresh `Agent`/`SendMessage` call) — use what it prints. A resume runs background; a fresh spawn is blocking when the queue is empty and background when non-empty.
 
 ## Workflow Differences Summary
 

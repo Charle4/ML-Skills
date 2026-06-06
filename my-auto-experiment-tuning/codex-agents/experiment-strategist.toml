@@ -234,20 +234,10 @@ End your response with the following block verbatim (this is for the main agent 
 ---
 ## Main Agent: Next Steps
 
-After receiving this return, in order:
-0. If `observations_to_append` provided: append to `SESSION/observations.md`; clear only the `runs_since_last_strategist` entries that were passed at call time (runs completed during background analysis accumulate for the next call)
-1. Append Ready Queue Candidates to `SESSION/plan.md` Ready Queue section
-2. Update Stop/Continue Rule section in `SESSION/plan.md`
-3. Apply any Queue Edits (remove/rewrite invalidated rows)
-3b. If this result came from a fresh `spawn_agent`, record the returned agent id as `strategist_agent_id` in `SESSION/plan.md` Loop State. Reuse that id with `send_input(target=strategist_agent_id, ...)` for later Primary Strategist calls. If `pending_exhaustion_confirmation` was true, this return was a fresh confirmer: confirm stop only on 0 candidates + exhaustion; if candidates are returned, promote this confirmer by setting `strategist_agent_id` to its id and clear `pending_exhaustion_confirmation`.
-4. Check GPU slots: `aet.py gpu-slots`; compute total_capacity = sum of `capacity` fields across all allowed GPUs.
-   If Ready Queue count < total_capacity: call Strategist again. Use `send_input(target=strategist_agent_id, ...)` when `strategist_agent_id` is set; use a fresh `spawn_agent` only for first call, unreachable/resume-failed agent, or exhaustion confirmer.
-5. For each free slot, take the top-priority Ready Queue row:
-   a. Register and create output dir: `aet.py create-run --session SESSION --name ... --params '...' --gpu-id G`
-      → output prints `run_dir:`, `run_id:`, `output_dir:` — read these values from tool output
-   b. Launch with `exec_command` as one foreground tool session per experiment: `python -u SCRIPT --gpu_id G --output_dir OUTPUT_DIR > OUTPUT_DIR/train.log 2>&1`; no shell `&`, no `run_in_background`. If Codex returns a `session_id`, record `session_id -> run_id/output_dir/log_path` and poll with `write_stdin`.
-   c. Record running: `aet.py record --session SESSION --run-id N --status running`
-   d. Move row from Ready Queue to Running in plan.md
-6. Safe Bash: absolute paths only, no `cd`, no `for` loops, no shell `&`
+You called me inside a Strategist transaction (begin -> tool_use -> return). Close it and apply my output:
+1. Run `aet.py strategist-return --session SESSION --call-id <call_id from strategist-begin> --candidates-count <number of Ready Queue rows I returned> [--agent-id <my agent id, on a fresh spawn or resume fallback>] [--resume-failed (only when a resume route's SendMessage/send_input actually returned failure and you fell back to a fresh spawn)] [--observations-present] [--queue-edits-present] [--stop-update-present]`. It clears the pending snapshot, records the agent id, counts the Ready Queue from plan.md itself for quiescence, and applies the exhaustion handshake (derived from the candidate count).
+2. Follow its `YOU` block: append `observations_to_append` -> `SESSION/observations.md`; append my Ready Queue Candidates -> `SESSION/plan.md` Ready Queue; update Stop/Continue Rule; apply Queue Edits.
+3. Then `aet.py loop-state` and launch the highest-priority ready rows into free slots -- per row: `aet.py create-run` (read printed `output_dir:`, never pass `--run-id`) -> launch with `exec_command` as one foreground session per experiment `python -u SCRIPT --gpu_id G --output_dir OUTPUT_DIR > OUTPUT_DIR/train.log 2>&1` (no shell `&`, no `run_in_background`; if a `session_id` is returned, record `session_id -> run_id/output_dir/log_path` and poll with `write_stdin`) -> `aet.py record --status running` -> move row Ready Queue -> Running.
+4. Safe Bash: absolute paths only, no `cd`, no `for` loops, no shell `&`.
 ---
 '''
