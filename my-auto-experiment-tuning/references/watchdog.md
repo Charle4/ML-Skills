@@ -37,7 +37,7 @@ If the user provided a numeric target (e.g., `PSNR > 25`), embed it in the promp
 
 With `run_in_background=True`, the Bash tool notifies Claude Code when the command finishes. This means:
 - You do not need to poll or sleep between experiments.
-- On notification, immediately identify the run and record inline: verify output files, parse metrics (JSON/CSV/NPZ → TensorBoard → log regex), determine status, call `aet.py record` (which adds the terminal run to the pending set), append trust details to `summary.md`, move to `Completed / Recorded`, then `aet.py loop-state` to re-check resources and route launches/Strategist.
+- On notification, immediately identify the run and record inline: verify output files, parse metrics (JSON/CSV/NPZ → TensorBoard → log regex), determine status, call `aet.py record` (which adds the terminal run to the pending set), then `aet.py loop-state` to re-check resources and route launches/Strategist. Bookkeeping (trust details to `summary.md`, plan.md row move) is order-independent with loop-state.
 - If multiple experiments run in parallel, each notification triggers an incremental inline-record → queue-refill pass.
 
 See `references/claude-code-adapter.md` for the full background job pattern.

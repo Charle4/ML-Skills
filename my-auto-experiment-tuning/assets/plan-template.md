@@ -58,11 +58,9 @@ Keep this board current. Move rows between sections instead of leaving stale dup
 3. When a run finishes, record terminal status with `aet.py record` (it adds the run to the pending set), move that row from Running to Completed / Recorded.
 4. When ready_count < total_capacity, run the Strategist transaction (`aet.py strategist-begin` → subagent tool_use → `strategist-return`) and append the candidates it returns — 0, 1, or many, including a small grid/factorial group. Do not analyze results or design candidates inline when the Strategist is available.
 5. If the Strategist's return invalidates a ready candidate before launch, remove or rewrite that Ready Queue row and note why in observations.md.
+
+Keep the `### Ready Queue` heading name verbatim — the script counts the table rows beneath it for `ready_count`. Machine loop state (pending runs, Strategist agent id, open call, exhaustion handshake) is script-owned in `loop_state.json`; read it via `aet.py loop-state`.
 -->
-
-### Loop State
-
-Machine loop state (pending runs, Strategist agent id, open call, exhaustion handshake) lives in `loop_state.json`. Inspect and route it with `aet.py loop-state`. Keep the `### Ready Queue` heading name — the script counts the table rows beneath it for `ready_count`.
 
 ### Per-HP Rationale (for non-obvious value choices, cite prior run evidence)
 

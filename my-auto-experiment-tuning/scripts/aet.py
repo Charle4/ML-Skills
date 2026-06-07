@@ -493,11 +493,11 @@ def verb_instruction(runtime: str, route: dict[str, Any]) -> str:
     mode = route["mode"]
     if runtime == "codex":
         if invocation == "resume":
-            return f"Codex: send_input(target={target}, message=<payload>), then wait_agent."
-        return "Codex: spawn_agent(message=<payload>, fork_context=true) with custom agent experiment-strategist."
+            return f"Call `send_input(target={target}, message=<payload>)`, then `wait_agent`."
+        return "Call `spawn_agent(message=<payload>, fork_context=true)` with the custom agent `experiment-strategist`."
     if invocation == "resume":
         return (
-            f"Claude Code: call the tool literally named `SendMessage` (NOT the `Agent` tool) — "
+            f"Call the tool literally named `SendMessage` (NOT the `Agent` tool) — "
             f"`SendMessage(to={target}, message=<payload>)` [background]. This resumes the SAME strategist "
             f"with its accumulated context. `Agent`-spawning a strategist here is the WRONG action: it cold-starts "
             f"a new one and discards that context. `SendMessage` may be a deferred tool — load it before this beat if "
@@ -506,7 +506,7 @@ def verb_instruction(runtime: str, route: dict[str, Any]) -> str:
             f"run_in_background=True)` and pass `--resume-failed` to strategist-return."
         )
     bg = "run_in_background=True" if mode == "background" else "run_in_background=False"
-    return f'Claude Code: Agent(subagent_type="experiment-strategist", prompt=<payload>, {bg}).'
+    return f'Call `Agent(subagent_type="experiment-strategist", prompt=<payload>, {bg})`.'
 
 
 def build_payload(session: Path, snapshot: dict[str, str]) -> list[str]:
@@ -543,11 +543,11 @@ def compute_next(state: dict[str, Any], runtime: str, ready: int, free_slots: in
         else:
             target = "the subagent you spawned for this call (use the agent id from your spawn result, not any stored id)"
         return [
-            f"Strategist call {active['call_id']} is OPEN ({active['role']}/{active['invocation']}, age {age}m). This means YOU still owe a strategist-return for it — it does NOT mean the subagent is still running. This script cannot see the subagent; only you can. Do NOT open another call.",
-            f"Determine the subagent's real state yourself (its completion notification / the agent panel / its task-output file). If it already returned, close the call now: aet.py strategist-return --call-id {active['call_id']} --candidates-count K [--agent-id A].",
-            f"If you cannot find its output, re-request it by resuming {target} (Claude Code: the SendMessage tool; Codex: send_input). Do NOT abort just because a result is momentarily lost from your context.",
-            f"Use aet.py strategist-abort --call-id {active['call_id']} --reason unreachable ONLY if that resume itself returns success:false (the subagent is truly gone). Abort discards this call AND clears the agent id, losing the resume chain and the strategist's already-produced work.",
-            "Meanwhile keep recording completions; record auto-adds them to pending.",
+            f"Strategist call {active['call_id']} is OPEN ({active['role']}/{active['invocation']}, age {age}m). This means YOU still owe an `aet.py strategist-return` for it — it does NOT mean the subagent is still running. This script cannot see the subagent; only you can. Do NOT open another call.",
+            f"Determine the subagent's real state yourself (its completion notification / the agent panel / its task-output file). If it already returned, close the call now: `aet.py strategist-return --call-id {active['call_id']} --candidates-count K [--agent-id A]`.",
+            f"If you cannot find its output, re-request it by resuming {target} (Claude Code: the `SendMessage` tool; Codex: `send_input`). Do NOT abort just because a result is momentarily lost from your context.",
+            f"Use `aet.py strategist-abort --call-id {active['call_id']} --reason unreachable` ONLY if that resume itself returns `success:false` (the subagent is truly gone). Abort discards this call AND clears the agent id, losing the resume chain and the strategist's already-produced work.",
+            "Meanwhile keep recording completions; `aet.py record` auto-adds them to pending.",
         ]
     actions: list[str] = []
     launch_n = min(free_slots, ready)
@@ -556,12 +556,12 @@ def compute_next(state: dict[str, Any], runtime: str, ready: int, free_slots: in
         targets = (free_gpu_ids or [])[:launch_n]
         actions.append(
             f"LAUNCH {launch_n} top Ready-Queue row(s) onto GPU id(s) {targets} — one job per id, these are the only free GPUs, use no other. "
-            f"Per row: create-run --gpu-id <id> -> launch -> record running -> move to Running."
+            f"Per row: `aet.py create-run --gpu-id <id>` -> launch -> `aet.py record --status running` -> move to Running."
         )
     if projected_ready < total_capacity:
         route = compute_route(state, runtime, projected_ready)
         actions.append(
-            f"strategist-begin  ->  {render_branch(runtime, route)}"
+            f"run `aet.py strategist-begin`  ->  {render_branch(runtime, route)}"
         )
     if not actions:
         actions.append("All slots full and Ready Queue >= total_capacity. Wait for the next completion; nothing to launch or plan now.")
@@ -634,11 +634,11 @@ def command_init(args: argparse.Namespace) -> None:
     policy_set = bool(policy_from_flags(args))
     you = []
     if args.runtime == "claude":
-        you.append("1) start /loop now (before the first launch); see references/claude-code-adapter.md.")
+        you.append("1) start `/loop` now (before the first launch); see `references/claude-code-adapter.md`.")
     if not policy_set:
-        you.append(("2)" if you else "1)") + " set GPU policy: aet.py set-policy --gpu-ids ... --max-per-gpu ... (else conservative 1/gpu default).")
-    you.append(f"{len(you) + 1}) fill plan.md: metric, baseline, target, constraints, hypotheses, coupled params.")
-    you.append(f"{len(you) + 1}) Ready Queue < total_capacity -> strategist-begin (do NOT hand-design the initial candidate set).")
+        you.append(("2)" if you else "1)") + " set GPU policy: run `aet.py set-policy --gpu-ids ... --max-per-gpu ...` (else conservative 1/gpu default).")
+    you.append(f"{len(you) + 1}) fill `plan.md`: metric, baseline, target, constraints, hypotheses, coupled params.")
+    you.append(f"{len(you) + 1}) Ready Queue < total_capacity -> run `aet.py strategist-begin` (do NOT hand-design the initial candidate set).")
     emit(
         ok=[f"session: {session}", "files: meta.json plan.md observations.md results.csv queue.jsonl loop_state.json runs/"],
         state=[f"objective: {args.objective} ({args.goal})  runtime: {args.runtime}  gpu_policy: {'set' if policy_set else 'default (1/gpu)'}"],
@@ -657,7 +657,7 @@ def command_set_policy(args: argparse.Namespace) -> None:
     save_meta(session, meta)
     emit(
         ok=[f"gpu_policy updated: {json.dumps(policy, ensure_ascii=False, sort_keys=True)}"],
-        you=["gpu-slots / loop-state / strategist-begin now compute capacity from this policy. No plan.md edit needed."],
+        you=["`aet.py gpu-slots` / `loop-state` / `strategist-begin` now compute capacity from this policy. No `plan.md` edit needed."],
     )
 
 
@@ -717,9 +717,9 @@ def command_create_run(args: argparse.Namespace) -> None:
         ],
         state=[f"status=created  gpu={args.gpu_id or '(unset)'}"],
         you=[
-            f"1) launch: python -u SCRIPT --gpu_id {args.gpu_id or 'G'} --output_dir {output_dir} > {log_path} 2>&1",
-            f"2) after it starts: aet.py record --run-id {run_id} --status running",
-            "3) move this row Ready Queue -> Running in plan.md",
+            f"1) launch: `python -u SCRIPT --gpu_id {args.gpu_id or 'G'} --output_dir {output_dir} > {log_path} 2>&1`",
+            f"2) after it starts: run `aet.py record --run-id {run_id} --status running`",
+            "3) move this row Ready Queue -> Running in `plan.md`",
         ],
     )
 
@@ -769,7 +769,10 @@ def command_record(args: argparse.Namespace) -> None:
     if args.status == "running":
         emit(
             ok=[f"run {run_id} -> running   start_time recorded"],
-            you=["ensure plan.md Running row for this run (gpu / output / log / expected signal) is current"],
+            you=[
+                "1) ensure this run's `plan.md` Running row (gpu / output / log / expected signal) is current",
+                "2) once you have executed everything the last `aet.py loop-state` routed (free slots filled, any Strategist call handled), this cycle is complete: wait for the next completion, then `aet.py loop-state` again. Otherwise finish the remaining routed launches first.",
+            ],
         )
         return
 
@@ -795,12 +798,20 @@ def command_record(args: argparse.Namespace) -> None:
         tag = "  (NEW BEST)" if new_best else ""
         state_lines.append(f"best: run {best[0]} {best[1]}={best[2]}{tag}")
     you = [
-        f"1) move run {run_id} row Running -> Completed/Recorded in plan.md",
-        f"2) trust caveat? append it to runs/{run_id}/summary.md (after this record)",
+        "1) NEXT COMMAND (required): run `aet.py loop-state` — it returns what to launch/plan next and is the loop's control-flow router. Run it before any `aet.py create-run`, launch, status recap, or inline candidate planning.",
+        f"2) bookkeeping: move run {run_id} row Running -> Completed/Recorded in `plan.md`",
+        f"3) trust caveat? append it to `runs/{run_id}/summary.md` (after this record)",
     ]
     if new_best:
-        you.append("3) NEW BEST: if the project tracks a benchmark/current-best table, update it.")
-    you.append(f"{len(you) + 1}) recheck: aet.py loop-state")
+        you.append(f"{len(you) + 1}) NEW BEST: if the project tracks a benchmark/current-best table, update it.")
+    active = state.get("active_strategist_call")
+    if active:
+        you.insert(
+            0,
+            f"OPEN DEBT: Strategist call {active['call_id']} is still open (age {minutes_since(active.get('started_at'))}m) — "
+            f"you owe `aet.py strategist-return --call-id {active['call_id']} --candidates-count K` once that subagent "
+            f"returns (resume it via the `SendMessage` tool / Codex `send_input` if you lost its output). Do NOT open another call.",
+        )
     emit(
         ok=[f"run {run_id} -> {args.status}{metric_str}", "results.csv + runs/<id>/summary.md updated; pending += this run"],
         state=state_lines,
@@ -924,8 +935,8 @@ def reconcile_hint(session: Path) -> str | None:
         return None
     return (
         f"RECONCILE: ledger shows {ledger_running} 'running' but only {live} matching process(es) are alive — "
-        f"{ledger_running - live} run(s) finished without a terminal record. Record each (aet.py record --run-id <id> "
-        f"--status finished|failed|inconclusive after parsing its metrics) and move it from Running to Completed in plan.md."
+        f"{ledger_running - live} run(s) finished without a terminal record. Record each (`aet.py record --run-id <id> "
+        f"--status finished|failed|inconclusive` after parsing its metrics) and move it from Running to Completed in `plan.md`."
     )
 
 
@@ -980,14 +991,21 @@ def command_loop_state(args: argparse.Namespace) -> None:
     ok_lines = [f"session: {session}  runtime: {runtime}"]
     if ready_note:
         ok_lines.append(ready_note)
+    if getattr(args, "gpu_ids", None) is not None or getattr(args, "max_per_gpu", None) is not None:
+        ok_lines.append(
+            "POLICY: you passed transient GPU flags to loop-state; strategist-begin and gpu-slots read the stored "
+            "policy in meta.json, not these flags, so they may compute a different total_capacity. Run `aet.py "
+            "set-policy` once with these flags to make every command agree."
+        )
     hint = reconcile_hint(session)
     if hint:
-        ok_lines.append(hint)
-    emit(
-        ok=ok_lines,
-        state=state_lines,
-        you=compute_next(state, runtime, ready, free_slots, total_capacity, free_gpu_ids),
-    )
+        you = [
+            hint,
+            "Then re-run `aet.py loop-state` for the routed next action — the counts above are stale until you reconcile.",
+        ]
+    else:
+        you = compute_next(state, runtime, ready, free_slots, total_capacity, free_gpu_ids)
+    emit(ok=ok_lines, state=state_lines, you=you)
 
 
 def command_strategist_begin(args: argparse.Namespace) -> None:
@@ -1001,8 +1019,8 @@ def command_strategist_begin(args: argparse.Namespace) -> None:
         emit(
             ok=[f"REFUSED: Strategist call {active['call_id']} already open ({active['role']}/{active['invocation']})."],
             you=[
-                f"You still owe a strategist-return for it — an open call is NOT evidence the subagent is still running. Check its real state; if it already returned: aet.py strategist-return --call-id {active['call_id']} ...",
-                f"if its output is merely lost, resume that subagent to re-request it; use aet.py strategist-abort --call-id {active['call_id']} --reason unreachable ONLY if that resume returns success:false.",
+                f"You still owe an `aet.py strategist-return` for it — an open call is NOT evidence the subagent is still running. Check its real state; if it already returned: `aet.py strategist-return --call-id {active['call_id']} ...`",
+                f"if its output is merely lost, resume that subagent to re-request it; use `aet.py strategist-abort --call-id {active['call_id']} --reason unreachable` ONLY if that resume returns `success:false`.",
                 "Do NOT open a second call.",
             ],
         )
@@ -1033,8 +1051,8 @@ def command_strategist_begin(args: argparse.Namespace) -> None:
     you = [f"[{runtime}] {render_branch(runtime, route)}", verb_instruction(runtime, route), "payload:"]
     you += ["  " + line for line in build_payload(session, snapshot)]
     you.append(
-        f"on return: aet.py strategist-return --call-id {call_id} --candidates-count K "
-        "[--agent-id A] [--observations-present] [--queue-edits-present] [--stop-update-present]"
+        f"on return: run `aet.py strategist-return --call-id {call_id} --candidates-count K "
+        "[--agent-id A] [--observations-present] [--queue-edits-present] [--stop-update-present]`"
     )
     you.append(f"do NOT open another call while {call_id} is active.")
     ok_lines = [f"call opened: {call_id}  role={route['role']}  invocation={route['invocation']}  snapshot={pending_run_ids(state) or '[]'}"]
@@ -1055,7 +1073,7 @@ def command_strategist_return(args: argparse.Namespace) -> None:
     if not active or active["call_id"] != args.call_id:
         emit(
             ok=[f"REFUSED: no active call matching {args.call_id}. Current active: {active['call_id'] if active else '(none)'}."],
-            you=["Pass the call-id printed by strategist-begin. Inspect with aet.py loop-state."],
+            you=["Pass the call-id printed by `aet.py strategist-begin`. Inspect with `aet.py loop-state`."],
         )
         raise SystemExit(1)
 
@@ -1131,22 +1149,19 @@ def command_strategist_return(args: argparse.Namespace) -> None:
         state_lines.append("CONFIRMED_EXHAUSTION (two independent quiescent 0-candidate signals agree)")
         you = [
             "Exhaustion confirmed by independent contexts. YOU own the final stop:",
-            "verify target/budget genuinely unmet -> write ## Final Analysis to observations.md -> aet.py summarize -> /loop stop (Claude Code) or end supervision (Codex).",
-            "If you judge it premature you may continue; the next strategist-begin forms a fresh handshake.",
+            "verify target/budget genuinely unmet -> write `## Final Analysis` to `observations.md` -> run `aet.py summarize` -> `/loop` stop (Claude Code) or end supervision (Codex).",
+            "If you judge it premature you may continue; the next `aet.py strategist-begin` forms a fresh handshake.",
         ]
         emit(ok=ok, state=state_lines, you=you)
         return
 
     you = []
     step = 1
-    if args.observations_present:
-        you.append(f"{step}) append observations_to_append -> observations.md")
-        step += 1
     if candidates > 0:
-        you.append(f"{step}) append {candidates} candidate(s) -> plan.md Ready Queue")
+        you.append(f"{step}) append {candidates} candidate(s) -> `plan.md` Ready Queue")
         step += 1
-    if args.stop_update_present:
-        you.append(f"{step}) update Stop/Continue Rule in plan.md")
+    if args.stop_update_present or args.observations_present:
+        you.append(f"{step}) (if there are updates) update `plan.md`, `observations.md`, or other relevant documents accordingly.")
         step += 1
     if args.queue_edits_present:
         you.append(f"{step}) apply Queue Edits (rewrite/remove invalidated Ready Queue rows)")
@@ -1157,7 +1172,7 @@ def command_strategist_return(args: argparse.Namespace) -> None:
         state_lines.append("Primary returned 0 candidates while quiescent; next strategist-begin = fresh confirmer")
     elif flag == "CONFIRMATION_INVALID":
         state_lines.append("confirmer returned 0 candidates but was not quiescent; treated as continue")
-    you.append(f"{step}) then: aet.py loop-state to route the next launch/Strategist action")
+    you.append(f"{step}) then: run `aet.py loop-state` to route the next launch/Strategist action")
     emit(ok=ok, state=state_lines, you=you)
 
 
@@ -1168,7 +1183,7 @@ def command_strategist_abort(args: argparse.Namespace) -> None:
     if not active or active["call_id"] != args.call_id:
         emit(
             ok=[f"REFUSED: no active call matching {args.call_id}. Current active: {active['call_id'] if active else '(none)'}."],
-            you=["Inspect with aet.py loop-state."],
+            you=["Inspect with `aet.py loop-state`."],
         )
         raise SystemExit(1)
     state["active_strategist_call"] = None
@@ -1179,10 +1194,10 @@ def command_strategist_abort(args: argparse.Namespace) -> None:
     save_loop_state(session, state)
     ok = [f"call {args.call_id} aborted ({args.reason}); pending preserved: {pending_run_ids(state)}"]
     if cleared_id:
-        ok.append("strategist_agent_id cleared; the next strategist-begin will fresh-spawn")
+        ok.append("strategist_agent_id cleared; the next `aet.py strategist-begin` will fresh-spawn")
     emit(
         ok=ok,
-        you=["pending runs were kept. Re-open with aet.py strategist-begin when ready."],
+        you=["pending runs were kept. Re-open with `aet.py strategist-begin` when ready."],
     )
 
 

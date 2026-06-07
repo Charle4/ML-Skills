@@ -46,7 +46,7 @@ The default operating mode is **asynchronous rolling**: GPU slots are filled con
 4. Call `aet.py record --status <status> --run-id <id> [--primary-metric <v> --metric-name <n> --metrics '<json>'] [--notes '<note>']`
 5. If trust note is relevant: append to `runs/<id>/summary.md` (after record, since record rewrites that file)
 6. Move run from `Running` to `Completed / Recorded` in `plan.md`. `aet.py record` already added the terminal run to the pending set in `loop_state.json`.
-7. Run `aet.py loop-state` (it counts the Ready Queue from `plan.md` itself) and follow its `YOU` block. It computes free slots and total_capacity (from the stored GPU policy) and routes the next actions.
+7. Run `aet.py loop-state` (it counts the Ready Queue from `plan.md` itself) and follow its `YOU` block — the routing hub right after `record`; steps 5–6 are order-independent with it, so you may run it first and finish that bookkeeping after. It computes free slots and total_capacity (from the stored GPU policy) and routes the next actions.
 8. Launch as many existing `Ready Queue` candidates as current free slots allow NOW (create-run → launch → record running → move row to Running).
 9. When loop-state routes a Strategist call (Ready Queue count < total_capacity, total_capacity = capacity_per_gpu × gpu_count from the stored policy), run the **Strategist transaction** — three beats, every time (full detail in `references/subagents.md`):
    - **begin**: `aet.py strategist-begin` snapshots pending, computes the branch (fresh / resume / fresh confirmer), opens the call, and prints the exact spawn/resume tool call + the payload. It refuses if a call is already open.
@@ -70,7 +70,7 @@ Use `SESSION/plan.md` as a live execution board with three sections:
 State transitions:
 - Strategist planning adds candidates to `Ready Queue`. Add as many as the evidence justifies, including multi-point grids or factorial groups when useful; do not force a one-finished-run to one-new-run cadence.
 - Launching takes one or more `Ready Queue` rows according to current available slots, assigns run id/GPU/output/log fields, registers each with `aet.py create-run`, launches the command, records each accepted process with `aet.py record --status running`, and moves them to `Running`.
-- Completion triggers inline recording: verify output files → parse metrics (JSON/CSV/NPZ → TensorBoard → log regex) → determine status → call `aet.py record` (which adds the terminal run to the pending set) → append trust details to `runs/<id>/summary.md` if relevant → move row to `Completed / Recorded`; then run `aet.py loop-state` and fill all currently usable slots from `Ready Queue`.
+- Completion triggers inline recording: verify output files → parse metrics (JSON/CSV/NPZ → TensorBoard → log regex) → determine status → call `aet.py record` (which adds the terminal run to the pending set) → run `aet.py loop-state` (the routing hub; bookkeeping like trust notes, plan.md row moves is order-independent with it) → fill all currently usable slots from `Ready Queue`.
 - New evidence may invalidate unlaunched ready rows; rewrite or remove those rows after Strategist returns and note the reason in the session ledger.
 
 ### Delegation Protocol
@@ -183,7 +183,7 @@ Identify your runtime once, here. Record it at `init` with `--runtime` (Codex mu
    - **Semantic search — don't trust filenames alone**: After reviewing file names, use your available search tool (`grep`, `rg`, `search`, or equivalent) to scan all reference files for keywords from the actual task: project root path fragments, script names, method names, metric names, and parameter names the user mentioned. If any file matches, read it fully. This step takes seconds and prevents missing critical tuning rules that happen to live in a file whose name looks irrelevant.
    - **Claude Code only**: read `references/claude-code-adapter.md` now to understand how your execution model differs from Codex.
 
-2. Create the session:
+2. Create the session — for a fresh objective. If instead the user asked you to resume/continue an existing on-disk session, do NOT `init`: read `references/recovery.md` and follow it (re-attach to the existing session, no new registration).
 
 ```bash
 python SKILL_DIR/scripts/aet.py init \

@@ -19,7 +19,7 @@ Default duration semantics:
 - Treat autonomous tuning as a long-running job, not a short investigation. If the user asks for broad tuning, abundant GPU use, or a target such as `PSNR > 25`, expect tens to hundreds of runs and possibly multi-day operation.
 - Do not end after 1-3 planning groups just because a plausible local best was found. A local best is a signal for the next queue update, not a stopping reason.
 - If no explicit run or wall-clock budget is provided, assume the budget is open-ended until the user intervenes or the target is cleanly met.
-- Keep all usable GPU slots occupied within the configured contention limits. When any run finishes, immediately identify it, record inline: verify output files, parse metrics in priority order (JSON/CSV/NPZ → TensorBoard → log regex), determine status, call `aet.py record` (which adds the terminal run to the pending set), append trust details to `runs/<id>/summary.md`, move to `Completed / Recorded`, then `aet.py loop-state` to re-check resources and launch as many `Ready Queue` candidates as the now-free slots allow — do not wait for other running experiments to finish first.
+- Keep all usable GPU slots occupied within the configured contention limits. When any run finishes, immediately identify it, record inline: verify output files, parse metrics in priority order (JSON/CSV/NPZ → TensorBoard → log regex), determine status, call `aet.py record` (which adds the terminal run to the pending set), then `aet.py loop-state` to re-check resources and launch as many `Ready Queue` candidates as the now-free slots allow — do not wait for other running experiments to finish first. Bookkeeping (trust details to `runs/<id>/summary.md`, plan.md row move) is order-independent with loop-state.
 - Keep `Ready Queue` count at or above total_capacity (see section 6) whenever useful unexplored regions remain. Run the Strategist transaction whenever count drops below total_capacity.
 - If the system forces a final response before the target is met, report the next ready candidates or search group and the reason continuation is blocked; do not present a local best as final.
 
@@ -165,7 +165,7 @@ Launch rules:
 
 **Claude Code**: use `run_in_background=True` on the Bash tool instead of foreground blocking. Multiple experiments can be launched in the same turn. See `references/claude-code-adapter.md`.
 
-When a run finishes, immediately identify the run, then record inline: verify output files, parse metrics (JSON/CSV/NPZ → TensorBoard → log regex), determine status, call `aet.py record` (which adds the terminal run to the pending set), append trust details to `summary.md`, move the row to `Completed / Recorded`, then `aet.py loop-state` to re-check resources and fill all currently usable slots from `Ready Queue`.
+When a run finishes, immediately identify the run, then record inline: verify output files, parse metrics (JSON/CSV/NPZ → TensorBoard → log regex), determine status, call `aet.py record` (which adds the terminal run to the pending set), then `aet.py loop-state` to re-check resources and fill all currently usable slots from `Ready Queue`. Bookkeeping (trust details to `summary.md`, plan.md row move) is order-independent with loop-state.
 
 ## 8. Task Management by Runtime
 
@@ -184,7 +184,7 @@ When a run finishes, immediately identify the run, then record inline: verify ou
 - Before launching, register each run with `aet.py create-run` so `queue.jsonl` receives the recovery map, and write the live row to `plan.md`: run id, hypothesis, GPU id, output directory, command, expected metric file.
 - Launch all independent jobs in the same turn with `run_in_background=True`. You will receive a completion notification for each.
 - After each background launch is accepted, call `aet.py record --status running` without routine notes so `results.csv` has a start time.
-- On notification: identify the run from `Running`; record inline (verify output files, parse metrics, determine status, call `aet.py record` — which adds the terminal run to the pending set — append trust details to `summary.md`, move to `Completed / Recorded`); then `aet.py loop-state` to re-check resources and route launches/Strategist.
+- On notification: identify the run from `Running`; record inline (verify output files, parse metrics, determine status, call `aet.py record` — which adds the terminal run to the pending set); then `aet.py loop-state` to re-check resources and route launches/Strategist. Bookkeeping (trust details to `summary.md`, plan.md row move) is order-independent with loop-state.
 - Do not wait for all jobs in a candidate group to finish before analyzing and recording the ones that completed first — incremental recording reduces exposure to context compaction loss.
 
 ## 9. Collection and Result Integrity
@@ -196,7 +196,7 @@ For each finished run:
 4. Call `aet.py record --status <status> --run-id <id> [--primary-metric <v> --metric-name <n> --metrics '<json>'] [--notes '<note>']`
 5. If trust note is relevant: append to `runs/<id>/summary.md` (after record, since record rewrites that file).
 6. Move the row from `Running` to `Completed / Recorded` in `plan.md`. `aet.py record` already added the terminal run to the pending set in `loop_state.json`.
-7. Run `aet.py loop-state` to re-check GPU slots and continue the rolling queue protocol.
+7. Run `aet.py loop-state` to re-check GPU slots and route the next launch/Strategist action. It is the rolling hub: run it right after `record` and before any create-run, launch, or candidate planning. Steps 5–6 are order-independent with it — `loop-state` reads `results.csv` and the `plan.md` Ready Queue count, and the `Completed / Recorded` move changes neither — so you may run `loop-state` first and finish that bookkeeping after.
 
 ### Required Per-Run Fields
 
