@@ -2,8 +2,6 @@ Read this file only when you are Claude Code and have loaded the `my-auto-experi
 
 # Claude Code Adapter
 
-It supplements the main skill with capabilities Codex does not have.
-
 ## SKILL_DIR
 
 For Claude Code, the skill is installed at:
@@ -72,26 +70,44 @@ Never `sleep`, `tail`, or otherwise busy-wait on a background job's output file 
 
 Do not batch notifications — process each one as soon as it arrives, even if another experiment is still running. Incremental recording prevents data loss if the session is interrupted.
 
-## /loop: Periodic Keepalive
+## Periodic Keepalive (CronCreate)
 
-Claude Code's `/loop` command sends a recurring prompt at a fixed interval inside the current session. Use it as a native keepalive so the tuning loop restarts automatically even if the session sits idle between background notifications.
+`CronCreate` schedules a recurring prompt that fires while the REPL is idle. Use it as your native keepalive so the tuning loop restarts automatically even if the session sits idle between background notifications.
 
 **When to set up**: immediately after the AET session is created (`aet.py init`), before launching the first runs.
 
-**Invoke `/loop` as a slash command in the conversation** (not in a shell). Pass the interval and the skill invocation prompt:
+**Call the `CronCreate` tool directly** (it is a tool, not a shell command, and not the `/loop` slash command — `/loop`'s human-friendly interval parsing buys you nothing here and writes a worse `0 * * * *` cron). Construct the call yourself:
 
-```
-/loop 1h /my-auto-experiment-tuning Continue fine-tuning. Target: PSNR > XX (substitute actual target, or omit if none). Keep GPUs occupied. At the start of each invocation: (1) run `aet.py status` — if results.csv finished count exceeds plan.md Completed entries, reconcile plan.md from results.csv first; (2) run `aet.py loop-state` (it counts the Ready Queue from plan.md itself) and follow its YOU block — it routes any launches and the Strategist transaction (begin -> subagent tool_use -> return) for you; the script owns the Strategist routing and exhaustion handshake. Skip this prompt only if you are currently mid-execution of these steps in this exact conversation turn.
+```python
+CronCreate(
+    cron="7 * * * *",
+    prompt="/my-auto-experiment-tuning Continue fine-tuning. Target: PSNR > XX (substitute actual target, or omit if none). Keep GPUs occupied. At the start of each invocation: (1) run `aet.py status` — if results.csv finished count exceeds plan.md Completed entries, reconcile plan.md from results.csv first; (2) run `aet.py loop-state` (it counts the Ready Queue from plan.md itself) and follow its YOU block — it routes any launches and the Strategist transaction (begin -> subagent tool_use -> return) for you; the script owns the Strategist routing and exhaustion handshake. Skip this prompt only if you are currently mid-execution of these steps in this exact conversation turn.",
+    recurring=True,
+    durable=False,
+)
 ```
 
-Template to customize:
+`CronCreate` returns a job id; cancel with it later, or recover it via `CronList`.
+
+**After scheduling, run the first cycle now** — do not wait for the first cron fire. Each tick re-enqueues the prompt; the leading `/my-auto-experiment-tuning` re-triggers the skill after a context compaction drops the loaded instructions.
+
+Customize the call:
 - Replace `PSNR > XX` with the actual metric target, or omit the target clause entirely if none was given.
-- Use `30m` instead of `1h` if individual runs are short (< 20 min) and you want tighter loop cadence.
-- Minimum recommended interval: `20m`. Shorter intervals create noise.
+- Pick the `cron` by cadence (1 h fits long sessions):
 
-**Effect**: every hour (or whatever interval), the skill is re-invoked with the keepalive prompt. The escape clause prevents re-entry only when you are already mid-execution in the same turn — it does NOT apply just because experiments are running or no new completions occurred.
+  | Cadence | `cron` | Notes |
+  |---|---|---|
+  | hourly (default) | `7 * * * *` | off-:00 to avoid the top-of-hour scheduler herd |
+  | every 2 h | `13 */2 * * *` | for runs ≥ 2 h |
+  | every 30 min | `*/30 * * * *` | short runs (< 20 min) |
 
-**When to stop the loop**: `/loop stop` only when the user ends the session or a valid stop condition has been recorded and the session is being closed. Do not stop the loop merely because one run hit a local or provisional target.
+  Do not go below ~20 min — shorter intervals create noise. The escape clause in the prompt prevents re-entry only when you are already mid-execution in the same turn — it does NOT apply just because experiments are running or no new completions occurred.
+
+**`durable=False` (set above) keeps the job session-only — leave it that way.** Do not set it `true`: a durable job outlives this session and can interfere with other sessions running on the same project.
+
+**7-day bound**: a recurring job auto-expires after 7 days (one final fire, then deleted). For a tuning session expected to run longer, issue another `CronCreate` when it nears expiry.
+
+**When to cancel**: `CronDelete(id)` — pass the id `CronCreate` returned, or run `CronList` to find it — only when the user ends the session or a valid stop condition has been recorded and the session is being closed. Do not cancel merely because one run hit a local or provisional target.
 
 ## Subagent Differences vs Codex
 
@@ -108,7 +124,7 @@ Claude Code uses the `Agent` tool (not Codex's `multi_tool_use.parallel` pattern
 | Launch one experiment | Foreground, one session | `run_in_background=True`, one Bash call |
 | Launch candidate group (parallel) | One foreground session per run, serialized | Multiple `run_in_background=True` in same turn |
 | Monitor progress | Poll with `write_stdin` or wait | Receive completion notification automatically |
-| Keepalive between turns | External cron/systemd required | `/loop 1h` native |
+| Keepalive between turns | External cron/systemd required | `CronCreate` recurring job (native) |
 | Strategist subagent | `spawn_agent(message="...", fork_context=true)` with the registered custom agent selected as `experiment-strategist` when context inheritance is needed; `send_input(target=strategist_agent_id, ...)` for continuation | `Agent(subagent_type="experiment-strategist")` or `SendMessage` continuation |
 
 ## Safe Bash Patterns (Claude Code)

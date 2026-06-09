@@ -12,26 +12,35 @@ Use this file to set up periodic self-reminders that prevent an autonomous tunin
 | Long-running experiment handle | `exec_command` may yield a `session_id`; poll with `write_stdin` | `Bash(run_in_background=True)` job notification |
 | `run_in_background=True` (Bash tool) | ✗ | ✓ |
 | Notification on background job completion | ✗ | ✓ |
-| Native `/loop` timer for periodic wakeup | ✗ | ✓ |
+| Native recurring-prompt timer (`CronCreate`) | ✗ | ✓ |
 | Wake a closed/idle conversation | ✗ | ✗ (needs external trigger) |
 
-## Claude Code: Native `/loop` Keepalive
+## Claude Code: Native Keepalive (CronCreate)
 
-Claude Code has a `/loop` command that sends a recurring prompt at a fixed interval within the same session. Use this at skill init time to ensure the tuning loop is re-checked even if the current turn ends or the agent is waiting on background jobs.
+Claude Code's `CronCreate` tool schedules a recurring prompt that fires while the REPL is idle. Use it at skill init time to ensure the tuning loop is re-checked even if the current turn ends or the agent is waiting on background jobs. Call the tool directly — not the `/loop` slash command (its interval parsing buys nothing here and writes a worse `0 * * * *` cron).
 
 **When to set it up**: immediately after creating the AET session, before launching the first runs.
 
-**Command to run** (in conversation, not in shell):
+**Call** (it is a tool, not a shell command):
 
+```python
+CronCreate(
+    cron="7 * * * *",
+    prompt="/my-auto-experiment-tuning Continue fine-tuning. Target: PSNR > XX (substitute actual target, or omit if none). Keep GPUs occupied. At the start of each invocation: (1) run `aet.py status` — if results.csv finished count exceeds plan.md Completed entries, reconcile plan.md from results.csv first; (2) run `aet.py loop-state` (it counts the Ready Queue from plan.md itself) and follow its YOU block — it routes any launches and the Strategist transaction (begin -> subagent tool_use -> return) for you; the script owns the Strategist routing and exhaustion handshake. Skip this prompt only if you are currently mid-execution of these steps in this exact conversation turn.",
+    recurring=True,
+    durable=False,
+)
 ```
-/loop 1h /my-auto-experiment-tuning Continue fine-tuning. Target: PSNR > XX (substitute actual target, or omit if none). Keep GPUs occupied. At the start of each invocation: (1) run `aet.py status` — if results.csv finished count exceeds plan.md Completed entries, reconcile plan.md from results.csv first; (2) run `aet.py loop-state` (it counts the Ready Queue from plan.md itself) and follow its YOU block — it routes any launches and the Strategist transaction (begin -> subagent tool_use -> return) for you; the script owns the Strategist routing and exhaustion handshake. Skip this prompt only if you are currently mid-execution of these steps in this exact conversation turn.
-```
+
+After scheduling, run the first cycle immediately — do not wait for the first fire.
 
 If the user provided a numeric target (e.g., `PSNR > 25`), embed it in the prompt. If not, omit the target clause. The escape clause prevents re-entry only when you are already mid-execution in the same turn — it does NOT apply just because experiments are running or no new completions occurred.
 
-**Interval guideline**: 1 h is appropriate for long tuning sessions. Use 30 m if runs are short and you want tighter keep-alive. Do not set shorter than 20 m — it creates noise.
+**cron by cadence**: `7 * * * *` (hourly, off-:00) for long sessions; `*/30 * * * *` if runs are short. Do not go below ~20 min — it creates noise.
 
-**When to stop the loop**: invoke `/loop stop` only when the user ends the session or a valid stop condition has been recorded and the session is being closed. Do not stop the loop merely because one run hit a local or provisional target.
+**`durable=False` (set above) keeps the job session-only — leave it that way.** Do not set it `true`: a durable job outlives this session and can interfere with other sessions running on the same project. A recurring job also auto-expires after 7 days; issue another `CronCreate` if the session runs longer.
+
+**When to cancel**: `CronDelete(id)` — pass the id from `CronCreate`, or run `CronList` to find it — only when the user ends the session or a valid stop condition has been recorded and the session is being closed. Do not cancel merely because one run hit a local or provisional target.
 
 ## Claude Code: Background Job Notifications
 
