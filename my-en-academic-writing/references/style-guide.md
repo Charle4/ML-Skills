@@ -31,7 +31,7 @@ Identify the user's requested mode before editing:
    - For conservative polish, leave correct text unchanged.
    - For deep polish, rewrite sentences when clarity or rigor clearly improves.
    - For de-AI editing, remove formulaic phrasing, inflated claims, needless connectors, and ornamental wording.
-   - For drafting, follow the outline exactly and avoid unsupported claims.
+   - For drafting, follow the outline or organize loose materials into coherent structure, and avoid unsupported claims.
 5. Use the default academic English policy unless a task mode, venue profile, or user instruction provides a more specific rule.
 6. Before output, run the self-check: LaTeX preservation, no unsupported claims, no forbidden wording, tense consistency, capitalization, and output-format compliance.
 
@@ -45,7 +45,7 @@ Identify the user's requested mode before editing:
 - Keep academic rigor while improving readability.
 - Write in a natural human style rather than a formulaic model-generated style.
 - Keep the author's technical meaning, evidence boundary, and argument structure.
-- Do not optimize sentences in isolation. Maintain paragraph-level logic and sentence-to-sentence coherence.
+- Do not optimize sentences in isolation. Maintain paragraph-level logic, sentence-to-sentence coherence, and full-text consistency in terminology, tone, and style.
 - State claims, scope, and contributions directly. Embed necessary boundaries in the technical statement.
 - Do not introduce new claims, numbers, citations, baselines, experimental conclusions, or causal explanations.
 - Do not exaggerate, dramatize, or use figurative language.
@@ -81,6 +81,7 @@ Also avoid overused AI-like expressions unless the technical context truly requi
 
 - Do not add bold, italics, quotation marks, or emphasis formatting unless the source already uses it or the venue requires it.
 - Do not add stylistic double quotation marks.
+- Avoid colons in running prose when a subordinate clause or apposition conveys the same relation.
 - Avoid dashes for stylistic effect. Prefer commas, clauses, parentheses, or sentence splitting.
 - Do not introduce bullet points unless the user asks for them, the source already uses them, or the venue convention strongly expects them, such as contribution bullets in a conference Introduction.
 - Do not convert coherent paragraphs into item lists.
@@ -116,6 +117,8 @@ If a user asks for a different tense policy for a venue or paper, follow the use
 - Algorithm names can be written with `\texttt{}` when that is the paper's convention, for example `\texttt{FedDeblur}` and `\texttt{CenDeblur}`.
 - Do not expand common field abbreviations unless the user asks. For example, keep `LLM` as `LLM` when the source uses it.
 - Keep terminology consistent across the passage. Do not alternate among `model`, `network`, and `architecture` unless the distinction matters.
+- When translating or drafting, adopt terms already established in the existing English manuscript. For new terms, choose carefully on first use and maintain consistency afterward.
+- When the user provides preferred English renderings for Chinese terms, use them unless a better alternative exists. If proposing a different term, explain why. When settling on a recurring term for the first time, note it so the user can maintain consistency in later sections.
 
 ### LaTeX Preservation
 
@@ -188,7 +191,9 @@ Requirements:
 
 - Improve academic rigor, sentence structure, clarity, and readability.
 - Rewrite entire sentences when necessary.
-- Remove non-native phrasing, unclear long sentences, awkward transitions, and article errors.
+- Simplify overly long or complex sentences to match natural reading patterns.
+- Adjust paragraph order or internal structure when doing so strengthens logical progression and narrative coherence.
+- Remove non-native phrasing, awkward transitions, and article errors.
 - Keep standard academic written style.
 - Use simple and clear research vocabulary.
 - Avoid ornate words and inflated claims.
@@ -218,6 +223,7 @@ Use this mode when the user asks for de-AI editing, naturalization, human-like a
 Requirements:
 
 - Prefer plain, precise academic words.
+- Identify and replace standardized or template-like expressions with more natural, personalized language.
 - Remove formulaic connectors such as `First and foremost`, `It is worth noting that`, and mechanical paragraph scaffolding.
 - Replace defensive framing with direct claims whose scope is explicit in the sentence.
 - Reduce ornamental vocabulary and vague intensifiers.
@@ -251,7 +257,7 @@ Use this mode when the input is Chinese and the user asks to translate, polish i
 Role:
 
 - Act as a top-tier academic writing expert and senior reviewer.
-- Translate the Chinese draft into rigorous, natural English academic prose.
+- Understand the full manuscript context and the argument the author intends before writing. The task is not mechanical sentence-by-sentence translation but academic writing informed by the Chinese draft.
 - Keep LaTeX source clean and publication-ready.
 
 Requirements:
@@ -260,11 +266,12 @@ Requirements:
 - Preserve mathematical formulas and `$` signs.
 - Escape literal special characters in generated LaTeX.
 - Avoid bold, italics, and quotation marks unless already required.
-- Avoid dashes when a clause or comma is clearer.
+- Avoid colons and dashes when a clause or comma is clearer.
 - Do not use `\item` lists unless the source is already a formal list or the user explicitly asks for lists.
 - Remove AI-like phrasing and translationese.
 - Use common, precise words.
-- Keep the original logic and do not add unsupported claims.
+- Keep the original meaning and do not add unsupported claims or expand beyond what the source says.
+- Ensure the output is consistent with the existing English manuscript in terminology, tone, and style.
 - Default tense for this mode: present tense for methods, architectures, and experimental conclusions; past tense only for specific historical events or prior authors' actions, unless the user requests the general tense policy.
 
 Default chat output:
@@ -293,8 +300,8 @@ Use this mode when the user provides an outline, notes, or required points and a
 
 Requirements:
 
-- Follow the outline structure exactly.
-- Do not add or remove major points.
+- When the user provides a structured outline, follow its structure exactly and do not add or remove major points.
+- When the user provides loose materials or notes without a fixed structure, organize the content into a coherent logical order. Headings, paragraph grouping, and narrative sequence may all be adjusted as long as the reasoning is explained.
 - Write in academic English suitable for the stated venue.
 - Each paragraph should have a clear topic sentence and logical internal structure.
 - Make transitions between paragraphs explicit when needed.
@@ -499,7 +506,7 @@ One paragraph should usually do one main job.
 
 ### Redundancy
 
-Remove repeated explanations, duplicated claims, and low-information framing phrases.
+Remove repeated explanations, duplicated claims, low-information framing phrases, and filler content that pads word count without adding substance. Emphasize core ideas and supporting evidence.
 
 Weak:
 
@@ -607,7 +614,7 @@ The source prompts contain rules designed for different scenarios. Resolve them 
 - Past tense for completed experiments vs present tense for experimental conclusions: use the general tense policy by default; use present tense for translated experimental conclusions in the Chinese-to-English translation mode when that prompt is active.
 - All writing in English vs Chinese back-translation: the manuscript part must be English; the optional `Translation` and `Modification Log` parts may be Chinese when the mode requests them.
 - No double quotes or dashes: avoid them in manuscript prose for style; keep necessary code, LaTeX, citations, and exact source text intact.
-- Preserve structure vs deep rewrite: conservative polish preserves structure; deep rewrite can restructure sentences but still preserves paragraph-level argument unless the user asks for larger reorganization.
+- Preserve structure vs deep rewrite: conservative polish preserves structure; deep rewrite can restructure sentences and adjust paragraph order or internal structure when doing so strengthens logical progression, but preserves the overall argument.
 
 If an active user instruction conflicts with these rules and the conflict cannot be handled by mode selection, ask the user before editing.
 
@@ -652,12 +659,12 @@ Use this profile when the user asks to polish the following passage minimally:
 
 Use this profile when the user asks to draft a section from an outline:
 
-- Follow the outline structure exactly.
-- Do not add or remove major points.
+- When the user provides a structured outline, follow its structure exactly and do not add or remove major points.
+- When the user provides loose materials or notes without a fixed structure, organize the content into a coherent logical order. Headings, paragraph grouping, and narrative sequence may all be adjusted as long as the reasoning is explained.
 - Write in academic English suitable for the stated venue.
 - Each paragraph should have a clear topic sentence and logical internal structure.
 - Transitions between paragraphs must be explicit when needed.
-- Do not introduce claims not implied by the outline.
+- Do not introduce claims not implied by the outline or source materials.
 
 ### Related Work
 
@@ -676,14 +683,16 @@ Use this profile when the user asks to summarize and synthesize references:
 Use this profile when translating Chinese drafts:
 
 - Act as both a top research writing expert and a senior conference reviewer.
-- Translate and polish the Chinese draft into an English academic paper fragment.
+- Understand the full manuscript context and the argument the author intends before writing. The task is academic writing informed by the Chinese draft, not mechanical sentence-by-sentence translation.
 - Avoid bold, italics, and quotation marks when possible.
 - Keep LaTeX source clean.
 - Use rigorous, accurate, concise, and coherent wording.
 - Use common words and avoid rare words.
-- Avoid em dashes where a clause or apposition is better.
+- Avoid colons and dashes when a clause or apposition is better.
 - Avoid `\item` lists unless a list is structurally necessary.
-- Remove AI-like wording.
+- Remove AI-like wording and translationese.
+- Keep the original meaning and do not expand beyond what the source says.
+- Ensure the output is consistent with the existing English manuscript in terminology, tone, and style.
 - Use present tense for methods, architectures, and experimental conclusions, except for specific historical events.
 - Output `Part 1 [LaTeX]` and `Part 2 [Translation]` unless the user requests another format.
 - Escape literal special characters in LaTeX.
@@ -761,4 +770,5 @@ Check every output against the following list:
 12. Paragraph logic is coherent; transitions are natural rather than mechanical.
 13. Related-work text is grouped thematically and states limitations factually.
 14. Applied mathematics text contains mathematical motivation and avoids ML-conference hype.
-15. Output format exactly matches the user's requested or mode-specific format.
+15. Terminology, tone, and style are consistent with the existing English manuscript when one is provided.
+16. Output format exactly matches the user's requested or mode-specific format.

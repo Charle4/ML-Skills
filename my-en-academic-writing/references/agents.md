@@ -134,15 +134,16 @@ Polish the following passage minimally:
 - Preserve all LaTeX commands exactly.
 ```
 
-### Block F — Draft Writing from Outline
+### Block F — Draft Writing from Outline or Notes
 
 ```
-Draft the following section from the outline provided:
-- Follow the outline structure exactly; do not add or remove major points.
+Draft the following section from the outline or notes provided:
+- If the input is a structured outline, follow its structure exactly and do not add or remove major points.
+- If the input is loose materials or notes without a fixed structure, organize the content into a coherent logical order and explain the reasoning.
 - Write in academic English suitable for an applied mathematics or CS journal.
 - Each paragraph should have a clear topic sentence and logical internal structure.
 - Transitions between paragraphs must be explicit.
-- Do not introduce claims not implied by the outline.
+- Do not introduce claims not implied by the source materials.
 ```
 
 ### Block G — Literature Review / Related Work

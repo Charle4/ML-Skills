@@ -119,4 +119,5 @@ Before responding, confirm that:
 - Tense, terminology, and capitalization match the selected mode and venue.
 - Existing formatting is preserved and no new emphasis formatting was added.
 - Paragraph logic is coherent and transitions are natural.
+- Terminology, tone, and style are consistent with the existing English manuscript when one is provided.
 - Output format matches the user request or the mode-specific default.
