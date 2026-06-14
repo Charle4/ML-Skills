@@ -111,7 +111,7 @@ Before launching, write and maintain the live plan in `SESSION/plan.md`:
 
 Do not create separate planning notes such as `aet/YYYY-MM-DD/next.md`, `aet/YYYY-MM-DD/plan.md`, or `aet/plan.md`. If the session `plan.md` is missing or corrupted, restore it from `assets/plan-template.md` into `SESSION/plan.md`.
 
-Prefer candidate groups that distinguish hypotheses. The Strategist owns detailed candidate selection when delegation is available; write the returned candidates into `plan.md`.
+Prefer candidate groups that distinguish hypotheses. The Strategist owns detailed candidate selection; write the returned candidates into `plan.md`.
 
 **Before proceeding to section 7**: if `Ready Queue` count < total_capacity, run the Strategist transaction (same trigger as the rolling cycle). Strategist plans candidates from `plan.md`'s objective and coupled parameters; no completed runs are required. At session start all slots are free, so expect at least 2× total_capacity candidates (current_free_slots + total_capacity): only total_capacity would let the first launch wave empty the queue and force a redundant blocking re-call against the same empty result state. Only then launch from the returned queue.
 
@@ -176,7 +176,7 @@ When a run finishes, immediately identify the run, then record inline: verify ou
 - Poll active sessions with `write_stdin` at reasonable intervals. Because stdout/stderr are redirected to the log file, use separate short reads of the log path when progress details are needed.
 - Prefer direct commands such as `python -u SCRIPT --gpu_id N --output_dir DIR > DIR/train.log 2>&1`, where `DIR` already exists and was created as a unique run directory. Keep one experiment per tool session. Avoid launching more jobs than can be tracked and analyzed cleanly.
 - Use `multi_tool_use.parallel` for independent file reads and status checks, not for launching several long-running experiments unless each launch remains a separate, trackable tool session.
-- Delegate analysis and planning to the Strategist by default whenever subagents are available; fall back to inline analysis and planning only when delegation is unavailable. Keep delegated work bounded.
+- Delegate analysis and planning to the Strategist. Keep delegated work bounded.
 - Invoke the Strategist only inside the three-beat transaction (`aet.py strategist-begin` → `spawn_agent`/`send_input` tool_use → `aet.py strategist-return`). `strategist-begin` prints whether to fresh-spawn or `send_input`-resume and the target id.
 - Do not leave required experiment sessions running when sending the final answer. Either collect them, report that they are intentionally still running at the user's request, or stop before claiming completion.
 

@@ -7,7 +7,7 @@ description: Autonomous, hypothesis-driven experiment and hyperparameter tuning 
 
 ## Operating Model
 
-Run an autonomous loop as the experiment orchestrator. Understand the project once, create one durable session, maintain `plan.md`, manage run lifecycle commands, check GPU slots, launch work, and coordinate subagents. Do not do inline hyperparameter analysis or candidate strategy when subagent support is available.
+Run an autonomous loop as the experiment orchestrator. Understand the project once, create one durable session, maintain `plan.md`, manage run lifecycle commands, check GPU slots, launch work, and coordinate subagents. Do not do inline hyperparameter analysis or candidate strategy.
 
 Analysis and planning are delegated:
 - Strategist returns per-HP observations for recent completed runs and Ready Queue candidates.
@@ -75,7 +75,7 @@ State transitions:
 
 ### Delegation Protocol
 
-Read `references/subagents.md` before spawning or locally emulating a role. Use paths and durable context in prompts; avoid summarizing results for the subagent when it can read the files directly.
+Read `references/subagents.md` before spawning the Strategist. Use paths and durable context in prompts; avoid summarizing results for the subagent when it can read the files directly.
 
 | Trigger | Role | Main-agent follow-up |
 | ------- | ---- | -------------------- |
@@ -119,7 +119,7 @@ Create exactly ONE AET session (`aet.py init`) per user tuning objective. Do NOT
 - Optimize by hypotheses, not blind grids. State what each candidate group is testing.
 - Analyze hyperparameters as a coupled system. Early candidate groups should deliberately cover interactions among important knobs before local refinement.
 - Do not get trapped in single-parameter coordinate tuning. If progress stalls or conclusions conflict, broaden the design space and test interaction hypotheses.
-- Default division of labor: you manage the experiment lifecycle (orchestration, launching, inline recording) and the Strategist owns analysis and candidate planning. Delegate observations synthesis and next-candidate strategy to Strategist whenever subagents are available; apply returned decisions and keep managing the lifecycle. Perform analysis and planning inline only as a fallback when subagent delegation is unavailable.
+- Division of labor: you manage the experiment lifecycle (orchestration, launching, inline recording) and the Strategist owns analysis and candidate planning. Delegate observations synthesis and next-candidate strategy to the Strategist; apply returned decisions and keep managing the lifecycle.
 - Keep a durable ledger before relying on context memory.
 - Never overwrite an existing output directory, log file, or shared result JSON.
 - Treat failed and bad runs as data. Record the failure pattern and avoid repeating it.
@@ -287,7 +287,7 @@ Use `scripts/aet.py` as the durable state and safety helper for the tuning loop:
 - `loop-state`: the decision panel — call each cycle and each keepalive tick. The script counts the `### Ready Queue` rows in `plan.md` itself. Optional: `--session`/`--project-root`, `--runtime` (override only; defaults to the session's stored runtime — normally omit), `--ready-count` (override only; normally omit — a value differing from the plan.md count is flagged stale and ignored). Prints OK/STATE plus a routed `YOU`/NEXT (launch K rows, run the Strategist transaction via a specific branch, or wait).
 - `strategist-begin`: open a Strategist transaction (Beat 1). Optional: `--session`/`--project-root`, `--runtime` (override only), `--ready-count` (override only; the script counts the Ready Queue from `plan.md`). Snapshots pending, computes fresh/resume/confirmer + blocking/background, opens `active_strategist_call`, and prints the exact spawn/resume tool call + payload. Refuses if a call is already open.
 - `strategist-return`: close the transaction (Beat 3). Required: `--call-id C`, `--candidates-count K` (how many candidates the Strategist returned; the script derives exhaustion from `K == 0`). Optional: `--agent-id A`, `--resume-failed`, `--observations-present`, `--queue-edits-present`, `--stop-update-present`, `--ready-count` (override only; the script counts the Ready Queue from `plan.md` before you append the returned candidates). Clears the snapshot (version-guarded), records the agent id, applies the exhaustion handshake, prints the gated `YOU` doc obligations.
-- `strategist-abort`: last resort to abandon an open call when the subagent is genuinely gone (spawn failed / resume returned `success:false` / cancelled). Required: `--call-id C`, `--reason spawn_failed|unreachable|cancelled`. Clears `active_strategist_call` and (for `unreachable`/`spawn_failed`) the agent id — losing the resume chain and any work the subagent already produced. An open call alone is NOT evidence the subagent died: if it returned, use `strategist-return`; if its output is merely lost, resume it to re-request first.
+- `strategist-abort`: last resort to abandon an open call when the subagent is genuinely gone (spawn failed / resume returned `success:false` / cancelled). Required: `--call-id C`, `--reason spawn_failed|unreachable|cancelled`. Clears `active_strategist_call` and (for `unreachable`/`spawn_failed`) the agent id — losing the resume chain and any work the subagent already produced. With no open call, `--reason unreachable` still clears a stale `strategist_agent_id` (new-conversation recovery reset). An open call alone is NOT evidence the subagent died: if it returned, use `strategist-return`; if its output is merely lost, resume it to re-request first.
 - `parse-log`: extract metrics from a log only when structured metrics are unavailable. Positional: `log`. Optional: repeat `--pattern REGEX`; each pattern should have named groups `name` and `value`, or one numeric group. Treat regex output as a draft and inspect it before recording.
 - `status` / `summarize`: print session path, objective, run counts, status counts, and current best finished result. Optional: `--project-root`, `--session`, `--goal max|min`.
 
@@ -314,15 +314,15 @@ Load only the reference file needed for the current decision.
 
 ## Subagent Pattern
 
-By default, delegate analysis and planning to the Strategist so you stay focused on orchestration:
+Delegate analysis and planning to the Strategist so you stay focused on orchestration:
 - Strategist: returns per-HP observations for recent runs and Ready Queue candidates. Does not write `plan.md` or `observations.md`; apply returned rows and observations.
 
 Invoke it only inside the three-beat transaction (`aet.py strategist-begin` → tool_use → `aet.py strategist-return`). `strategist-begin` prints the exact call to make and the payload; it owns fresh-vs-resume-vs-confirmer and the Strategist agent id.
 
-- **Claude Code**: the printed call is `Agent(subagent_type="experiment-strategist", prompt=..., run_in_background=...)` for a fresh spawn/confirmer, or the literal `SendMessage` tool (invoked by name, not `Agent`) targeting the existing agent id for a resume. A resume reuses the existing strategist with its context — Agent-spawning a new one on a resume route throws that context away; fall back to a fresh `Agent` spawn only if `SendMessage` returns `success:false`, then pass `--resume-failed` to `strategist-return`. Pass only session-specific context; the role instructions load from the subagent's own system prompt.
+- **Claude Code**: the printed call is `Agent(subagent_type="experiment-strategist", prompt=..., run_in_background=...)` for a fresh spawn/confirmer, or the literal `SendMessage` tool (invoked by name, not `Agent`) targeting the existing agent id for a resume. A resume reuses the existing strategist with its context — Agent-spawning a new one on a resume route throws that context away. Call `SendMessage` directly; its absence from `ToolSearch` or your visible toolset does NOT mean it is unavailable (load its schema if needed, then call). The only signal that resume failed is the call returning `success:false` — not your prior knowledge that the agent is dead. Fall back to a fresh `Agent` spawn only on `success:false`, then pass `--resume-failed` to `strategist-return` (which clears the dead id even with no replacement id). Pass only session-specific context; the role instructions load from the subagent's own system prompt.
 - **Codex**: the printed call is `spawn_agent(message=..., fork_context=true)` with the registered custom agent `experiment-strategist` for a fresh spawn/confirmer, or `send_input(target=..., message=...)` then `wait_agent` for a resume. If a resume target is still running, `send_input` queues; if it was closed, `resume_agent(id=...)` first. If resume fails, fall back to a fresh `spawn_agent` and pass the new id to `strategist-return --agent-id` plus `--resume-failed`. `multi_tool_use.parallel` is for parallel tool calls, not subagent creation.
 
-See `references/subagents.md` for the prompt template. If delegation is not authorized, perform strategy and planning inline yourself.
+See `references/subagents.md` for the prompt template.
 
 ## Result Integrity
 

@@ -500,10 +500,13 @@ def verb_instruction(runtime: str, route: dict[str, Any]) -> str:
             f"Call the tool literally named `SendMessage` (NOT the `Agent` tool) — "
             f"`SendMessage(to={target}, message=<payload>)` [background]. This resumes the SAME strategist "
             f"with its accumulated context. `Agent`-spawning a strategist here is the WRONG action: it cold-starts "
-            f"a new one and discards that context. `SendMessage` may be a deferred tool — load it before this beat if "
-            f"it is not in your active toolset. Only if `SendMessage` returns `success:false` (e.g. 'no transcript to "
-            f"resume') fall back to `Agent(subagent_type=\"experiment-strategist\", prompt=<payload>, "
-            f"run_in_background=True)` and pass `--resume-failed` to strategist-return."
+            f"a new one and discards that context. Call `SendMessage` directly — it is a real, always-available tool, "
+            f"not something to pre-clear: its absence from `ToolSearch` or from your visible toolset does NOT mean it "
+            f"is unavailable; if its schema is not loaded, load it, then call it. The ONLY signal that resume failed "
+            f"is the call itself returning `success:false` (e.g. 'no transcript to resume'). Knowing the agent is from "
+            f"a dead prior conversation is NOT that signal — make the call and let it fail. Only on `success:false` "
+            f"fall back to `Agent(subagent_type=\"experiment-strategist\", prompt=<payload>, run_in_background=True)` "
+            f"and pass `--resume-failed` to strategist-return (which clears the dead id even with no replacement id)."
         )
     bg = "run_in_background=True" if mode == "background" else "run_in_background=False"
     return f'Call `Agent(subagent_type="experiment-strategist", prompt=<payload>, {bg})`.'
@@ -798,7 +801,7 @@ def command_record(args: argparse.Namespace) -> None:
         tag = "  (NEW BEST)" if new_best else ""
         state_lines.append(f"best: run {best[0]} {best[1]}={best[2]}{tag}")
     you = [
-        "1) NEXT COMMAND (required): run `aet.py loop-state` — it returns what to launch/plan next and is the loop's control-flow router. Run it before any `aet.py create-run`, launch, status recap, or inline candidate planning.",
+        "1) NEXT COMMAND (required): run `aet.py loop-state` — it returns what to launch/plan next and is the loop's control-flow router. Run it before any `aet.py create-run`, launch, status recap, or candidate planning.",
         f"2) bookkeeping: move run {run_id} row Running -> Completed/Recorded in `plan.md`",
         f"3) trust caveat? append it to `runs/{run_id}/summary.md` (after this record)",
     ]
@@ -940,6 +943,63 @@ def reconcile_hint(session: Path) -> str | None:
     )
 
 
+def stale_created_hint(session: Path) -> str | None:
+    """Runs stuck in 'created' (registered but never launched) block quiescence and the exhaustion
+    handshake. Return an actionable hint listing the run ids, or None."""
+    created_ids = [row.get("run_id", "") for row in read_rows(session / "results.csv") if row.get("status") == "created"]
+    if not created_ids:
+        return None
+    ids_str = ", ".join(created_ids)
+    return (
+        f"STALE CREATED: run(s) {ids_str} have status='created' (registered via `create-run` but never launched), "
+        f"blocking quiescence. For each: determine whether it should still be launched "
+        f"(`aet.py record --run-id <id> --status running` after launch) or was abandoned "
+        f"(`aet.py record --run-id <id> --status superseded --notes 'never launched'`)."
+    )
+
+
+def quiescence_blockers(session: Path, ready_count: int) -> list[str]:
+    """Mirrors is_quiescent checks; returns one actionable message per failing condition.
+    Used by strategist-return to explain why the exhaustion handshake could not proceed."""
+    blockers = []
+    if ready_count > 0:
+        blockers.append(
+            f"READY QUEUE: {ready_count} row(s) remain — launch or remove them."
+        )
+    rows = read_rows(session / "results.csv")
+    created_ids = [r.get("run_id", "") for r in rows if r.get("status") == "created"]
+    if created_ids:
+        blockers.append(
+            f"STALE CREATED: run(s) {', '.join(created_ids)} have status='created' (registered but never launched). "
+            f"For each: launch and `aet.py record --status running`, or "
+            f"`aet.py record --run-id <id> --status superseded --notes 'never launched'`."
+        )
+    pattern = specific_process_pattern(session)
+    if pattern:
+        live = count_live_processes(pattern)
+        if live > 0:
+            blockers.append(
+                f"ACTIVE: {live} experiment process(es) matching '{pattern}' still running. "
+                f"Wait for completion, then record terminal status."
+            )
+        ledger_running = sum(1 for r in rows if r.get("status") == "running")
+        if ledger_running > live:
+            stale = ledger_running - live
+            blockers.append(
+                f"RECONCILE: ledger shows {ledger_running} 'running' but only {live} live process(es) — "
+                f"{stale} run(s) finished without terminal record. Record each with "
+                f"`aet.py record --run-id <id> --status finished|failed|inconclusive`."
+            )
+    else:
+        running_ids = [r.get("run_id", "") for r in rows if r.get("status") == "running"]
+        if running_ids:
+            blockers.append(
+                f"RUNNING: run(s) {', '.join(running_ids)} in 'running' status (no specific process_pattern). "
+                f"Verify if still active; if finished, record terminal status."
+            )
+    return blockers
+
+
 def command_gpu_slots(args: argparse.Namespace) -> None:
     session = None
     if getattr(args, "session", None) or getattr(args, "project_root", None):
@@ -998,11 +1058,14 @@ def command_loop_state(args: argparse.Namespace) -> None:
             "set-policy` once with these flags to make every command agree."
         )
     hint = reconcile_hint(session)
-    if hint:
-        you = [
-            hint,
-            "Then re-run `aet.py loop-state` for the routed next action — the counts above are stale until you reconcile.",
-        ]
+    created_hint_msg = stale_created_hint(session)
+    if hint or created_hint_msg:
+        you = []
+        if hint:
+            you.append(hint)
+        if created_hint_msg:
+            you.append(created_hint_msg)
+        you.append("Then re-run `aet.py loop-state` for the routed next action — the counts above are stale until you reconcile.")
     else:
         you = compute_next(state, runtime, ready, free_slots, total_capacity, free_gpu_ids)
     emit(ok=ok_lines, state=state_lines, you=you)
@@ -1108,24 +1171,40 @@ def command_strategist_return(args: argparse.Namespace) -> None:
             flag = "CONFIRMED_EXHAUSTION"
         else:
             state["pending_exhaustion_confirmation"] = False
-            flag = "CONFIRMATION_INVALID"
+            flag = "CONFIRMATION_NOT_QUIESCENT"
     else:
-        if args.agent_id:
+        # Pure cleanup: a resume failed and no replacement was spawned. The candidate count is a
+        # placeholder, not a strategist result, so it must not feed the exhaustion handshake.
+        pure_resume_cleanup = args.resume_failed and not args.agent_id
+        if args.resume_failed:
+            # The resume tool returned success:false — the prior agent is genuinely gone.
+            # Forget it whether or not a replacement was spawned: with --agent-id (a fresh
+            # strategist already spawned) record it; without it, clear the id so the next
+            # strategist-begin routes a fresh spawn instead of re-resuming the same corpse.
+            if args.agent_id:
+                maybe_update_primary_id(state, args.agent_id, "resume_failed")
+            elif prior_agent_id is not None:
+                state["strategist_agent_id"] = None
+                history_append(state, "(cleared)", "resume_failed")
+        elif args.agent_id:
             if invocation == "fresh":
                 reason = "first_spawn"
-            elif args.resume_failed:
-                reason = "resume_failed"
             else:
                 # Resume route but a new agent id came back with no asserted failure: the parent
                 # Agent-spawned a fresh strategist instead of resuming via SendMessage, losing context.
                 reason = "fresh_substituted"
                 substituted = args.agent_id != prior_agent_id
             maybe_update_primary_id(state, args.agent_id, reason)
-        if candidates > 0:
+        if pure_resume_cleanup:
+            pass
+        elif candidates > 0:
             state["pending_exhaustion_confirmation"] = False
         elif candidates == 0 and exhaustion and quiescent:
             state["pending_exhaustion_confirmation"] = True
             flag = "PRIMARY_EXHAUSTION_PENDING"
+        elif candidates == 0 and exhaustion and not quiescent:
+            state["pending_exhaustion_confirmation"] = False
+            flag = "EXHAUSTION_NOT_QUIESCENT"
         else:
             state["pending_exhaustion_confirmation"] = False
     save_loop_state(session, state)
@@ -1135,6 +1214,8 @@ def command_strategist_return(args: argparse.Namespace) -> None:
         ok.append(ready_note)
     if args.agent_id:
         ok.append(f"strategist_agent_id={state.get('strategist_agent_id')} ({role})")
+    elif args.resume_failed and role != "confirmer" and state.get("strategist_agent_id") is None:
+        ok.append("strategist_agent_id cleared (resume_failed, no replacement); the next `aet.py strategist-begin` will fresh-spawn")
     if substituted:
         ok.append(
             "WARNING: a resume route returned a NEW agent id without `--resume-failed`. The existing strategist was "
@@ -1170,8 +1251,16 @@ def command_strategist_return(args: argparse.Namespace) -> None:
         state_lines.append("confirmer returned candidates, overturning the exhaustion signal; promoted to Primary")
     elif flag == "PRIMARY_EXHAUSTION_PENDING":
         state_lines.append("Primary returned 0 candidates while quiescent; next strategist-begin = fresh confirmer")
-    elif flag == "CONFIRMATION_INVALID":
-        state_lines.append("confirmer returned 0 candidates but was not quiescent; treated as continue")
+    elif flag in ("EXHAUSTION_NOT_QUIESCENT", "CONFIRMATION_NOT_QUIESCENT"):
+        who = "Primary" if flag == "EXHAUSTION_NOT_QUIESCENT" else "confirmer"
+        blockers = quiescence_blockers(session, ready)
+        if blockers:
+            state_lines.append(f"{who} returned 0 candidates but quiescence blocked; resolve before exhaustion handshake can proceed:")
+            for b in blockers:
+                you.append(f"{step}) {b}")
+                step += 1
+        else:
+            state_lines.append(f"{who} returned 0 candidates but not quiescent; exhaustion handshake deferred")
     you.append(f"{step}) then: run `aet.py loop-state` to route the next launch/Strategist action")
     emit(ok=ok, state=state_lines, you=you)
 
@@ -1181,6 +1270,20 @@ def command_strategist_abort(args: argparse.Namespace) -> None:
     state = load_loop_state(session)
     active = state.get("active_strategist_call")
     if not active or active["call_id"] != args.call_id:
+        # No matching open call. Still honor a pure agent-id reset: on a new-conversation
+        # recovery, loop_state.json may hold a strategist_agent_id whose subagent died with the
+        # prior conversation while no call is open. `--reason unreachable` clears it so the next
+        # strategist-begin fresh-spawns instead of routing resume to a corpse.
+        if args.reason == "unreachable" and state.get("strategist_agent_id"):
+            prior = state["strategist_agent_id"]
+            state["strategist_agent_id"] = None
+            history_append(state, "(cleared)", "abort_unreachable_reset")
+            save_loop_state(session, state)
+            emit(
+                ok=[f"no open call; cleared stale strategist_agent_id={prior} (unreachable reset)"],
+                you=["the next `aet.py strategist-begin` will fresh-spawn."],
+            )
+            return
         emit(
             ok=[f"REFUSED: no active call matching {args.call_id}. Current active: {active['call_id'] if active else '(none)'}."],
             you=["Inspect with `aet.py loop-state`."],
@@ -1327,13 +1430,13 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--ready-count", type=int, help="Optional override; normally omit. The script counts plan.md '### Ready Queue' rows itself (before you append the returned candidates) to compute quiescence.")
     p.add_argument("--candidates-count", type=int, required=True, help="Number of Ready Queue candidates the Strategist returned; exhaustion is derived from 0")
     p.add_argument("--agent-id", help="Subagent id from the spawn result; on fresh spawn or fallback this updates strategist_agent_id. On a successful resume pass the same id (or omit) — a NEW id on a resume route triggers the substitution warning")
-    p.add_argument("--resume-failed", action="store_true", help="Set ONLY when a resume route's SendMessage/send_input actually returned failure (e.g. no transcript to resume) and you fell back to a fresh spawn; records resume_failed and suppresses the substitution warning")
+    p.add_argument("--resume-failed", action="store_true", help="Set ONLY when a resume route's SendMessage/send_input actually returned failure (e.g. no transcript to resume). Forgets the dead agent: with --agent-id it records the replacement you spawned; without --agent-id it clears strategist_agent_id so the next strategist-begin fresh-spawns. Suppresses the substitution warning")
     p.add_argument("--observations-present", action="store_true", help="Strategist returned observations_to_append")
     p.add_argument("--queue-edits-present", action="store_true", help="Strategist returned Queue Edits")
     p.add_argument("--stop-update-present", action="store_true", help="Strategist returned a Stop/Continue Rule update")
     p.set_defaults(func=command_strategist_return)
 
-    p = sub.add_parser("strategist-abort", help="Last resort when the subagent is truly gone (spawn failed / resume returned success:false / cancelled). An open call is not proof the subagent died — return it if it finished, or resume to re-request first. Clears the active call (and the agent id) but KEEPS pending runs.")
+    p = sub.add_parser("strategist-abort", help="Last resort when the subagent is truly gone (spawn failed / resume returned success:false / cancelled). An open call is not proof the subagent died — return it if it finished, or resume to re-request first. Clears the active call (and the agent id) but KEEPS pending runs. With no open call, `--reason unreachable` still clears a stale strategist_agent_id (new-conversation recovery reset).")
     p.add_argument("--session")
     p.add_argument("--project-root", default=".")
     p.add_argument("--call-id", required=True)
