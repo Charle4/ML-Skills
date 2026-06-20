@@ -29,7 +29,7 @@ Rules:
 - One `run_in_background=True` call per experiment, not per batch. Each call tracks independently.
 - Create the unique run directory before launch so the shell can open `RUNDIR/train.log`.
 - Capture stdout and stderr to a log file inside the run directory with `> RUNDIR/train.log 2>&1` so you can parse it later.
-- Register the run with `aet.py create-run` before launch so `queue.jsonl` has a recovery snapshot, and write the live mapping (run id → output dir → background job description) in `plan.md` before returning, because you will not see the command again until the notification arrives.
+- Register the run with `aet.py create-run --run-id <id> --gpu-id <gpu>` before launch (activates the planned row → created), because you will not see the command again until the notification arrives.
 - Do not add `&` or `nohup` to the shell command itself — `run_in_background=True` handles daemonization correctly.
 
 ### Launching Multiple Experiments in Parallel
@@ -57,16 +57,16 @@ Never `sleep`, `tail`, or otherwise busy-wait on a background job's output file 
 2. Verify output files exist: metrics JSON/CSV/NPZ, logs.
 3. Parse primary metric in priority order: structured JSON/CSV/NPZ → TensorBoard event files → log regex via `aet.py parse-log` → manual extraction as last resort.
 4. Determine terminal status: `finished`, `failed`, or `inconclusive`. Mark sandbox failures, dependency failures, code bugs, GPU contention, and partial crashes as `failed` or `inconclusive`.
-5. Call `aet.py record --status <status> --run-id <id> [--primary-metric <value> --metric-name <name> --metrics '<json>'] [--notes '<notes>']` (omit metric flags if no valid metric).
-6. If trust note is relevant: append to `runs/<id>/summary.md` (after record); move the row in `plan.md` from `Running` to `Completed / Recorded`. `aet.py record` already added the terminal run to the pending set in `loop_state.json`.
+5. Call `aet.py record --status <status> --run-id <id> [--primary-metric <value> --metric-name <name> --metrics '<json>'] [--annotation '<annotation>']` (omit metric flags if no valid metric).
+6. `aet.py record` already added the terminal run to the pending set in `loop_state.json` and wrote the terminal row to `results.csv`.
 7. Check if a self-evaluatable stop condition is now met: explicit user stop, explicit numeric target cleanly met with evidence, explicit budget consumed, or required permission/resource unavailable. Do not evaluate plateau or exhaustion here. If you find yourself about to write that a parameter direction is "exhausted", "hit a ceiling", or "at a local optimum" — that is not a self-evaluatable stop condition. It is the signal to run the Strategist transaction at step 9.
-8. If not, run `aet.py loop-state` (it counts the Ready Queue from `plan.md`) and follow its `YOU` block — this is the control-flow router; run it right after `record`, before selecting or launching anything. Step 6's bookkeeping is order-independent with it (loop-state reads `results.csv` and the Ready Queue count, which the `Completed / Recorded` move does not affect), so you may run loop-state first and finish the plan.md/summary.md bookkeeping after. It names the only free GPU ids to launch onto, and when ready_count < total_capacity it routes you into the Strategist transaction.
-9. Execute what loop-state routed. Launch each candidate it cleared onto a GPU id it named: `aet.py create-run` → launch with `run_in_background=True` → `aet.py record --status running` → move the row to Running. When it routed a Strategist call, run the three-beat transaction (begin → tool_use → return) described in `references/subagents.md`:
+8. If not, run `aet.py loop-state` and follow its `YOU` block — this is the control-flow router; run it right after `record`, before selecting or launching anything. It counts the planned queue from `results.csv`. It names the only free GPU ids to launch onto, and when the planned count < total_capacity it routes you into the Strategist transaction.
+9. Execute what loop-state routed. Launch each candidate it cleared onto a GPU id it named: `aet.py create-run --run-id <id> --gpu-id <gpu>` → launch with `run_in_background=True` → `aet.py record --status running`. When it routed a Strategist call, run the three-beat transaction (begin → tool_use → return) described in `references/subagents.md`:
    - **Beat 1** `aet.py strategist-begin` snapshots pending, computes the branch (fresh / resume / fresh confirmer), opens the call, and prints the exact tool call + payload. If a call is already open it refuses.
    - **Beat 2** make the printed tool_use. For a resume, that is the literal `SendMessage` tool (invoked by name, background) targeting the existing agent id — NOT `Agent`. Spawning `Agent(subagent_type="experiment-strategist")` on a resume route cold-starts a new strategist and throws away the context that makes resume worthwhile; do not substitute it. Call `SendMessage` directly: it is a real, always-available tool — its absence from `ToolSearch` or your visible toolset does NOT mean it is unavailable; if its schema is not loaded, load it, then call it. The ONLY signal that resume failed is the call itself returning `success:false`; knowing the agent died with a prior conversation is not that signal — make the call and let it fail. Only on `success:false` fall back to a fresh `Agent` spawn and pass `--resume-failed` to Beat 3. Use `Agent(subagent_type="experiment-strategist", run_in_background=...)` directly only for a genuine fresh spawn / confirmer. Between this beat and Beat 3, keep processing other completion notifications; each `record` adds to pending without disturbing the open call.
    - **Beat 3** `aet.py strategist-return --call-id C --candidates-count K [--agent-id A] [--observations-present] [--queue-edits-present] [--stop-update-present]` clears the snapshot, records the agent id, derives exhaustion from `K == 0`, and applies the handshake. Follow its `YOU` block.
 
-   The script owns fresh-vs-resume-vs-confirmer, the exhaustion handshake (`pending_exhaustion_confirmation`, promotion of a confirmer to Primary), and quiescence (computed by the script from the live experiment state and the Ready Queue count). Do not hand-evaluate any of it. On a `CONFIRMED_EXHAUSTION` result the handshake is complete and the next steps run in the same turn — nothing is running to notify you later. The only valid reasons to not begin a call are the self-evaluatable stop conditions and an already-open call (begin refuses); "recently called", "pending is empty", and "no new completions" are not suppression conditions (see anti-patterns #8 and #9 in SKILL.md).
+   The script owns fresh-vs-resume-vs-confirmer, the exhaustion handshake (`pending_exhaustion_confirmation`, promotion of a confirmer to Primary), and quiescence (computed by the script from the live experiment state and the planned-queue count). Do not hand-evaluate any of it. On a `CONFIRMED_EXHAUSTION` result the handshake is complete and the next steps run in the same turn — nothing is running to notify you later. The only valid reasons to not begin a call are the self-evaluatable stop conditions and an already-open call (begin refuses); "recently called", "pending is empty", and "no new completions" are not suppression conditions (see anti-patterns #8 and #9 in SKILL.md).
 
 Do not batch notifications — process each one as soon as it arrives, even if another experiment is still running. Incremental recording prevents data loss if the session is interrupted.
 
@@ -81,7 +81,7 @@ Do not batch notifications — process each one as soon as it arrives, even if a
 ```python
 CronCreate(
     cron="7 * * * *",
-    prompt="/my-auto-experiment-tuning Continue fine-tuning. Target: PSNR > XX (substitute actual target, or omit if none). Keep GPUs occupied. At the start of each invocation: (1) run `aet.py status` — if results.csv finished count exceeds plan.md Completed entries, reconcile plan.md from results.csv first; (2) run `aet.py loop-state` (it counts the Ready Queue from plan.md itself) and follow its YOU block — it routes any launches and the Strategist transaction (begin -> subagent tool_use -> return) for you; the script owns the Strategist routing and exhaustion handshake. Skip this prompt only if you are currently mid-execution of these steps in this exact conversation turn.",
+    prompt="/my-auto-experiment-tuning Continue fine-tuning. Target: PSNR > XX (substitute actual target, or omit if none). Keep GPUs occupied. At the start of each invocation: (1) run `aet.py loop-state` and follow its YOU block — it routes launches and Strategist transactions. Skip this prompt only if you are currently mid-execution of these steps in this exact conversation turn.",
     recurring=True,
     durable=False,
 )
@@ -153,7 +153,7 @@ print('hello')
 # ✗ writing a shell script to a file and executing it as a multi-run launcher
 bash /tmp/launch_batch.sh
 
-# ✗ unique-dir for session-internal output + manual --run-id (causes ID collisions when plan.md is stale)
+# ✗ unique-dir for session-internal output + invented --run-id (the run-id must point at an existing planned row)
 OUTPUT=$(aet.py unique-dir .../runs/run-0098 --mkdir) && aet.py create-run --run-id 98 ...
 ```
 

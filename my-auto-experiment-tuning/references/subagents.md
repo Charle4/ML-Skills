@@ -6,13 +6,15 @@ Use this file before spawning or resuming the registered Strategist subagent.
 
 ### Strategist (`experiment-strategist`)
 
-Returns: `observations_to_append` (per-HP influence notes for the runs handed to it) and Ready Queue candidates plus stop/continue text. Does not write `plan.md` or `observations.md`; apply all returned outputs.
+Returns: `observations_to_append` (per-HP influence notes for the runs handed to it) and Ready Queue candidates plus stop/continue text. Does not write session files; apply all returned outputs via `aet.py queue-add` / `queue-drop` and `session.md` edits.
 
 ## When to Delegate
 
 | Trigger | Spawn | Required |
 | ------- | ----- | -------- |
-| Ready Queue count < total_capacity (capacity_per_gpu × gpu_count, constant) | Strategist | Yes |
+| Ready queue count < total_capacity (capacity_per_gpu × gpu_count, constant) | Strategist | Yes |
+
+Queue count is the number of planned rows in `results.csv` (rows not yet launched).
 
 Self-evaluatable conditions that may suppress a Strategist call: explicit user stop, explicit numeric target cleanly met with evidence, explicit run/wall-clock budget consumed, required permission/resource unavailable. Plateau and exhaustion are never self-evaluatable — Strategist must be the one to declare them; they cannot gate this call. **Recency of the last Strategist call and an empty pending set are not suppression conditions.**
 
@@ -41,7 +43,7 @@ On a resume the Strategist keeps its prior session context, so the payload's new
 The subagent returns its five sections plus a short "Main Agent: Next Steps" block pointing back here.
 
 **Beat 3 — `aet.py strategist-return --session S --call-id C --candidates-count K [--agent-id A] [--observations-present] [--queue-edits-present] [--stop-update-present]`** (`K` = how many Ready Queue candidates the Strategist returned; the script derives exhaustion from `K == 0`)
-Validates the `call_id`, clears exactly the snapshot it opened (version-guarded, so runs that completed during analysis stay pending), records the agent id, applies the exhaustion handshake deterministically, and prints the `YOU` doc-update obligations. Follow its `YOU` block — append observations/candidates, update Stop/Continue, then `aet.py loop-state` to route the next action.
+Validates the `call_id`, clears exactly the snapshot it opened (version-guarded, so runs that completed during analysis stay pending), records the agent id, applies the exhaustion handshake deterministically, and prints the `YOU` doc-update obligations. Follow its `YOU` block — `queue-add` the candidates, write observations/Stop-Continue into `session.md`, then `aet.py loop-state` to route the next action.
 
 Between Beat 1 and Beat 3 (background Strategist on Claude Code), keep processing completion notifications; each `aet.py record` adds the new run to pending without disturbing the open call. Do not `sleep` or poll the Strategist's output file to wait for it — a background Strategist notifies you on completion. With nothing else to do, end the turn; that notification will wake you for Beat 3.
 
@@ -55,9 +57,9 @@ You do not hand-derive fresh-vs-resume-vs-confirmer, set flags, or evaluate plat
 - Confirmer returns candidates → the Primary's exhaustion signal is overturned; the confirmer is promoted to Primary and the loop continues.
 - A foreign-runtime or dead agent id makes the `SendMessage`/`send_input` resume return `success:false`; only then fall back to a fresh spawn. Pass `--resume-failed` to `strategist-return` either with the replacement's `--agent-id` (records it) or, if you have not spawned a replacement yet, alone (it clears the dead id so the next `strategist-begin` fresh-spawns instead of routing resume to the corpse again). A `--resume-failed` close with no `--agent-id` is pure dead-id cleanup — its placeholder candidate count does not feed the exhaustion handshake. Do not skip the resume tool_use and spawn fresh preemptively — a new agent id on a resume route without `--resume-failed` is flagged as a substitution (a fresh strategist was spawned instead of resuming, losing context).
 
-Prompt neutrality: always use the standard prompt template below. Never add context about previous Strategist conclusions, never ask "is the search exhausted?", never prime the conclusion in any direction — including during confirmation. Do not echo plateau, ceiling, or exhaustion language from `observations.md` or `plan.md` into the prompt.
+Prompt neutrality: always use the standard prompt template below. Never add context about previous Strategist conclusions, never ask "is the search exhausted?", never prime the conclusion in any direction — including during confirmation. Do not echo plateau, ceiling, or exhaustion language from `session.md` into the prompt.
 
-Record each completed run inline immediately (verify files → parse metrics → determine status → call `aet.py record` → append trust details → move row). `record` adds terminal runs to the pending set for you. Do not wait for a whole batch to finish before recording.
+Record each completed run inline immediately (verify files → parse metrics → determine status → call `aet.py record`). `record` adds terminal runs to the pending set for you. Do not wait for a whole batch to finish before recording.
 
 ## Shared Call Inputs
 
@@ -81,36 +83,36 @@ experiment_scripts: SCRIPT_PATHS
 cli_notes: CLI_NOTES
 algorithm_context: METRIC/TARGET/RISKS/COUPLINGS
 current_free_slots: N
-total_capacity: M  # capacity_per_gpu × gpu_count (constant). Refill target: after the parent fills current_free_slots, ready_count must stay >= total_capacity, so target ready_count ≈ current_free_slots + total_capacity (= 2× total_capacity at session start when the queue is empty and all slots are free).
+total_capacity: M  # capacity_per_gpu × gpu_count (constant). Refill target: after the parent fills current_free_slots, queue count must stay >= total_capacity, so target queue count ≈ current_free_slots + total_capacity (= 2× total_capacity at session start when the queue is empty and all slots are free).
 current_best: RUN_ID/METRIC as a locator only
 runs_since_last_strategist: [run_id list with recorded status, primary_metric, metric_name from results.csv — copy the line printed by strategist-begin]
 # Values above are raw fields from results.csv — not interpreted conclusions about trends or plateau.
 
-Read SESSION_PATH/meta.json, results.csv, observations.md, plan.md, and important runs/<id>/ artifacts directly.
+Read SESSION_PATH/meta.json (objective, metric direction, project root), results.csv (all run data including planned rows = current queue), session.md (hypotheses, reusable rules, current analysis, stop rule), and important runs/<id>/{params.json,metrics.json} artifacts directly.
 
 Tasks:
-0. Generate observations: for runs in runs_since_last_strategist, read their artifacts directly (runs/<id>/metrics.json, params.json, summary.md, train.log) and synthesize per-HP influence notes (patterns, boundary hits, forbidden regions, settings that help only under specific companion knobs). Return as observations_to_append. Omit if nothing new. **If runs_since_last_strategist is empty (session start / first call), skip observations entirely and proceed directly to task 1 — plan initial candidates from plan.md's objective, hypotheses, and coupled parameters.**
+0. Generate observations: for runs in runs_since_last_strategist, read their artifacts directly (runs/<id>/metrics.json, params.json, output/train.log) and synthesize per-HP influence notes (patterns, boundary hits, forbidden regions, settings that help only under specific companion knobs). Return as observations_to_append. Omit if nothing new. **If runs_since_last_strategist is empty (session start / first call), skip observations entirely and proceed directly to task 1 — plan initial candidates from meta.json's objective and session.md's hypotheses and coupled parameters.**
 1. Determine whether the next candidates should broaden, refine, confirm, expand a boundary, or run an escape group.
-2. Return enough Ready Queue candidates that after the parent fills the current free slots, ready_count stays at or above total_capacity — target ready_count ≈ current_free_slots + total_capacity (= 2× total_capacity at session start, since the queue is empty and all slots are free). Returning only total_capacity lets the first launch wave drain the queue and forces a redundant blocking re-call against the same result state.
+2. Return enough Ready Queue candidates that after the parent fills the current free slots, queue count stays at or above total_capacity — target queue count ≈ current_free_slots + total_capacity (= 2× total_capacity at session start, since the queue is empty and all slots are free). Returning only total_capacity lets the first launch wave drain the queue and forces a redundant blocking re-call against the same result state.
 3. Include per-HP rationale for non-obvious values, cited from run evidence.
-4. Return stop/continue rule updates and any existing Ready Queue rows the parent should rewrite or remove.
+4. Return stop/continue rule updates and any existing queued runs the parent should rewrite or remove (reference them by run_id from results.csv).
 
-Do not write plan.md or observations.md.
+Do not write any session file.
 Return:
 0. observations_to_append (per-HP influence notes; omit if nothing new).
-1. Ready Queue Candidates as rows compatible with plan.md.
+1. Ready Queue Candidates as a JSON array; each element:
+   {"queue_id": "Q42", "hypothesis": "...", "params": {...}, "priority": 1, "expected_signal": "..."}
 2. Stop/Continue Rule Update.
-3. Queue Edits.
+3. Queue Edits (run_ids to rewrite/remove).
 4. Escape/Confirmation Need.
 ```
 
 ## Interpreting Returns
 
-Run `aet.py strategist-return` (Beat 3) and follow its `YOU` block. The script clears the snapshot, records the agent id, and applies the handshake; its `YOU` output lists exactly which durable docs to update — gated by the `--observations-present` / `--queue-edits-present` / `--stop-update-present` flags you pass and by the returned candidate count:
-- append `observations_to_append` to `SESSION/observations.md`
-- append returned candidates to `SESSION/plan.md` Ready Queue
-- update the Stop/Continue Rule section
-- apply Queue Edits (rewrite/remove invalidated ready rows)
-- then `aet.py loop-state` and launch the highest-priority ready rows into any free slots (Claude Code: one `Bash(run_in_background=True)` per experiment; Codex: one `exec_command` foreground session per experiment, recording any `session_id -> run_id/output_dir/log_path`).
+Run `aet.py strategist-return` (Beat 3) and follow its `YOU` block. The script clears the snapshot, records the agent id, and applies the handshake; its `YOU` output lists exactly what to update — gated by the `--observations-present` / `--queue-edits-present` / `--stop-update-present` flags you pass and by the returned candidate count:
+- run `aet.py queue-add --candidates '<JSON>'`, passing the Strategist's Ready Queue Candidates JSON array verbatim; this writes the new planned rows into `results.csv`
+- run `aet.py queue-drop` for each run_id in Queue Edits to remove invalidated planned rows
+- write `observations_to_append` into `session.md`'s Current Analysis section (overwrite it) and update the Stop/Continue Rule section
+- then `aet.py loop-state` and launch the highest-priority planned rows into any free slots with `aet.py create-run --run-id <id> --gpu-id <gpu>` (the run-id points to a planned row from `queue-add`), one experiment at a time (Claude Code: one `Bash(run_in_background=True)` per experiment; Codex: one `exec_command` foreground session per experiment, recording any `session_id -> run_id/output_dir/log_path`).
 
-On `CONFIRMED_EXHAUSTION`, the script hands you the stop: verify the target/budget is genuinely unmet, write `## Final Analysis` to `observations.md`, run `aet.py summarize`, then stop the keepalive. You may still continue if you judge it premature; the next `strategist-begin` forms a fresh handshake.
+On `CONFIRMED_EXHAUSTION`, the script hands you the stop: verify the target/budget is genuinely unmet, write `## Final Analysis` into `session.md`, run `aet.py summarize`, then stop the keepalive. You may still continue if you judge it premature; the next `strategist-begin` forms a fresh handshake.

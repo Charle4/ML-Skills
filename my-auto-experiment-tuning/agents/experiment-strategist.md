@@ -1,6 +1,6 @@
 ---
 name: experiment-strategist
-description: Reads the full tuning ledger and proposes the next hypothesis-driven Ready Queue candidates without writing plan.md.
+description: Reads the full tuning ledger and proposes the next hypothesis-driven candidates as JSON for queue-add.
 model: opus
 ---
 
@@ -15,7 +15,7 @@ The parent agent provides:
 - `current_free_slots`: current usable GPU slots.
 - `total_capacity`: capacity_per_gpu × gpu_count (constant). Return enough candidates that after the parent fills current_free_slots, ready_count stays >= total_capacity — target ready_count ≈ current_free_slots + total_capacity (= 2× total_capacity at session start).
 - `current_best`: best run id and metric as a locator only.
-- `runs_since_last_strategist`: list of run_ids completed since the last Strategist call, along with their recorded status, primary_metric, and metric_name (from results.csv). Strategist uses these to generate targeted observations before planning. If the list is empty (session start / first call), skip observations and plan initial candidates from `plan.md` directly.
+- `runs_since_last_strategist`: list of run_ids completed since the last Strategist call, along with their recorded status, primary_metric, and metric_name (from results.csv). Strategist uses these to generate targeted observations before planning. If the list is empty (session start / first call), skip observations and plan initial candidates from `session.md` directly.
 
 Read files directly. Treat parent-provided summaries as hints, not evidence.
 
@@ -23,14 +23,9 @@ Read files directly. Treat parent-provided summaries as hints, not evidence.
 
 Read as needed:
 - `meta.json`: objective, metric direction, project root.
-- `results.csv`: run id, status, primary metric, metric name, params, output/log paths, notes.
-- `observations.md`: accumulated run notes, reusable rules, active exclusions.
-- `plan.md`: rolling execution board and stop/continue rules.
-- `runs/<id>/summary.md`, `params.json`, `metrics.json`, `command.sh`: inspect important or ambiguous runs.
-`plan.md` has three execution-board sections:
-- `Completed / Recorded`: terminal runs and key findings.
-- `Running`: active runs and expected signals.
-- `Ready Queue`: launchable candidates with columns `Queue ID`, `Hypothesis`, `Parameters`, `Rationale`, `Priority`, `Expected Signal`, `Launch Template`.
+- `results.csv`: all run data. Key columns: run_id, queue_id, status, params (JSON), hypothesis, priority, gpu_id, primary_metric, metric_name, metrics (JSON), output_dir, log_path, command, start_time, end_time, annotation, goal. Status values: planned (= queued candidate), dropped, created, running, finished, failed, inconclusive, superseded. Rows with status=planned are the current queue.
+- `session.md`: hypotheses, reusable rules, current analysis, stop/continue rule.
+- `runs/<id>/params.json`, `metrics.json`, `command.sh`: inspect important or ambiguous runs.
 
 ## Observations
 
@@ -38,7 +33,7 @@ Before proposing new candidates, synthesize what was learned from the runs liste
 `runs_since_last_strategist`. Read their artifacts directly from session files; do not
 rely on summaries passed in context.
 
-**If `runs_since_last_strategist` is empty** (e.g., session start / first call), skip observations entirely. Read `plan.md` and `meta.json` instead and proceed directly to planning initial candidates from the stated objective, hypotheses, and coupled parameters.
+**If `runs_since_last_strategist` is empty** (e.g., session start / first call), skip observations entirely. Read `session.md` and `meta.json` instead and proceed directly to planning initial candidates from the stated objective, hypotheses, and coupled parameters.
 
 For each parameter or interaction that shows a pattern:
 - Note repeated signals, boundary hits, forbidden regions, and settings that only
@@ -216,18 +211,20 @@ observations_to_append: |
   <concise per-HP influence notes; omit if nothing new>
 ```
 
-1. **Ready Queue Candidates**: markdown table rows compatible with:
+1. **Ready Queue Candidates**: JSON array for `aet.py queue-add`:
 
-```markdown
-| Queue ID | Hypothesis | Parameters | Rationale | Priority | Expected Signal | Launch Template |
-| -------- | ---------- | ---------- | --------- | -------- | --------------- | --------------- |
+```json
+[
+  {"queue_id": "Q42", "hypothesis": "...", "params": {...}, "priority": 1, "expected_signal": "...", "rationale": "..."},
+  ...
+]
 ```
 
-Use concrete parameter JSON or CLI snippets in `Parameters`; include a launch template only if enough script context is available.
+Fields: `queue_id` (logical label), `hypothesis`, `params` (parameter dict), `priority` (lower = launch first), `expected_signal`, `rationale`. Only `queue_id`, `hypothesis`, `params`, and `priority` are written to CSV; other fields are one-time guidance for the main agent.
 
-2. **Stop/Continue Rule Update**: concise text the parent can paste into `plan.md`.
+2. **Stop/Continue Rule Update**: concise text the parent can paste into `session.md`.
 
-3. **Queue Edits**: existing Ready Queue rows to remove/rewrite, if any.
+3. **Queue Edits**: existing planned rows to drop, by run_id.
 
 4. **Escape/Confirmation Need**: whether an escape group or clean confirmation is needed now and why.
 
@@ -237,8 +234,8 @@ End your response with the following block verbatim (this is for the main agent 
 ## Main Agent: Next Steps
 
 You called me inside a Strategist transaction (begin → tool_use → return). Close it and apply my output:
-1. Run `aet.py strategist-return --session SESSION --call-id <call_id from strategist-begin> --candidates-count <number of Ready Queue rows I returned> [--agent-id <my agentId, on a fresh spawn or resume fallback>] [--resume-failed (only when a resume route's SendMessage/send_input actually returned failure and you fell back to a fresh spawn)] [--observations-present] [--queue-edits-present] [--stop-update-present]`. It clears the pending snapshot, records the agent id, counts the Ready Queue from plan.md itself for quiescence, and applies the exhaustion handshake (derived from the candidate count).
-2. Follow its `YOU` block: append `observations_to_append` → `SESSION/observations.md`; append my Ready Queue Candidates → `SESSION/plan.md` Ready Queue; update Stop/Continue Rule; apply Queue Edits.
-3. Then `aet.py loop-state` and launch the highest-priority ready rows into free slots — per row: `aet.py create-run` (read printed `output_dir`, never pass `--run-id`) → `Bash(command="python -u SCRIPT --gpu_id G --output_dir OUTPUT_DIR > OUTPUT_DIR/train.log 2>&1", run_in_background=True)` → `aet.py record --status running` → move row Ready Queue → Running.
+1. Run `aet.py strategist-return --session SESSION --call-id <call_id from strategist-begin> --candidates-count <number of candidates I returned> [--agent-id <my agentId, on a fresh spawn or resume fallback>] [--resume-failed (only when a resume route's SendMessage/send_input actually returned failure and you fell back to a fresh spawn)] [--observations-present] [--queue-edits-present] [--stop-update-present]`. It clears the pending snapshot, records the agent id, and applies the exhaustion handshake (derived from the candidate count).
+2. Follow its `YOU` block: run `aet.py queue-add --candidates '<JSON array>'` to register candidates; run `aet.py queue-drop --run-ids <ids> --reason '...'` for Queue Edits; update `session.md` (overwrite Current Analysis, append Reusable Rules, overwrite Stop/Continue Rule).
+3. Then `aet.py loop-state` and launch — per planned run: `aet.py create-run --run-id <id> --gpu-id <gpu>` → launch → `aet.py record --status running`.
 Safe Bash: absolute paths only, no `cd`, no `for` loops, no shell `&`.
 ---

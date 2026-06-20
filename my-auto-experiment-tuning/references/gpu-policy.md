@@ -29,6 +29,33 @@ Persist limits once via `aet.py set-policy` (or `init`); the flags below are als
 | `max_memory_used_mb: 70000` | `--max-memory-used-mb 70000` |
 | `min_free_memory_mb: 20000` | `--min-free-memory-mb 20000` |
 
+## Process Pattern (required at init)
+
+`--process-pattern` is required when creating a session (`aet.py init`). It is a regex matched against `ps ax` output to identify this session's experiment processes. `loop-state` uses it to detect experiments that finished but were never recorded with a terminal `aet.py record` — without it, those ghost "running" entries cause `loop-state` to report stale free slots and route launches onto GPUs that should first have their results collected.
+
+### Good patterns
+
+| Pattern | Why it works |
+|---|---|
+| `exp_dip_deblur\.py` | Matches the exact script filename |
+| `experiments/exp_clip_deblur` | Matches a path fragment unique to this project's experiment script |
+| `run_diffusion_sampling\.py` | Matches a distinctive script name |
+
+### Bad patterns (rejected by `init`)
+
+| Pattern | Problem |
+|---|---|
+| `python` | Matches every Python process on the system |
+| `python3` | Same — too broad |
+| `train` | Matches unrelated training scripts from other projects |
+| `exp` | Matches `export`, `expect`, other projects' `exp_*` scripts |
+
+### Edge cases
+
+- If a project uses multiple experiment scripts (e.g. `exp_train.py` and `exp_eval.py`), use a shared path prefix: `'experiments/exp_'`. Ensure this prefix does not match scripts from other active AET sessions on the same machine.
+- If only one script is used, prefer the full filename with escaped dot: `'exp_dip_deblur\\.py'`.
+- The pattern is stored in `meta.json` `gpu_policy.process_pattern`. Update it mid-session with `aet.py set-policy --process-pattern '...'` if the experiment script changes.
+
 ## When to Use Multiple Experiments per GPU
 
 Raise `max_per_gpu` above 1 only when:

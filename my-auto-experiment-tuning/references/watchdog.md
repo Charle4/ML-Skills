@@ -26,7 +26,7 @@ Claude Code's `CronCreate` tool schedules a recurring prompt that fires while th
 ```python
 CronCreate(
     cron="7 * * * *",
-    prompt="/my-auto-experiment-tuning Continue fine-tuning. Target: PSNR > XX (substitute actual target, or omit if none). Keep GPUs occupied. At the start of each invocation: (1) run `aet.py status` — if results.csv finished count exceeds plan.md Completed entries, reconcile plan.md from results.csv first; (2) run `aet.py loop-state` (it counts the Ready Queue from plan.md itself) and follow its YOU block — it routes any launches and the Strategist transaction (begin -> subagent tool_use -> return) for you; the script owns the Strategist routing and exhaustion handshake. Skip this prompt only if you are currently mid-execution of these steps in this exact conversation turn.",
+    prompt="/my-auto-experiment-tuning Continue fine-tuning. Target: PSNR > XX (substitute actual target, or omit if none). Keep GPUs occupied. At the start of each invocation: (1) run `aet.py loop-state` and follow its YOU block — it routes launches and Strategist transactions. Skip this prompt only if you are currently mid-execution of these steps in this exact conversation turn.",
     recurring=True,
     durable=False,
 )
@@ -46,21 +46,21 @@ If the user provided a numeric target (e.g., `PSNR > 25`), embed it in the promp
 
 With `run_in_background=True`, the Bash tool notifies Claude Code when the command finishes. This means:
 - You do not need to poll or sleep between experiments.
-- On notification, immediately identify the run and record inline: verify output files, parse metrics (JSON/CSV/NPZ → TensorBoard → log regex), determine status, call `aet.py record` (which adds the terminal run to the pending set), then `aet.py loop-state` to re-check resources and route launches/Strategist. Bookkeeping (trust details to `summary.md`, plan.md row move) is order-independent with loop-state.
+- On notification, immediately identify the run and record inline: verify output files, parse metrics (JSON/CSV/NPZ → TensorBoard → log regex), determine status, call `aet.py record` (which adds the terminal run to the pending set and writes the terminal row to `results.csv`), then `aet.py loop-state` to re-check resources and route launches/Strategist.
 - If multiple experiments run in parallel, each notification triggers an incremental inline-record → queue-refill pass.
 
 See `references/claude-code-adapter.md` for the full background job pattern.
 
 ## Codex: External Keepalive (Cron / systemd)
 
-Codex cannot self-wake and has no background completion notification. During an active turn, a long-running `exec_command` may return a `session_id`; record `session_id -> run_id/output_dir/log_path` in `plan.md` and poll it with `write_stdin`. After the turn ends, an external scheduler must send a follow-up prompt if continued supervision is required.
+Codex cannot self-wake and has no background completion notification. During an active turn, a long-running `exec_command` may return a `session_id`; the run's `run_id -> output_dir -> log_path` mapping lives in its `results.csv` row (written at `create-run`), and you poll the handle with `write_stdin`. After the turn ends, an external scheduler must send a follow-up prompt if continued supervision is required.
 
 ## Keepalive Message
 
 If an external scheduler can send a message to the active conversation, use a short prompt like:
 
 ```text
-$my-auto-experiment-tuning Continue the existing tuning session. Keep GPUs occupied within contention limits. Do not stop unless a valid stop condition is recorded: clean target evidence, exhausted budget, user stop, or blocked continuation. If the Ready Queue is insufficient or a stop condition is not clearly met, run `aet.py loop-state` and follow its routing (it runs the Strategist transaction with the standard neutral prompt). Record results and update the benchmark ledger.
+$my-auto-experiment-tuning Continue the existing tuning session. Keep GPUs occupied within contention limits. Do not stop unless a valid stop condition is recorded: clean target evidence, exhausted budget, user stop, or blocked continuation. If the planned queue is insufficient or a stop condition is not clearly met, run `aet.py loop-state` and follow its routing (it runs the Strategist transaction with the standard neutral prompt). Record results and update the benchmark ledger.
 ```
 
 If the objective has a numeric target, include it:
@@ -75,7 +75,7 @@ A good external watchdog should:
 - run every 30-60 minutes for multi-day tuning
 - check whether GPU jobs for the session are active
 - if the session is idle and the target is unmet, send the keepalive prompt
-- if processes finished while Codex was idle, the resumed agent should reconcile `plan.md`, `results.csv`, logs, and output directories, then record each finished-but-unrecorded run inline
+- if processes finished while Codex was idle, the resumed agent should reconcile `results.csv`, logs, and output directories, then record each finished-but-unrecorded run inline
 - include the project root, session path, target metric, and current target threshold
 - avoid starting duplicate sessions unless the previous one is unrecoverable
 

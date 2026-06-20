@@ -7,8 +7,8 @@ The AET session on disk (`aet/YYYY-MM-DD/HH-MM-SS/`) outlives any single runtime
 ## Same conversation, context compacted
 
 The conversation thread is unchanged, so the keepalive (the `CronCreate` job / external cron) is still running — do not create a second one — and the session path is carried in the conversation summary. Compaction may have dropped the skill's detailed instructions from context; re-read SKILL.md and the core references if they are gone. Then:
-1. `aet.py status --session SESSION` — if the results.csv terminal count exceeds the plan.md Completed entries, reconcile plan.md from results.csv first.
-2. Re-read `meta.json`, `plan.md`, `results.csv`, and `observations.md` if they left context.
+1. `aet.py status --session SESSION` to confirm session state.
+2. Re-read `meta.json`, `session.md`, and `results.csv` if they left context.
 3. Run `aet.py loop-state` to recover the Strategist state machine (pending set, agent id, any open call, exhaustion handshake) and the routed next action. If `loop_state.json` was lost it rebuilds pending conservatively from terminal runs. An open `active_strategist_call` means you still owe a `strategist-return`, not that the subagent is running — its YOU block routes you to check the subagent, `strategist-return` if it finished, resume it if its output is lost, and `strategist-abort` only if it is truly dead.
 4. Check active processes and GPU slots; reconcile any finished-but-unrecorded runs with `aet.py record`.
 5. Resume from the routed action / next untested hypothesis.
@@ -19,4 +19,4 @@ Nothing carries over: no skill loaded, no docs in context, no keepalive running.
 
 The subagent does not survive across conversations, so any `strategist_agent_id` persisted in `loop_state.json` here is dead by definition, yet the first `strategist-begin` will still route `resume` to it. That is expected — do not treat the resume route as a contradiction or hand-edit `loop_state.json`. Run the resume tool_use anyway and let it return `success:false`; then `strategist-return --resume-failed` (no `--agent-id`) clears the dead id and the next `strategist-begin` fresh-spawns. If you would rather reset before calling the strategist at all, `aet.py strategist-abort --reason unreachable` clears the stale id even with no open call.
 
-In both kinds, if the recovered session has no active processes and the target is unmet, do not summarize and stop. Treat the idle state as a failure to continue: read the last observations, refill `Ready Queue` to at least total_capacity, and relaunch.
+In both kinds, if the recovered session has no active processes and the target is unmet, do not summarize and stop. Treat the idle state as a failure to continue: read `session.md`, run `aet.py loop-state` to refill the planned queue to at least total_capacity, and relaunch.

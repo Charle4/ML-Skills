@@ -16,20 +16,22 @@ from typing import Any
 
 RESULT_COLUMNS = [
     "run_id",
-    "run_name",
+    "queue_id",
     "status",
-    "goal",
+    "params",
+    "hypothesis",
+    "priority",
+    "gpu_id",
     "primary_metric",
     "metric_name",
-    "gpu_id",
+    "metrics",
     "output_dir",
     "log_path",
-    "params_json",
     "command",
-    "metrics_json",
     "start_time",
     "end_time",
-    "notes",
+    "annotation",
+    "goal",
 ]
 
 
@@ -51,8 +53,10 @@ DEFAULT_POLICY = {
     "max_util": 95,
     "max_memory_used_mb": None,
     "min_free_memory_mb": None,
-    "process_pattern": "python",
+    "process_pattern": None,
 }
+
+_OVERLY_BROAD_PATTERNS = {"python", "python3", "python -u", "train", "exp"}
 
 LOOP_STATE_VERSION = 1
 
@@ -126,28 +130,12 @@ def read_asset(name: str) -> str:
     return path.read_text(encoding="utf-8")
 
 
-def render_plan_template(objective: str, goal: str) -> str:
+def render_session_template(objective: str, goal: str, created_at: str) -> str:
     return (
-        read_asset("plan-template.md")
+        read_asset("session-template.md")
         .replace("{{ objective }}", objective)
         .replace("{{ goal }}", goal)
-    )
-
-
-def render_observations_template(created_at: str, objective: str) -> str:
-    return (
-        read_asset("observations-template.md")
         .replace("{{ created_at }}", created_at)
-        .replace("{{ objective }}", objective)
-    )
-
-
-def render_run_summary_template(command: str, params: dict[str, Any], metrics: dict[str, Any] | None = None) -> str:
-    return (
-        read_asset("run-summary-template.md")
-        .replace("{{ command }}", command)
-        .replace("{{ params_json }}", json.dumps(params, ensure_ascii=False, indent=2, sort_keys=True))
-        .replace("{{ metrics_json }}", json.dumps(metrics or {}, ensure_ascii=False, indent=2, sort_keys=True))
     )
 
 
@@ -167,26 +155,39 @@ def write_rows(path: Path, rows: list[dict[str, str]]) -> None:
             writer.writerow({key: row.get(key, "") for key in RESULT_COLUMNS})
 
 
-def append_run_observation(path: Path, run_id: str, status: str, notes: str) -> None:
-    entry = f"\n## Run {run_id} - {status}\n\n{notes}\n\n"
-    if not path.exists():
-        path.write_text("# Observations\n\n## Run Notes\n" + entry, encoding="utf-8")
-        return
+def count_planned(session: Path) -> int:
+    return sum(1 for row in read_rows(session / "results.csv") if row.get("status") == "planned")
 
-    text = path.read_text(encoding="utf-8")
-    lines = text.splitlines(keepends=True)
-    run_notes_index = next((i for i, line in enumerate(lines) if line.strip() == "## Run Notes"), None)
-    if run_notes_index is None:
-        path.write_text(text.rstrip() + "\n\n## Run Notes\n" + entry, encoding="utf-8")
-        return
 
-    insert_at = len(lines)
-    for i in range(run_notes_index + 1, len(lines)):
-        if lines[i].startswith("## "):
-            insert_at = i
-            break
-    lines[insert_at:insert_at] = [entry]
-    path.write_text("".join(lines), encoding="utf-8")
+def get_planned_queue(session: Path) -> list[int]:
+    planned = [
+        row for row in read_rows(session / "results.csv") if row.get("status") == "planned"
+    ]
+    def sort_key(row: dict[str, str]) -> tuple[int, int]:
+        try:
+            p = int(row.get("priority", "999"))
+        except ValueError:
+            p = 999
+        try:
+            r = int(row.get("run_id", "0"))
+        except ValueError:
+            r = 0
+        return (p, r)
+    planned.sort(key=sort_key)
+    return [int(row["run_id"]) for row in planned]
+
+
+def load_json_list_arg(value: str | None) -> list[dict[str, Any]]:
+    if not value:
+        return []
+    path = Path(value)
+    try:
+        exists = path.exists()
+    except OSError:
+        exists = False
+    if exists:
+        return json.loads(path.read_text(encoding="utf-8"))
+    return json.loads(value)
 
 
 def latest_session(project_root: Path) -> Path | None:
@@ -241,8 +242,8 @@ def default_loop_state() -> dict[str, Any]:
     }
 
 
-def terminal_version(status: str, primary_metric: str, notes: str) -> str:
-    raw = f"{status}|{primary_metric}|{notes}"
+def terminal_version(status: str, primary_metric: str, annotation: str) -> str:
+    raw = f"{status}|{primary_metric}|{annotation}"
     return hashlib.sha1(raw.encode("utf-8")).hexdigest()[:8]
 
 
@@ -260,7 +261,7 @@ def load_loop_state(session: Path) -> dict[str, Any]:
         if row.get("status") in TERMINAL_STATUSES:
             rid = row.get("run_id", "")
             state["pending_runs"][rid] = {
-                "version": terminal_version(row.get("status", ""), row.get("primary_metric", ""), row.get("notes", "")),
+                "version": terminal_version(row.get("status", ""), row.get("primary_metric", ""), row.get("annotation", "")),
                 "added_at": now_iso(),
             }
     return state
@@ -284,50 +285,6 @@ def pending_run_ids(state: dict[str, Any]) -> list[str]:
     return sorted(state["pending_runs"].keys(), key=lambda x: int(x) if x.isdigit() else x)
 
 
-def count_ready_rows(session: Path) -> int | None:
-    """Count data rows under the '### Ready Queue' table in plan.md. None if plan.md is unreadable or the section is missing."""
-    try:
-        lines = (session / "plan.md").read_text().splitlines()
-    except Exception:
-        return None
-    start = None
-    for i, line in enumerate(lines):
-        ls = line.strip().lower()
-        if ls.startswith("#") and "ready queue" in ls:  # tolerate heading-level edits
-            start = i + 1
-            break
-    if start is None:
-        return None
-    count = 0
-    seen_sep = False
-    for line in lines[start:]:
-        s = line.strip()
-        if s.startswith("#") or s.startswith("<!--"):
-            break
-        if not s.startswith("|"):
-            continue
-        body = s.strip("|").replace("|", "").strip()
-        if body and set(body) <= set("-: "):
-            seen_sep = True
-            continue
-        if not seen_sep:
-            continue  # header row, before the separator
-        count += 1
-    return count
-
-
-def resolve_ready_count(args: argparse.Namespace, session: Path) -> tuple[int, str | None]:
-    """The script owns the Ready Queue count by reading plan.md; --ready-count is only an optional override/fallback.
-    Returns (count, note) where note flags a stale supplied value or an unreadable plan."""
-    computed = count_ready_rows(session)
-    supplied = getattr(args, "ready_count", None)
-    if computed is None:
-        if supplied is None:
-            return 0, "WARNING: could not read plan.md '### Ready Queue'; assuming ready=0. Restore the plan template or pass --ready-count."
-        return supplied, None
-    if supplied is not None and supplied != computed:
-        return computed, f"NOTE: counted {computed} Ready Queue row(s) in plan.md; the --ready-count {supplied} you passed was stale and is ignored."
-    return computed, None
 
 
 def best_finished(session: Path, goal: str) -> tuple[str, str, float] | None:
@@ -361,18 +318,15 @@ def specific_process_pattern(session: Path) -> str | None:
     return pattern
 
 
-def is_quiescent(session: Path, ready_count: int) -> bool:
-    if ready_count != 0:
-        return False
+def is_quiescent(session: Path) -> bool:
     rows = read_rows(session / "results.csv")
+    if any(row.get("status") == "planned" for row in rows):
+        return False
     if any(row.get("status") == "created" for row in rows):
         return False
     pattern = specific_process_pattern(session)
     if pattern:
-        # A specific process_pattern lets us judge "running" from real processes, immune to
-        # ledger 'running' rows whose experiments already finished but were never recorded terminal.
         return count_live_processes(pattern) == 0
-    # No specific pattern (or the generic "python" default): fall back to the ledger 'running' status.
     return not any(row.get("status") == "running" for row in rows)
 
 
@@ -472,7 +426,7 @@ def slots_summary(slots: list[dict[str, Any]]) -> tuple[int, int]:
 # script renders it (including the runtime-specific verb), it does not decide
 # whether to stop or what candidates to plan.
 # ---------------------------------------------------------------------------
-def compute_route(state: dict[str, Any], runtime: str, ready_count: int) -> dict[str, Any]:
+def compute_route(state: dict[str, Any], runtime: str, planned_count: int) -> dict[str, Any]:
     if state.get("pending_exhaustion_confirmation"):
         role, invocation, target = "confirmer", "fresh", None
     elif state.get("strategist_agent_id"):
@@ -481,7 +435,7 @@ def compute_route(state: dict[str, Any], runtime: str, ready_count: int) -> dict
         role, invocation, target = "primary", "fresh", None
     verb = "SendMessage" if runtime == "claude" else "send_input"
     if runtime == "claude":
-        mode = "background" if invocation == "resume" else ("blocking" if ready_count == 0 else "background")
+        mode = "background" if invocation == "resume" else ("blocking" if planned_count == 0 else "background")
     else:
         mode = "blocking"
     return {"role": role, "invocation": invocation, "target_agent_id": target, "verb": verb, "mode": mode}
@@ -521,7 +475,7 @@ def build_payload(session: Path, snapshot: dict[str, str]) -> list[str]:
     if items:
         runs_str = ", ".join(items)
     else:
-        runs_str = "(empty — session start / first call; Strategist skips observations and plans from plan.md)"
+        runs_str = "(empty — session start / first call; Strategist skips observations and plans from session.md)"
     return [
         f"runs_since_last_strategist: [{runs_str}]",
         "plus session_path, project_root, experiment scripts, algorithm_context, current_free_slots, total_capacity,",
@@ -537,7 +491,7 @@ def render_branch(runtime: str, route: dict[str, Any]) -> str:
     return f"fresh spawn ({route['mode']})"
 
 
-def compute_next(state: dict[str, Any], runtime: str, ready: int, free_slots: int, total_capacity: int, free_gpu_ids: list[str] | None = None) -> list[str]:
+def compute_next(state: dict[str, Any], runtime: str, planned_ids: list[int], free_slots: int, total_capacity: int, free_gpu_ids: list[str] | None = None) -> list[str]:
     active = state.get("active_strategist_call")
     if active:
         age = minutes_since(active.get("started_at"))
@@ -553,13 +507,15 @@ def compute_next(state: dict[str, Any], runtime: str, ready: int, free_slots: in
             "Meanwhile keep recording completions; `aet.py record` auto-adds them to pending.",
         ]
     actions: list[str] = []
+    ready = len(planned_ids)
     launch_n = min(free_slots, ready)
     projected_ready = ready - launch_n
     if launch_n > 0:
         targets = (free_gpu_ids or [])[:launch_n]
+        launch_ids = planned_ids[:launch_n]
         actions.append(
-            f"LAUNCH {launch_n} top Ready-Queue row(s) onto GPU id(s) {targets} — one job per id, these are the only free GPUs, use no other. "
-            f"Per row: `aet.py create-run --gpu-id <id>` -> launch -> `aet.py record --status running` -> move to Running."
+            f"LAUNCH runs {launch_ids} onto GPU id(s) {targets} — one job per id, these are the only free GPUs, use no other. "
+            f"Per run: `aet.py create-run --run-id <id> --gpu-id <gpu>` -> launch -> `aet.py record --status running`."
         )
     if projected_ready < total_capacity:
         route = compute_route(state, runtime, projected_ready)
@@ -567,7 +523,7 @@ def compute_next(state: dict[str, Any], runtime: str, ready: int, free_slots: in
             f"run `aet.py strategist-begin`  ->  {render_branch(runtime, route)}"
         )
     if not actions:
-        actions.append("All slots full and Ready Queue >= total_capacity. Wait for the next completion; nothing to launch or plan now.")
+        actions.append("All slots full and planned queue >= total_capacity. Wait for the next completion; nothing to launch or plan now.")
     return actions
 
 
@@ -603,6 +559,21 @@ def parse_float(text: str) -> float | None:
 # ---------------------------------------------------------------------------
 def command_init(args: argparse.Namespace) -> None:
     project_root = Path(args.project_root).expanduser().resolve()
+
+    pp = args.process_pattern
+    if not pp:
+        print("ERROR: --process-pattern is required. Provide a regex that uniquely identifies "
+              "this session's experiment processes (e.g. the script filename: 'exp_dip_deblur\\.py'). "
+              "Without it, loop-state cannot detect experiments that finished without a terminal record.",
+              file=sys.stderr)
+        raise SystemExit(1)
+    if pp in _OVERLY_BROAD_PATTERNS:
+        print(f"ERROR: --process-pattern '{pp}' is too broad — it matches processes outside this "
+              f"session's experiments. Use the experiment script filename or a unique path fragment "
+              f"(e.g. 'experiments/exp_clip_deblur\\.py').",
+              file=sys.stderr)
+        raise SystemExit(1)
+
     timestamp = datetime.now().astimezone()
     created_at = timestamp.isoformat(timespec="seconds")
     session = project_root / "aet" / timestamp.strftime("%Y-%m-%d") / timestamp.strftime("%H-%M-%S")
@@ -612,6 +583,7 @@ def command_init(args: argparse.Namespace) -> None:
     gpu_policy = dict(DEFAULT_POLICY)
     gpu_policy.update(policy_from_flags(args))
     gpu_policy["gpu_ids"] = parse_gpu_ids(gpu_policy.get("gpu_ids"))
+    gpu_policy["process_pattern"] = pp
 
     meta = {
         "project_root": str(project_root),
@@ -626,31 +598,35 @@ def command_init(args: argparse.Namespace) -> None:
     }
     dump_json(session / "meta.json", meta)
     write_rows(session / "results.csv", [])
-    (session / "queue.jsonl").write_text("", encoding="utf-8")
-    (session / "observations.md").write_text(
-        render_observations_template(created_at, args.objective),
+    (session / "session.md").write_text(
+        render_session_template(args.objective, args.goal, created_at),
         encoding="utf-8",
     )
-    (session / "plan.md").write_text(render_plan_template(args.objective, args.goal), encoding="utf-8")
     save_loop_state(session, default_loop_state())
 
-    policy_set = bool(policy_from_flags(args))
+    has_gpu_flags = any(getattr(args, k, None) is not None for k in ("gpu_ids", "max_per_gpu", "max_util", "max_memory_used_mb", "min_free_memory_mb"))
     you = []
     if args.runtime == "claude":
-        you.append("1) start `/loop` now (before the first launch); see `references/claude-code-adapter.md`.")
-    if not policy_set:
-        you.append(("2)" if you else "1)") + " set GPU policy: run `aet.py set-policy --gpu-ids ... --max-per-gpu ...` (else conservative 1/gpu default).")
-    you.append(f"{len(you) + 1}) fill `plan.md`: metric, baseline, target, constraints, hypotheses, coupled params.")
-    you.append(f"{len(you) + 1}) Ready Queue < total_capacity -> run `aet.py strategist-begin` (do NOT hand-design the initial candidate set).")
+        you.append("1) set up the `CronCreate` keepalive now (before the first launch); see `references/claude-code-adapter.md`.")
+    if not has_gpu_flags:
+        you.append(f"{len(you) + 1}) set GPU policy: run `aet.py set-policy --gpu-ids ... --max-per-gpu ...` (else conservative 1/gpu default).")
+    you.append(f"{len(you) + 1}) fill `session.md`: Target & Constraints, Hypotheses & Coupled Parameters.")
+    you.append(f"{len(you) + 1}) planned queue empty -> run `aet.py strategist-begin` (do NOT hand-design the initial candidate set).")
     emit(
-        ok=[f"session: {session}", "files: meta.json plan.md observations.md results.csv queue.jsonl loop_state.json runs/"],
-        state=[f"objective: {args.objective} ({args.goal})  runtime: {args.runtime}  gpu_policy: {'set' if policy_set else 'default (1/gpu)'}"],
+        ok=[f"session: {session}", "files: meta.json session.md results.csv loop_state.json runs/"],
+        state=[f"objective: {args.objective} ({args.goal})  runtime: {args.runtime}  process_pattern: {pp}  gpu_policy: {'set' if has_gpu_flags else 'default (1/gpu)'}"],
         you=you,
     )
 
 
 def command_set_policy(args: argparse.Namespace) -> None:
     session = require_session(args)
+    pp = getattr(args, "process_pattern", None)
+    if pp and pp in _OVERLY_BROAD_PATTERNS:
+        print(f"ERROR: --process-pattern '{pp}' is too broad. Use the experiment script filename "
+              f"or a unique path fragment (e.g. 'experiments/exp_clip_deblur\\.py').",
+              file=sys.stderr)
+        raise SystemExit(1)
     meta = load_meta(session)
     policy = dict(DEFAULT_POLICY)
     policy.update(meta.get("gpu_policy") or {})
@@ -660,69 +636,55 @@ def command_set_policy(args: argparse.Namespace) -> None:
     save_meta(session, meta)
     emit(
         ok=[f"gpu_policy updated: {json.dumps(policy, ensure_ascii=False, sort_keys=True)}"],
-        you=["`aet.py gpu-slots` / `loop-state` / `strategist-begin` now compute capacity from this policy. No `plan.md` edit needed."],
+        you=["`aet.py gpu-slots` / `loop-state` / `strategist-begin` now compute capacity from this policy."],
     )
 
 
 def command_create_run(args: argparse.Namespace) -> None:
     session = require_session(args)
     meta = load_meta(session)
-    run_id = next_run_id(session)
-    run_name = args.name or f"run-{run_id:04d}"
-    run_dir = session / "runs" / str(run_id)
-    run_dir.mkdir(parents=True, exist_ok=False)
-    (run_dir / "output").mkdir()
+    run_id = str(args.run_id)
+    rows = read_rows(session / "results.csv")
+    matches = [r for r in rows if r.get("run_id") == run_id]
+    if not matches:
+        raise SystemExit(f"run_id {run_id} not found in results.csv. Use `aet.py queue-add` to register candidates first.")
+    row = matches[0]
+    if row.get("status") != "planned":
+        raise SystemExit(f"run_id {run_id} has status '{row.get('status')}', not 'planned'. Only planned runs can be activated.")
 
-    params = load_json_arg(args.params)
-    metrics: dict[str, Any] = {}
+    run_dir = session / "runs" / run_id
+    run_dir.mkdir(parents=True, exist_ok=True)
+    (run_dir / "output").mkdir(exist_ok=True)
+
+    params = json.loads(row.get("params") or "{}")
     dump_json(run_dir / "params.json", params)
-    dump_json(run_dir / "metrics.json", metrics)
-    (run_dir / "summary.md").write_text(
-        render_run_summary_template(args.command or "", params, metrics),
-        encoding="utf-8",
-    )
-    if args.command:
-        (run_dir / "command.sh").write_text(args.command + "\n", encoding="utf-8")
+    dump_json(run_dir / "metrics.json", {})
+    command = args.command or ""
+    if command:
+        (run_dir / "command.sh").write_text(command + "\n", encoding="utf-8")
 
     output_dir = args.output_dir or str(run_dir / "output")
     Path(output_dir).mkdir(parents=True, exist_ok=True)
     log_path = args.log_path or str(Path(output_dir) / "train.log")
-    rows = read_rows(session / "results.csv")
-    row = {
-        "run_id": str(run_id),
-        "run_name": run_name,
-        "status": "created",
-        "goal": meta.get("goal", ""),
-        "primary_metric": "",
-        "metric_name": "",
-        "gpu_id": args.gpu_id or "",
-        "output_dir": output_dir,
-        "log_path": log_path,
-        "params_json": json.dumps(params, ensure_ascii=False, sort_keys=True),
-        "command": args.command or "",
-        "metrics_json": "{}",
-        "start_time": "",
-        "end_time": "",
-        "notes": args.notes or "",
-    }
-    rows = [r for r in rows if r.get("run_id") != str(run_id)]
-    rows.append(row)
+
+    row["status"] = "created"
+    row["gpu_id"] = args.gpu_id or ""
+    row["output_dir"] = output_dir
+    row["log_path"] = log_path
+    row["command"] = command
     write_rows(session / "results.csv", rows)
-    with (session / "queue.jsonl").open("a", encoding="utf-8") as handle:
-        handle.write(json.dumps(row, ensure_ascii=False, sort_keys=True) + "\n")
     emit(
         ok=[
-            f"run {run_id} registered",
+            f"run {run_id} activated (planned -> created)",
             f"run_dir: {run_dir}",
             f"run_id: {run_id}",
             f"output_dir: {output_dir}   (created)",
             f"log: {log_path}",
         ],
-        state=[f"status=created  gpu={args.gpu_id or '(unset)'}"],
+        state=[f"status=created  gpu={args.gpu_id or '(unset)'}  queue_id={row.get('queue_id', '')}"],
         you=[
             f"1) launch: `python -u SCRIPT --gpu_id {args.gpu_id or 'G'} --output_dir {output_dir} > {log_path} 2>&1`",
             f"2) after it starts: run `aet.py record --run-id {run_id} --status running`",
-            "3) move this row Ready Queue -> Running in `plan.md`",
         ],
     )
 
@@ -738,7 +700,7 @@ def command_record(args: argparse.Namespace) -> None:
     else:
         row = {key: "" for key in RESULT_COLUMNS}
         row["run_id"] = run_id
-        row["run_name"] = args.name or f"run-{int(args.run_id):04d}"
+        row["goal"] = meta.get("goal", "")
         rows.append(row)
 
     metrics = load_json_arg(args.metrics)
@@ -753,28 +715,22 @@ def command_record(args: argparse.Namespace) -> None:
             "gpu_id": args.gpu_id or row.get("gpu_id", ""),
             "output_dir": args.output_dir or row.get("output_dir", ""),
             "log_path": args.log_path or row.get("log_path", ""),
-            "metrics_json": json.dumps(metrics, ensure_ascii=False, sort_keys=True),
+            "metrics": json.dumps(metrics, ensure_ascii=False, sort_keys=True),
             "start_time": now_iso() if args.status == "running" and not row.get("start_time") else row.get("start_time", ""),
             "end_time": now_iso() if args.status in TERMINAL_STATUSES else row.get("end_time", ""),
-            "notes": args.notes or row.get("notes", ""),
+            "annotation": args.annotation or row.get("annotation", ""),
         }
     )
     run_dir = session / "runs" / run_id
     run_dir.mkdir(parents=True, exist_ok=True)
     dump_json(run_dir / "metrics.json", metrics)
-    summary = render_run_summary_template(row.get("command", ""), load_json_arg(row.get("params_json")), metrics)
-    summary += f"\n## Status\n\n{row['status']}\n\n## Notes\n\n{row['notes']}\n"
-    (run_dir / "summary.md").write_text(summary, encoding="utf-8")
     write_rows(session / "results.csv", rows)
-    if args.notes:
-        append_run_observation(session / "observations.md", run_id, args.status, args.notes)
 
     if args.status == "running":
         emit(
             ok=[f"run {run_id} -> running   start_time recorded"],
             you=[
-                "1) ensure this run's `plan.md` Running row (gpu / output / log / expected signal) is current",
-                "2) once you have executed everything the last `aet.py loop-state` routed (free slots filled, any Strategist call handled), this cycle is complete: wait for the next completion, then `aet.py loop-state` again. Otherwise finish the remaining routed launches first.",
+                "1) once you have executed everything the last `aet.py loop-state` routed (free slots filled, any Strategist call handled), this cycle is complete: wait for the next completion, then `aet.py loop-state` again. Otherwise finish the remaining routed launches first.",
             ],
         )
         return
@@ -783,9 +739,8 @@ def command_record(args: argparse.Namespace) -> None:
         emit(ok=[f"run {run_id} -> {args.status}   results.csv updated"])
         return
 
-    # Terminal: update pending set (version-guarded) and detect a new best.
     state = load_loop_state(session)
-    version = terminal_version(row["status"], row["primary_metric"], row["notes"])
+    version = terminal_version(row["status"], row["primary_metric"], row.get("annotation", ""))
     existing = state["pending_runs"].get(run_id)
     if existing is None or existing.get("version") != version:
         state["pending_runs"][run_id] = {"version": version, "added_at": now_iso()}
@@ -801,9 +756,7 @@ def command_record(args: argparse.Namespace) -> None:
         tag = "  (NEW BEST)" if new_best else ""
         state_lines.append(f"best: run {best[0]} {best[1]}={best[2]}{tag}")
     you = [
-        "1) NEXT COMMAND (required): run `aet.py loop-state` — it returns what to launch/plan next and is the loop's control-flow router. Run it before any `aet.py create-run`, launch, status recap, or candidate planning.",
-        f"2) bookkeeping: move run {run_id} row Running -> Completed/Recorded in `plan.md`",
-        f"3) trust caveat? append it to `runs/{run_id}/summary.md` (after this record)",
+        "1) NEXT COMMAND (required): run `aet.py loop-state` — it returns what to launch/plan next and is the loop's control-flow router.",
     ]
     if new_best:
         you.append(f"{len(you) + 1}) NEW BEST: if the project tracks a benchmark/current-best table, update it.")
@@ -816,10 +769,91 @@ def command_record(args: argparse.Namespace) -> None:
             f"returns (resume it via the `SendMessage` tool / Codex `send_input` if you lost its output). Do NOT open another call.",
         )
     emit(
-        ok=[f"run {run_id} -> {args.status}{metric_str}", "results.csv + runs/<id>/summary.md updated; pending += this run"],
+        ok=[f"run {run_id} -> {args.status}{metric_str}", "results.csv updated; pending += this run"],
         state=state_lines,
         you=you,
     )
+
+
+def command_queue_add(args: argparse.Namespace) -> None:
+    session = require_session(args)
+    meta = load_meta(session)
+    candidates = load_json_list_arg(args.candidates)
+    if not candidates:
+        raise SystemExit("No candidates provided. Pass a JSON array or a file path.")
+    rows = read_rows(session / "results.csv")
+    base_id = next_run_id(session)
+    mapping = []
+    for i, cand in enumerate(candidates):
+        run_id = base_id + i
+        row = {key: "" for key in RESULT_COLUMNS}
+        row["run_id"] = str(run_id)
+        row["queue_id"] = cand.get("queue_id", f"Q{run_id}")
+        row["status"] = "planned"
+        row["params"] = json.dumps(cand.get("params", {}), ensure_ascii=False, sort_keys=True)
+        row["hypothesis"] = cand.get("hypothesis", "")
+        row["priority"] = str(cand.get("priority", 999))
+        row["goal"] = meta.get("goal", "")
+        rows.append(row)
+        mapping.append(f"{row['queue_id']} -> run_id {run_id}")
+    write_rows(session / "results.csv", rows)
+    emit(
+        ok=[f"{len(candidates)} candidate(s) registered as planned"] + mapping,
+        state=[f"planned_count={count_planned(session)}"],
+        you=["run `aet.py loop-state` to route launches."],
+    )
+
+
+def command_queue_drop(args: argparse.Namespace) -> None:
+    session = require_session(args)
+    run_ids = [s.strip() for s in args.run_ids.split(",")]
+    rows = read_rows(session / "results.csv")
+    dropped = []
+    skipped = []
+    for rid in run_ids:
+        matches = [r for r in rows if r.get("run_id") == rid]
+        if not matches:
+            skipped.append(f"run {rid}: not found")
+            continue
+        row = matches[0]
+        if row.get("status") != "planned":
+            skipped.append(f"run {rid} is {row.get('status')}, not planned — skipped")
+            continue
+        row["status"] = "dropped"
+        row["annotation"] = args.reason or row.get("annotation", "")
+        dropped.append(rid)
+    write_rows(session / "results.csv", rows)
+    ok = []
+    if dropped:
+        ok.append(f"dropped: {dropped}")
+    if skipped:
+        ok += skipped
+    emit(
+        ok=ok or ["no changes"],
+        state=[f"planned_count={count_planned(session)}"],
+    )
+
+
+def command_queue_list(args: argparse.Namespace) -> None:
+    session = require_session(args)
+    planned_ids = get_planned_queue(session)
+    rows = {r["run_id"]: r for r in read_rows(session / "results.csv")}
+    items = []
+    for rid in planned_ids:
+        row = rows.get(str(rid), {})
+        items.append({
+            "run_id": rid,
+            "queue_id": row.get("queue_id", ""),
+            "hypothesis": row.get("hypothesis", ""),
+            "params": row.get("params", ""),
+            "priority": row.get("priority", ""),
+        })
+    if args.json:
+        print(json.dumps(items, ensure_ascii=False, indent=2))
+    else:
+        for item in items:
+            print(f"run_id={item['run_id']}  queue_id={item['queue_id']}  priority={item['priority']}  hypothesis={item['hypothesis'][:60]}")
+        print(f"TOTAL planned={len(items)}")
 
 
 def command_parse_log(args: argparse.Namespace) -> None:
@@ -936,10 +970,39 @@ def reconcile_hint(session: Path) -> str | None:
     live = count_live_processes(pattern)
     if ledger_running <= live:
         return None
-    return (
+    msg = (
         f"RECONCILE: ledger shows {ledger_running} 'running' but only {live} matching process(es) are alive — "
-        f"{ledger_running - live} run(s) finished without a terminal record. Record each (`aet.py record --run-id <id> "
-        f"--status finished|failed|inconclusive` after parsing its metrics) and move it from Running to Completed in `plan.md`."
+        f"{ledger_running - live} run(s) finished without a terminal record. Record each with `aet.py record --run-id <id> "
+        f"--status finished|failed|inconclusive` after parsing its metrics."
+    )
+    if live == 0:
+        msg += (
+            f" If no experiments actually finished, the process_pattern '{pattern}' may be wrong — "
+            f"verify with `ps ax | grep '{pattern}'` and fix with "
+            f"`aet.py set-policy --process-pattern '<corrected>'`."
+        )
+    return msg
+
+
+def pattern_broad_hint(session: Path) -> str | None:
+    """Warn when process_pattern matches more processes than the ledger accounts for,
+    suggesting the pattern is too broad or catching unrelated processes."""
+    pattern = specific_process_pattern(session)
+    if not pattern:
+        return None
+    rows = read_rows(session / "results.csv")
+    ledger_running = sum(1 for r in rows if r.get("status") == "running")
+    live = count_live_processes(pattern)
+    if live <= ledger_running:
+        return None
+    excess = live - ledger_running
+    return (
+        f"PATTERN CHECK: process_pattern '{pattern}' matches {live} process(es) but the ledger "
+        f"has {'only ' + str(ledger_running) if ledger_running else 'no'} 'running' run(s) — "
+        f"{excess} extra match(es) may be unrelated processes (other sessions, other projects). "
+        f"This makes GPU slot counts inaccurate. Verify with `ps ax | grep '{pattern}'` — "
+        f"if unrelated processes appear, narrow it with `aet.py set-policy --process-pattern '<more-specific>'` "
+        f"(e.g. add a path fragment or use the full script filename)."
     )
 
 
@@ -954,25 +1017,26 @@ def stale_created_hint(session: Path) -> str | None:
         f"STALE CREATED: run(s) {ids_str} have status='created' (registered via `create-run` but never launched), "
         f"blocking quiescence. For each: determine whether it should still be launched "
         f"(`aet.py record --run-id <id> --status running` after launch) or was abandoned "
-        f"(`aet.py record --run-id <id> --status superseded --notes 'never launched'`)."
+        f"(`aet.py record --run-id <id> --status superseded --annotation 'never launched'`)."
     )
 
 
-def quiescence_blockers(session: Path, ready_count: int) -> list[str]:
+def quiescence_blockers(session: Path) -> list[str]:
     """Mirrors is_quiescent checks; returns one actionable message per failing condition.
     Used by strategist-return to explain why the exhaustion handshake could not proceed."""
     blockers = []
-    if ready_count > 0:
-        blockers.append(
-            f"READY QUEUE: {ready_count} row(s) remain — launch or remove them."
-        )
     rows = read_rows(session / "results.csv")
+    planned_count = sum(1 for r in rows if r.get("status") == "planned")
+    if planned_count > 0:
+        blockers.append(
+            f"PLANNED QUEUE: {planned_count} candidate(s) remain — launch or drop them."
+        )
     created_ids = [r.get("run_id", "") for r in rows if r.get("status") == "created"]
     if created_ids:
         blockers.append(
             f"STALE CREATED: run(s) {', '.join(created_ids)} have status='created' (registered but never launched). "
             f"For each: launch and `aet.py record --status running`, or "
-            f"`aet.py record --run-id <id> --status superseded --notes 'never launched'`."
+            f"`aet.py record --run-id <id> --status superseded --annotation 'never launched'`."
         )
     pattern = specific_process_pattern(session)
     if pattern:
@@ -1035,22 +1099,21 @@ def command_loop_state(args: argparse.Namespace) -> None:
     slots = query_slots(policy, allow_over_cap=True)
     free_slots, total_capacity = slots_summary(slots)
     free_gpu_ids = [str(s["gpu"]) for s in slots for _ in range(s["free_slots"])]
-    ready, ready_note = resolve_ready_count(args, session)
+    planned_ids = get_planned_queue(session)
+    planned = len(planned_ids)
 
     best = best_finished(session, goal)
     best_str = f"run {best[0]} {best[1]}={best[2]}" if best else "(none)"
     active = state.get("active_strategist_call")
     active_str = f"{active['call_id']} ({active['role']}/{active['invocation']}, age {minutes_since(active.get('started_at'))}m)" if active else "none"
-    gap = total_capacity - ready
+    gap = total_capacity - planned
     state_lines = [
         f"objective: {meta.get('objective', '')}   best: {best_str}",
-        f"free_slots={free_slots}  total_capacity={total_capacity}  ready={ready}  gap={gap if gap > 0 else 0}",
+        f"free_slots={free_slots}  total_capacity={total_capacity}  planned={planned}  gap={gap if gap > 0 else 0}",
         f"pending_run_ids={pending_run_ids(state)}",
         f"strategist_agent_id={state.get('strategist_agent_id')}  active_call={active_str}  pending_exhaustion={state.get('pending_exhaustion_confirmation')}",
     ]
     ok_lines = [f"session: {session}  runtime: {runtime}"]
-    if ready_note:
-        ok_lines.append(ready_note)
     if getattr(args, "gpu_ids", None) is not None or getattr(args, "max_per_gpu", None) is not None:
         ok_lines.append(
             "POLICY: you passed transient GPU flags to loop-state; strategist-begin and gpu-slots read the stored "
@@ -1067,7 +1130,10 @@ def command_loop_state(args: argparse.Namespace) -> None:
             you.append(created_hint_msg)
         you.append("Then re-run `aet.py loop-state` for the routed next action — the counts above are stale until you reconcile.")
     else:
-        you = compute_next(state, runtime, ready, free_slots, total_capacity, free_gpu_ids)
+        you = compute_next(state, runtime, planned_ids, free_slots, total_capacity, free_gpu_ids)
+    broad = pattern_broad_hint(session)
+    if broad:
+        you.append(broad)
     emit(ok=ok_lines, state=state_lines, you=you)
 
 
@@ -1089,11 +1155,11 @@ def command_strategist_begin(args: argparse.Namespace) -> None:
         )
         raise SystemExit(1)
 
-    ready, ready_note = resolve_ready_count(args, session)
+    planned = count_planned(session)
     policy = resolve_policy(args, session)
     slots = query_slots(policy, allow_over_cap=True)
     free_slots, total_capacity = slots_summary(slots)
-    route = compute_route(state, runtime, ready)
+    route = compute_route(state, runtime, planned)
 
     state["strategist_call_count"] = state.get("strategist_call_count", 0) + 1
     call_id = f"strat-{state['strategist_call_count']:04d}"
@@ -1105,7 +1171,7 @@ def command_strategist_begin(args: argparse.Namespace) -> None:
         "target_agent_id": route["target_agent_id"],
         "snapshot": snapshot,
         "started_at": now_iso(),
-        "ready_count_at_call": ready,
+        "planned_count_at_call": planned,
         "free_slots_at_call": free_slots,
     }
     state["last_strategist_at"] = now_iso()
@@ -1119,8 +1185,6 @@ def command_strategist_begin(args: argparse.Namespace) -> None:
     )
     you.append(f"do NOT open another call while {call_id} is active.")
     ok_lines = [f"call opened: {call_id}  role={route['role']}  invocation={route['invocation']}  snapshot={pending_run_ids(state) or '[]'}"]
-    if ready_note:
-        ok_lines.append(ready_note)
     emit(
         ok=ok_lines,
         state=[f"target_agent={route['target_agent_id'] or '(none)'}  mode={route['mode']}  free_slots={free_slots}  total_capacity={total_capacity}"],
@@ -1153,11 +1217,8 @@ def command_strategist_return(args: argparse.Namespace) -> None:
     state["active_strategist_call"] = None
 
     candidates = args.candidates_count
-    # Zero candidates returned is the exhaustion signal; the two-context handshake
-    # (a fresh confirmer) catches a transient false zero.
     exhaustion = candidates == 0
-    ready, ready_note = resolve_ready_count(args, session)
-    quiescent = is_quiescent(session, ready)
+    quiescent = is_quiescent(session)
     flag = None
     substituted = False
 
@@ -1210,8 +1271,6 @@ def command_strategist_return(args: argparse.Namespace) -> None:
     save_loop_state(session, state)
 
     ok = [f"call {args.call_id} closed  cleared={cleared or '[]'}  pending now={pending_run_ids(state)}"]
-    if ready_note:
-        ok.append(ready_note)
     if args.agent_id:
         ok.append(f"strategist_agent_id={state.get('strategist_agent_id')} ({role})")
     elif args.resume_failed and role != "confirmer" and state.get("strategist_agent_id") is None:
@@ -1230,7 +1289,7 @@ def command_strategist_return(args: argparse.Namespace) -> None:
         state_lines.append("CONFIRMED_EXHAUSTION (two independent quiescent 0-candidate signals agree)")
         you = [
             "Exhaustion confirmed by independent contexts. YOU own the final stop:",
-            "verify target/budget genuinely unmet -> write `## Final Analysis` to `observations.md` -> run `aet.py summarize` -> `/loop` stop (Claude Code) or end supervision (Codex).",
+            "verify target/budget genuinely unmet -> write `## Final Analysis` to `session.md` -> run `aet.py summarize` -> cancel keepalive (Claude Code) or end supervision (Codex).",
             "If you judge it premature you may continue; the next `aet.py strategist-begin` forms a fresh handshake.",
         ]
         emit(ok=ok, state=state_lines, you=you)
@@ -1239,13 +1298,13 @@ def command_strategist_return(args: argparse.Namespace) -> None:
     you = []
     step = 1
     if candidates > 0:
-        you.append(f"{step}) append {candidates} candidate(s) -> `plan.md` Ready Queue")
+        you.append(f"{step}) run `aet.py queue-add --candidates '<JSON array or file path>'` to register {candidates} candidate(s)")
         step += 1
     if args.stop_update_present or args.observations_present:
-        you.append(f"{step}) (if there are updates) update `plan.md`, `observations.md`, or other relevant documents accordingly.")
+        you.append(f"{step}) update `session.md`: overwrite Current Analysis, append Reusable Rules, overwrite Stop/Continue Rule as needed.")
         step += 1
     if args.queue_edits_present:
-        you.append(f"{step}) apply Queue Edits (rewrite/remove invalidated Ready Queue rows)")
+        you.append(f"{step}) apply Queue Edits: `aet.py queue-drop --run-ids <ids> --reason '<reason>'` for invalidated candidates")
         step += 1
     if flag == "CONFIRMER_OVERTURNED":
         state_lines.append("confirmer returned candidates, overturning the exhaustion signal; promoted to Primary")
@@ -1253,7 +1312,7 @@ def command_strategist_return(args: argparse.Namespace) -> None:
         state_lines.append("Primary returned 0 candidates while quiescent; next strategist-begin = fresh confirmer")
     elif flag in ("EXHAUSTION_NOT_QUIESCENT", "CONFIRMATION_NOT_QUIESCENT"):
         who = "Primary" if flag == "EXHAUSTION_NOT_QUIESCENT" else "confirmer"
-        blockers = quiescence_blockers(session, ready)
+        blockers = quiescence_blockers(session)
         if blockers:
             state_lines.append(f"{who} returned 0 candidates but quiescence blocked; resolve before exhaustion handshake can proceed:")
             for b in blockers:
@@ -1318,9 +1377,9 @@ def command_summarize(args: argparse.Namespace) -> None:
     print(f"runs: {len(rows)}")
     if scored:
         best, score = scored[0]
-        print(f"best: run {best.get('run_id')} {best.get('run_name')} {best.get('metric_name')}={score}")
-        print(f"params: {best.get('params_json', '')}")
-        print(f"notes: {best.get('notes', '')}")
+        print(f"best: run {best.get('run_id')} {best.get('queue_id', '')} {best.get('metric_name')}={score}")
+        print(f"params: {best.get('params', '')}")
+        print(f"annotation: {best.get('annotation', '')}")
     status_counts: dict[str, int] = {}
     for row in rows:
         status_counts[row.get("status", "")] = status_counts.get(row.get("status", ""), 0) + 1
@@ -1330,13 +1389,14 @@ def command_summarize(args: argparse.Namespace) -> None:
         print(hint)
 
 
-def add_policy_flags(parser: argparse.ArgumentParser) -> None:
+def add_policy_flags(parser: argparse.ArgumentParser, *, include_process_pattern: bool = False) -> None:
     parser.add_argument("--gpu-ids", help="Comma-separated GPU indices to use, e.g. 0,1,3")
     parser.add_argument("--max-per-gpu", type=int, help="Concurrent experiments per GPU (hard cap 3)")
     parser.add_argument("--max-util", type=int, help="Skip a GPU at or above this utilization %% (default 95)")
     parser.add_argument("--max-memory-used-mb", type=int, help="Skip a GPU whose used memory is at or above this")
     parser.add_argument("--min-free-memory-mb", type=int, help="Skip a GPU unless at least this much memory is free")
-    parser.add_argument("--process-pattern", help="Regex identifying experiment processes (default python)")
+    if include_process_pattern:
+        parser.add_argument("--process-pattern", help="Regex identifying experiment processes; updatable via set-policy")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -1345,38 +1405,57 @@ def build_parser() -> argparse.ArgumentParser:
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
-    p = sub.add_parser("init", help="Create one session per tuning objective; then start /loop, set-policy, fill plan.md.")
+    p = sub.add_parser("init", help="Create one session per tuning objective; --process-pattern is required.")
     p.add_argument("--project-root", required=True)
     p.add_argument("--name", required=True)
     p.add_argument("--objective", required=True)
     p.add_argument("--goal", choices=["max", "min"], default="max")
     p.add_argument("--runtime", choices=["claude", "codex"], default="claude", help="Stored as the session default for verb rendering")
+    p.add_argument("--process-pattern", required=True,
+                   help="Regex uniquely identifying this session's experiment processes (e.g. the script filename 'exp_dip_deblur\\.py'). "
+                        "Must not be overly broad ('python', 'train'). Used by loop-state to detect finished-but-unrecorded runs.")
     add_policy_flags(p)
     p.set_defaults(func=command_init)
 
     p = sub.add_parser("set-policy", help="Set/change GPU policy mid-session; stored in meta.json and read by gpu-slots/loop-state/strategist-begin.")
     p.add_argument("--session")
     p.add_argument("--project-root", default=".")
-    add_policy_flags(p)
+    add_policy_flags(p, include_process_pattern=True)
     p.set_defaults(func=command_set_policy)
 
-    p = sub.add_parser("create-run", help="Register a run before launch; prints output_dir (already created). Then launch, record running, move to Running.")
+    p = sub.add_parser("queue-add", help="Batch-register planned candidates from Strategist output. Each candidate gets a run_id and status=planned.")
     p.add_argument("--session")
     p.add_argument("--project-root", default=".")
-    p.add_argument("--name")
-    p.add_argument("--params")
+    p.add_argument("--candidates", required=True, help="JSON array of candidates, or a file path containing the JSON")
+    p.set_defaults(func=command_queue_add)
+
+    p = sub.add_parser("queue-drop", help="Drop planned candidates that are no longer needed (planned -> dropped).")
+    p.add_argument("--session")
+    p.add_argument("--project-root", default=".")
+    p.add_argument("--run-ids", required=True, help="Comma-separated run_ids to drop")
+    p.add_argument("--reason", default="", help="Why these candidates were dropped")
+    p.set_defaults(func=command_queue_drop)
+
+    p = sub.add_parser("queue-list", help="List all planned candidates, sorted by priority.")
+    p.add_argument("--session")
+    p.add_argument("--project-root", default=".")
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(func=command_queue_list)
+
+    p = sub.add_parser("create-run", help="Activate a planned run: allocate GPU, output_dir, and transition planned -> created.")
+    p.add_argument("--session")
+    p.add_argument("--project-root", default=".")
+    p.add_argument("--run-id", type=int, required=True, help="Run id of a planned row to activate")
     p.add_argument("--command")
     p.add_argument("--gpu-id")
     p.add_argument("--output-dir")
     p.add_argument("--log-path")
-    p.add_argument("--notes")
     p.set_defaults(func=command_create_run)
 
     p = sub.add_parser("record", help="Record a status/metric change. running after launch; finished/failed/inconclusive on completion. Terminal records add to pending + flag NEW BEST.")
     p.add_argument("--session")
     p.add_argument("--project-root", default=".")
     p.add_argument("--run-id", type=int, required=True)
-    p.add_argument("--name")
     p.add_argument("--status", choices=["created", "running", "finished", "failed", "inconclusive", "superseded"], required=True)
     p.add_argument("--primary-metric", type=float)
     p.add_argument("--metric-name")
@@ -1384,7 +1463,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--gpu-id")
     p.add_argument("--output-dir")
     p.add_argument("--log-path")
-    p.add_argument("--notes", help="Appends to observations.md; use for terminal trust/failure notes, omit for routine running updates")
+    p.add_argument("--annotation", help="Optional annotation for this run")
     p.set_defaults(func=command_record)
 
     p = sub.add_parser("parse-log", help="Last-resort metric extraction from a log when structured metrics are unavailable; inspect output before recording.")
@@ -1402,33 +1481,30 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--project-root", default=".")
     p.add_argument("--kind", choices=sorted(CAPACITY_BY_KIND), help="Generic capacity preset when no policy is stored")
     p.add_argument("--capacity", type=int, help="Override max_per_gpu for this call")
-    add_policy_flags(p)
+    add_policy_flags(p, include_process_pattern=True)
     p.add_argument("--allow-over-cap", action="store_true")
     p.add_argument("--json", action="store_true")
     p.set_defaults(func=command_gpu_slots)
 
-    p = sub.add_parser("loop-state", help="Decision panel: free slots, capacity, pending, Strategist state, and the routed NEXT action. Call each cycle / each /loop tick. The script counts the Ready Queue from plan.md itself.")
+    p = sub.add_parser("loop-state", help="Decision panel: free slots, capacity, pending, Strategist state, and the routed NEXT action. Call each cycle / each keepalive tick. Planned queue count comes from results.csv.")
     p.add_argument("--session")
     p.add_argument("--project-root", default=".")
-    p.add_argument("--ready-count", type=int, help="Optional override; normally omit. The script counts the '### Ready Queue' rows in plan.md itself.")
     p.add_argument("--runtime", choices=["claude", "codex"], help="Optional override; defaults to the runtime stored in meta.json at init. Normally omit it.")
-    add_policy_flags(p)
+    add_policy_flags(p, include_process_pattern=True)
     p.set_defaults(func=command_loop_state)
 
     p = sub.add_parser("strategist-begin", help="Open a Strategist transaction: snapshots pending, computes the route, prints the payload + the exact spawn/resume tool call. Then YOU do the subagent tool_use; close with strategist-return.")
     p.add_argument("--session")
     p.add_argument("--project-root", default=".")
-    p.add_argument("--ready-count", type=int, help="Optional override; normally omit. The script counts the '### Ready Queue' rows in plan.md itself.")
     p.add_argument("--runtime", choices=["claude", "codex"], help="Optional override; defaults to the runtime stored in meta.json at init. Normally omit it.")
-    add_policy_flags(p)
+    add_policy_flags(p, include_process_pattern=True)
     p.set_defaults(func=command_strategist_begin)
 
     p = sub.add_parser("strategist-return", help="Close the transaction after the subagent returns: clears the snapshot, records agent id, applies the exhaustion handshake. Presence flags gate the YOU doc reminders.")
     p.add_argument("--session")
     p.add_argument("--project-root", default=".")
     p.add_argument("--call-id", required=True)
-    p.add_argument("--ready-count", type=int, help="Optional override; normally omit. The script counts plan.md '### Ready Queue' rows itself (before you append the returned candidates) to compute quiescence.")
-    p.add_argument("--candidates-count", type=int, required=True, help="Number of Ready Queue candidates the Strategist returned; exhaustion is derived from 0")
+    p.add_argument("--candidates-count", type=int, required=True, help="Number of candidates the Strategist returned; exhaustion is derived from 0")
     p.add_argument("--agent-id", help="Subagent id from the spawn result; on fresh spawn or fallback this updates strategist_agent_id. On a successful resume pass the same id (or omit) — a NEW id on a resume route triggers the substitution warning")
     p.add_argument("--resume-failed", action="store_true", help="Set ONLY when a resume route's SendMessage/send_input actually returned failure (e.g. no transcript to resume). Forgets the dead agent: with --agent-id it records the replacement you spawned; without --agent-id it clears strategist_agent_id so the next strategist-begin fresh-spawns. Suppresses the substitution warning")
     p.add_argument("--observations-present", action="store_true", help="Strategist returned observations_to_append")
