@@ -53,15 +53,15 @@ If multiple modes apply, use the most specific mode. For example, a request to "
 6. Keep claims bounded by the provided evidence. Do not add new numbers, citations, baselines, experimental conclusions, or causal explanations.
 7. Run the reference self-check before output.
 
-## External Agent Review (Optional)
+## External Agent Review
 
-Check your tool list. If `mcp__codex__codex` or `mcp__gemini-review__review_start` appears, read [references/agents.md](references/agents.md) and consider using the external agent for an independent review pass.
+Check your tool list. If `mcp__codex__codex` or `mcp__gemini-review__review_start` appears, read [references/agents.md](references/agents.md) for the agent workflow.
 
-This is most valuable for: deep polish or rewrite of a full section, de-AI rewrite where residual AI phrasing may linger, section drafting that needs a fresh readability check, and near-submission full-paper proofreading.
+For substantive writing tasks — section drafting, deep rewrite of a full section, multi-paragraph de-AI, full-paper proofreading, related-work synthesis — use the coordinated multi-agent workflow described in the reference. The workflow stages: you write the draft → Codex reviews logic and consistency → Gemini polishes language → you do final review with diff check.
 
-If neither MCP tool is present but a clean-context second opinion is genuinely useful (e.g., a long section draft), spawn a same-model `general-purpose` subagent — the fallback prompt template is in `references/agents.md`.
+For lighter tasks (single-paragraph polish, grammar check, quick output), use a single-agent review or no agent at all.
 
-Do not call external agents for short conservative polish, single-paragraph grammar checks, or any request where overhead is not justified.
+If neither MCP tool is present but a clean-context second opinion is genuinely useful, spawn a same-model `general-purpose` subagent — the fallback prompt template is in `references/agents.md`.
 
 ## Output Rules
 

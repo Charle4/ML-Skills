@@ -7,17 +7,123 @@ If neither is present and you still want a clean-context second opinion, use the
 
 ---
 
-## When External Agents Add Value
+## Workflow Selection
 
-External agents provide independent review from a cold context — they have not seen your editing process, so they catch things you normalised. Use them in the following situations:
+External agents review from a cold context — they have not seen your editing process, so they catch issues you normalised away. Choose the workflow based on task scope:
+
+| Task scope | Workflow | Section |
+|:-----------|:---------|:--------|
+| Substantive writing: section drafting, deep rewrite of a full section, multi-paragraph de-AI, full-paper proofreading, related-work synthesis spanning many references | Coordinated multi-agent workflow | Below |
+| Light editing: single-paragraph polish, grammar check, short conservative polish, quick output | Independent single-agent review (or no agent) | "When Single-Agent Review Suffices" |
+
+When both Codex and Gemini MCP tools are available and the task is substantive, use the coordinated workflow. When only one is available, adapt: use it for review or polish, but you still own the draft and final review.
+
+---
+
+## Coordinated Multi-Agent Workflow
+
+This workflow uses three roles — you (the main editor with full context), Codex (logic and structure reviewer), and Gemini (language polisher) — in a staged pipeline. Each role has a distinct strength; the pipeline compensates for each role's known weaknesses.
+
+### Role Summary
+
+| Role | Strength | Known weakness |
+|:-----|:---------|:---------------|
+| You (main editor) | Fullest context: user intent, plan, existing manuscript, LaTeX conventions, style-guide rules | May normalise your own writing and miss drift |
+| Codex | Logic, argument consistency, cross-section coherence, claim-evidence mapping | Conservative and defensive language; raises phantom issues; likes "not X but Y" framing; ignores LaTeX/symbol conventions |
+| Gemini | Fluent, human-sounding prose; good at smoothing stitched paragraphs; catches readability issues a linear reader would notice | Prone to florid or exaggerated language; may embellish claims; ignores LaTeX conventions |
+
+### Stage 1 — Draft (you)
+
+1. Read the plan, outline, or revision notes. Identify every piece of content that needs to be written or rewritten.
+2. Write the complete draft yourself. Do not delegate drafting to Codex or Gemini — you have the fullest context; skipping the draft means you have not engaged with the details, which undermines your ability to review agent outputs later.
+3. Write from the perspective of the finished paper as a linear reader would encounter it. Verify that every concept is introduced before it is referenced and that no argument is circular.
+4. Save the draft to a temporary file (e.g., `<project>/draft-<section>.tex` or a scratch path). Include in the file or as a companion:
+   - The original text path (so agents can compare)
+   - The plan or revision notes path (so agents understand intent)
+   - Any constraints the agents must respect (venue, LaTeX conventions, terminology)
+
+### Stage 2 — Codex Logic Review
+
+Assemble the Codex prompt from Blocks A + B + D, plus the review checklist below. Use `model_reasoning_effort: xhigh`. Omit `sandbox` so Codex can edit the draft file directly.
+
+Tell Codex to read the draft file, the original text, and the plan, then review for:
+
+- Concept introduction order: is every term/symbol defined or motivated before first use?
+- Claim-evidence mapping: does every claim in the text have a corresponding evidence anchor (theorem, experiment, citation)?
+- Cross-section consistency: do quantities, assumptions, and method names used in this section match the rest of the paper?
+- Argument logic: are there circular arguments, unsupported leaps, or redundant re-statements?
+
+**Handling Codex output.** Codex routinely produces three types of feedback:
+
+1. **Real structural issues** — a concept genuinely used before introduction, a claim with no evidence anchor, an inconsistency with another section. Act on these.
+2. **Phantom issues** — problems that do not actually exist in the text, often caused by Codex reading a snippet out of context. Verify each issue against the actual draft before accepting it. If the text is correct, ignore the issue.
+3. **Defensive style suggestions** — adding hedges, disclaimers, "not X but rather Y" framings, weakening direct claims. Ignore these unless they address a genuine evidence-boundary problem.
+
+Sort every Codex finding into one of these three categories. Apply only category 1.
+
+If Codex edits the draft file directly, review the diff before accepting. Revert any defensive insertions or LaTeX convention violations.
+
+### Stage 3 — Gemini Language Polish
+
+After applying verified Codex fixes, call Gemini to polish the draft. Gemini starts from the post-Codex-review draft, not the original. Assemble the Gemini prompt from Blocks A + B + E.
+
+Tell Gemini to:
+
+- Read the draft file and smooth any stitched or awkward passages so the text flows naturally for a linear reader.
+- Flag any point where, reading linearly, the text becomes unclear or confusing — this likely indicates a genuine clarity problem.
+- Polish language for naturalness and readability without adding new claims or embellishing existing ones.
+
+**Handling Gemini output.** Gemini tends to:
+
+- Embellish claims beyond what the evidence supports — revert any amplified language.
+- Add florid vocabulary or dramatic phrasing — replace with the plain academic register from the style guide.
+- Ignore LaTeX conventions — check all `\cite`, `\ref`, `\eqref`, equation environments, and variable names after Gemini edits.
+
+When Gemini flags a passage as unclear, independently assess whether the passage is actually unclear to a reader. If it is, rewrite it yourself with the full context you have. If it is not (Gemini may be confused by domain-specific content), keep the original.
+
+### Stage 4 — Final Review (you)
+
+You own the final manuscript. After Stages 2 and 3:
+
+1. **Diff check.** Run `git diff` on the modified file. Read every change. Verify:
+   - No information loss — rewriting often simplifies away local details. If a detail was present in the original and is substantively important, restore it. After several rewrite iterations, cumulative detail loss becomes severe; the diff is the only reliable safeguard.
+   - No unintended additions — no new claims, no fabricated citations, no embellished numbers.
+   - Only restructuring, rewording, or intentional deletions remain.
+2. **LaTeX and convention check.** Verify that all LaTeX commands, equations, labels, references, and variable names survive intact. Verify formatting conventions match the style guide.
+3. **Linear read.** Read the final text as a reviewer who knows only what the paper has said so far. Check concept introduction order, transition coherence, and argument completeness.
+4. **Full-text consistency.** Verify terminology, notation, tense, and claim scope are consistent with the rest of the manuscript.
+
+### File-System Exchange Pattern
+
+Codex and Gemini operate through file-system reads and writes rather than prompt/response payloads, because prompt capacity is limited and the draft may be long.
+
+Typical file layout:
+
+```
+<project>/
+  draft-<section>.tex          ← your Stage 1 draft
+  plan-<section>.md            ← plan/revision notes (optional companion)
+  original-<section>.tex       ← snapshot of the original text for diff reference
+```
+
+When calling Codex: pass file paths in the prompt; Codex reads them directly.
+
+When calling Gemini: pass file paths in the prompt; Gemini reads them directly.
+
+After each agent finishes, read the file to see what changed, then apply Stage 4 review.
+
+---
+
+## When Single-Agent Review Suffices
+
+For lighter tasks, a single independent review pass is enough. Use the appropriate agent:
 
 | Mode | Agent value | Recommended agent |
 |:-----|:-----------|:-----------------|
-| Deep polish / rewrite | Independent readability and fluency check after you finish | Codex (or Gemini if Codex absent) |
-| De-AI rewrite | Verify residual AI-like phrasing you may have missed | Codex |
-| Section drafting | Check argument logic and academic register from a fresh read | Codex or Gemini |
-| Related-work synthesis | Spot coverage gaps and positioning errors | Codex or Gemini |
-| Full-paper proofreading | Final surface and logic check before user sends to journal | Codex + Gemini in parallel |
+| Deep polish / rewrite (single paragraph) | Readability and fluency check | Codex (or Gemini if Codex absent) |
+| De-AI rewrite (single paragraph) | Verify residual AI-like phrasing | Codex |
+| Section drafting (short, single section) | Argument logic check from a fresh read | Codex or Gemini |
+| Related-work synthesis (few references) | Coverage gaps and positioning errors | Codex or Gemini |
 
 **Do not** call external agents for:
 - Short conservative polish (single paragraph, grammar check) — not worth the overhead
@@ -42,16 +148,19 @@ Act as a collaborative expert in applied & computational mathematics, optimizati
 
 ```
 mcp__codex__codex:
-  sandbox: read-only
   cwd: <project directory, or /tmp if none>
   config: {"model_reasoning_effort": "high"}
   prompt: |
+    $my-en-academic-writing
+
     <Persona Constraint above>
 
-    <Task block — see Prompt Blocks below>
+    <Prompt Blocks — assemble from Block A + task-specific blocks>
 ```
 
-Use `"model_reasoning_effort": "xhigh"` only for complex multi-section drafts or full-paper reviews. Use `"medium"` for quick fluency checks.
+Start the prompt with `$my-en-academic-writing ` (trailing space or newline) so Codex loads this skill — without whitespace separation from subsequent text, Codex will not recognise the trigger. Use `sandbox: read-only` for review-only tasks; omit `sandbox` when Codex should edit files directly (e.g., coordinated workflow Stage 2).
+
+Use `"model_reasoning_effort": "xhigh"` for the coordinated workflow (Stage 2), complex multi-section drafts, or full-paper reviews. Use `"high"` for single-agent review tasks. Use `"medium"` for quick fluency checks.
 
 ### Follow-up
 
@@ -85,13 +194,15 @@ Follow-up uses `mcp__gemini-review__review_reply_start` with the `threadId`.
 
 ## Running Codex and Gemini in Parallel
 
-When both are available and the task is substantial (e.g., deep-polish an entire section, or proofread a near-submission paper), launch both in the same message — they maintain independent threads via their own `threadId` values. Synthesise their outputs yourself: keep points both agree on, verify disagreements against the source text, discard one-sided objections that conflict with the user's stated constraints.
+In the coordinated multi-agent workflow, Codex and Gemini run **sequentially** (Codex reviews logic first, then Gemini polishes the post-review draft) — this is intentional because Gemini should polish text that has already been structurally corrected.
+
+For single-agent review tasks where you want both agents' independent opinions (e.g., a quick readability check on a short passage), launch both in the same message — they maintain independent threads via their own `threadId` values. Synthesise their outputs yourself: keep points both agree on, verify disagreements against the source text, discard one-sided objections that conflict with the user's stated constraints.
 
 ---
 
 ## Prompt Blocks
 
-Assemble the relevant blocks for each agent call. Always include Block A.
+Assemble the relevant blocks for each agent call — both coordinated workflow stages and single-agent review tasks. Always include Block A.
 
 ### Block A — Expert Persona
 (Use the persona text for Codex or Gemini as written above.)
@@ -161,7 +272,9 @@ Summarise and synthesise the following references for a related work section:
 
 | Task | Blocks |
 |:-----|:-------|
-| Deep polish | A + B + D + E |
+| Coordinated Stage 2 (Codex logic review) | A + B + D + review checklist from Stage 2 |
+| Coordinated Stage 3 (Gemini language polish) | A + B + E |
+| Single-agent deep polish | A + B + D + E |
 | Section drafting | A + B + F |
 | Related-work synthesis | A + B + G |
 | Final proofreading | A + B + D |
@@ -173,7 +286,7 @@ Summarise and synthesise the following references for a related work section:
 
 1. **Always provide sufficient context.** State what the task is, what constraints apply (venue, mode, LaTeX preservation), and what specific output is needed. Agents start cold.
 
-2. **Provide file paths and line numbers.** For Codex MCP (sandbox may block local I/O): paste the minimum necessary excerpt directly into the prompt. For Gemini: tell it to read the file path directly.
+2. **Provide file paths.** Both Codex and Gemini can read local files by absolute path. Pass file paths in the prompt rather than pasting long excerpts. For short passages (single paragraph), pasting inline is acceptable.
 
 3. **Use reply interfaces for follow-up.** `mcp__codex__codex-reply` (pass `threadId`) or `mcp__gemini-review__review_reply_start` (pass `threadId`). Never start a new session for a follow-up.
 
