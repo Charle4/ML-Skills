@@ -1,6 +1,6 @@
 # Workflow
 
-Use this file when starting an autonomous tuning job. It carries the full autonomous loop, the durable ledger/state schema, and the GPU capacity rules needed every cycle.
+Read this file at session start. It covers the full autonomous loop, the durable ledger/state schema, and the GPU capacity rules needed every cycle.
 
 ## 1. Autonomy Contract
 
@@ -65,7 +65,7 @@ Capture the printed session path. `aet.py init` creates `session.md` from `asset
 - `meta.json`: objective, metric direction, project root, creation time, `runtime` default, and `gpu_policy`
 - `session.md`: the single narrative ledger — `Target & Constraints`, `Hypotheses & Coupled Parameters`, `Reusable Rules`, `Current Analysis`, `Stop/Continue Rule`, `Final Analysis`
 - `results.csv`: one row per run, including the launchable queue (`planned` rows). Columns: `run_id`, `queue_id`, `status`, `params`, `hypothesis`, `priority`, `gpu_id`, `primary_metric`, `metric_name`, `metrics`, `output_dir`, `log_path`, `command`, `start_time`, `end_time`, `annotation`, `goal`
-- `loop_state.json`: script-owned Strategist state machine — pending run set, `strategist_agent_id`, `active_strategist_call`, `pending_exhaustion_confirmation`, `agent_history`. Read it via `aet.py loop-state`; changed only by `aet.py record` and `aet.py strategist-begin/return/abort`
+- `loop_state.json`: script-owned Strategist state machine — pending run set, `strategist_agent_id`, `active_strategist_call`, `pending_exhaustion_confirmation`, `exhaustion_confirmed`, `agent_history`. Read it via `aet.py loop-state`; changed only by `aet.py record` and `aet.py strategist-begin/return/abort`. `exhaustion_confirmed` is set to `true` by `strategist-return` on `CONFIRMED_EXHAUSTION`; `loop-state` then routes `SESSION EXHAUSTED` instead of a new Strategist call. `strategist-begin` resets it to `false` if you explicitly continue.
 - `runs/<id>/`: per-run params, command, and metrics
 
 Only this timestamped session directory holds session ledger files. Do not write narrative, observations, or run notes directly under `aet/` or the date-level directory `aet/YYYY-MM-DD/`. If a task needs narrative or observations, update `aet/YYYY-MM-DD/HH-MM-SS/session.md`. The one allowed file at the `aet/` root is the optional cross-session durable-rules file `aet/knowledge.md` (see section 12); it is not session-scoped, so it does not belong inside a timestamped session directory.

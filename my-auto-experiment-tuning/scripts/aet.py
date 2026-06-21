@@ -234,6 +234,7 @@ def default_loop_state() -> dict[str, Any]:
         "schema_version": LOOP_STATE_VERSION,
         "strategist_agent_id": None,
         "pending_exhaustion_confirmation": False,
+        "exhaustion_confirmed": False,
         "pending_runs": {},
         "active_strategist_call": None,
         "strategist_call_count": 0,
@@ -492,6 +493,11 @@ def render_branch(runtime: str, route: dict[str, Any]) -> str:
 
 
 def compute_next(state: dict[str, Any], runtime: str, planned_ids: list[int], free_slots: int, total_capacity: int, free_gpu_ids: list[str] | None = None) -> list[str]:
+    if state.get("exhaustion_confirmed"):
+        return [
+            "SESSION EXHAUSTED. Two independent contexts confirmed no further candidates while quiescent.",
+            "Nothing to launch or plan. If you judge this premature, explicitly run `aet.py strategist-begin` to form a fresh handshake.",
+        ]
     active = state.get("active_strategist_call")
     if active:
         age = minutes_since(active.get("started_at"))
@@ -524,6 +530,9 @@ def compute_next(state: dict[str, Any], runtime: str, planned_ids: list[int], fr
         )
     if not actions:
         actions.append("All slots full and planned queue >= total_capacity. Wait for the next completion; nothing to launch or plan now.")
+    if len(actions) > 1:
+        actions = [f"STEP {i+1}: {a}" for i, a in enumerate(actions)]
+        actions.append(f"Execute ALL {len(actions)} steps this cycle. Downstream commands (create-run, record) print their own YOU — those are sub-step guidance; they do NOT replace these steps.")
     return actions
 
 
@@ -730,7 +739,7 @@ def command_record(args: argparse.Namespace) -> None:
         emit(
             ok=[f"run {run_id} -> running   start_time recorded"],
             you=[
-                "1) once you have executed everything the last `aet.py loop-state` routed (free slots filled, any Strategist call handled), this cycle is complete: wait for the next completion, then `aet.py loop-state` again. Otherwise finish the remaining routed launches first.",
+                "Continue with remaining loop-state steps if any.",
             ],
         )
         return
@@ -1111,7 +1120,7 @@ def command_loop_state(args: argparse.Namespace) -> None:
         f"objective: {meta.get('objective', '')}   best: {best_str}",
         f"free_slots={free_slots}  total_capacity={total_capacity}  planned={planned}  gap={gap if gap > 0 else 0}",
         f"pending_run_ids={pending_run_ids(state)}",
-        f"strategist_agent_id={state.get('strategist_agent_id')}  active_call={active_str}  pending_exhaustion={state.get('pending_exhaustion_confirmation')}",
+        f"strategist_agent_id={state.get('strategist_agent_id')}  active_call={active_str}  pending_exhaustion={state.get('pending_exhaustion_confirmation')}  exhaustion_confirmed={state.get('exhaustion_confirmed', False)}",
     ]
     ok_lines = [f"session: {session}  runtime: {runtime}"]
     if getattr(args, "gpu_ids", None) is not None or getattr(args, "max_per_gpu", None) is not None:
@@ -1154,6 +1163,10 @@ def command_strategist_begin(args: argparse.Namespace) -> None:
             ],
         )
         raise SystemExit(1)
+
+    if state.get("exhaustion_confirmed"):
+        state["exhaustion_confirmed"] = False
+        save_loop_state(session, state)
 
     planned = count_planned(session)
     policy = resolve_policy(args, session)
@@ -1286,6 +1299,8 @@ def command_strategist_return(args: argparse.Namespace) -> None:
     state_lines = [f"candidates={candidates}  quiescent={quiescent}  pending_exhaustion={state.get('pending_exhaustion_confirmation')}"]
 
     if flag == "CONFIRMED_EXHAUSTION":
+        state["exhaustion_confirmed"] = True
+        save_loop_state(session, state)
         state_lines.append("CONFIRMED_EXHAUSTION (two independent quiescent 0-candidate signals agree)")
         you = [
             "Exhaustion confirmed by independent contexts. YOU own the final stop:",

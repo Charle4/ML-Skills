@@ -86,7 +86,7 @@ When calling subagents, pass `algorithm_context` as 2-5 sentences covering: metr
 Single-writer rules:
 - `results.csv`: only through `aet.py queue-add`, `queue-drop`, `create-run`, and `record`.
 - `session.md`: you only (narrative analysis, stop rule). Update after Strategist returns with Current Analysis, Reusable Rules, Stop/Continue Rule.
-- `loop_state.json`: script-owned. Read it with `aet.py loop-state`; change it only through `aet.py record` (pending set) and `aet.py strategist-begin/return/abort` (Strategist state machine).
+- `loop_state.json`: script-owned. Fields: pending run set, `strategist_agent_id`, `active_strategist_call`, `pending_exhaustion_confirmation`, `exhaustion_confirmed`, `agent_history`. Read it with `aet.py loop-state`; change it only through `aet.py record` (pending set) and `aet.py strategist-begin/return/abort` (Strategist state machine). `exhaustion_confirmed` is persisted by `strategist-return` on `CONFIRMED_EXHAUSTION`; `loop-state` then routes `SESSION EXHAUSTED`. `strategist-begin` resets it if you explicitly continue.
 
 ### One Session Per Objective
 
