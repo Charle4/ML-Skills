@@ -119,5 +119,9 @@ Before responding, confirm that:
 - Tense, terminology, and capitalization match the selected mode and venue.
 - Existing formatting is preserved and no new emphasis formatting was added.
 - Paragraph logic is coherent and transitions are natural.
+- Introduction motivation is complete rather than abruptly compressed; Method defines notation, groups equations coherently, and contains only necessary pseudocode.
+- Lists contain parallel items; progressive reasoning remains connected prose. Component names and abbreviations are concise and consistent, with no decorative emphasis.
+- Method does not drift into baseline comparison, and a local editing request has not displaced the paper's established motivation or contribution hierarchy.
+- Every citation remains attached to a claim that the inspected source actually supports; unresolved citation-claim mappings are flagged rather than inferred.
 - Terminology, tone, and style are consistent with the existing English manuscript when one is provided.
 - Output format matches the user request or the mode-specific default.

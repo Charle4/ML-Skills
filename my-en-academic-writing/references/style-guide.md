@@ -141,6 +141,20 @@ When outputting LaTeX generated from plain text, escape special characters when 
 
 Do not escape characters inside existing mathematical expressions unless the expression itself requires it.
 
+### Structural and Evidence Integrity
+
+Apply these requirements in every drafting, rewriting, translation, and de-AI mode. Venue style may change presentation, but does not override them.
+
+- **Introduction depth:** preserve the full motivation chain from problem context to concrete difficulty, prior-work gap, insight, and contribution. Give each distinct stage enough explanation for a first-time reader. Do not collapse the Introduction into one or two abrupt paragraphs merely to sound concise, and do not force a fixed paragraph count when the argument needs a different shape.
+- **Notation and equation flow:** define every symbol before or at first use. Introduce each equation group with its purpose, keep related derivations together, and interpret what the group establishes before moving on. Avoid alternating a short prose fragment with an isolated display equation throughout the Method.
+- **Pseudocode economy:** add pseudocode only when it clarifies a nontrivial procedure, execution order, or reproducibility detail better than prose and equations. Do not create one block per module or restate a derivation as an algorithm.
+- **Logical form:** use bullets only for genuinely parallel, independently scannable items. Express causal, temporal, and progressive relations as connected prose or an explicitly ordered procedure. Do not format dependent reasoning as a flat list.
+- **Naming and emphasis:** assign one concise canonical name and, when needed, one abbreviation to each component. Define it once and reuse it exactly. Do not repeat desired properties as promotional modifiers, alternate long and short names, or add boldface to make module names appear important.
+- **AI-like language:** avoid ornamental semicolons and dashes, sentence-medial `therefore`/`thus`/`hence`, hollow transitions, and evaluative adverbs such as `elegantly` or `theoretically` when they merely praise the method. Use `theoretically` only for a real distinction between theoretical and empirical evidence.
+- **Section roles:** Method explains the proposed mechanism, formulation, and implementation. Put baseline positioning in Related Work and empirical comparison in Experiments unless a brief contrast is indispensable to define the method.
+- **Focus preservation:** preserve the manuscript's established problem and contribution hierarchy. Treat a local user-requested constraint as a local design requirement unless the provided scientific evidence establishes it as a central motivation. Do not rewrite the title, abstract, or global framing around a minor requested change.
+- **Citation entailment:** keep each citation attached to the claim it supports. Use a source only after inspecting evidence sufficient for that specific statement; a title, search snippet, neighboring citation, or another paper's summary is not enough. If the source is unavailable or the mapping is uncertain, mark the claim for verification rather than guessing, and do not move a citation to a newly rewritten claim by proximity alone.
+
 ## Editing Principles
 
 ### Preserve Meaning and Structure
@@ -338,6 +352,7 @@ Requirements:
 - Use present tense for what their results show.
 - Do not fabricate citations or bibliographic facts.
 - If exact citation details are missing and cannot be verified locally, mark them for verification rather than inventing.
+- Verify claim-citation entailment for every substantive characterization. Do not infer a method, result, limitation, or comparison from the title alone or copy another paper's citation pairing without checking the cited source.
 
 Paragraph pattern:
 
@@ -392,6 +407,8 @@ Style reminders:
 - Avoid `surprisingly`, `we find that`, and contribution language that reads like a machine learning conference abstract.
 - Keep claims bounded by theorem statements, assumptions, and experiments.
 - Explain notation before using it.
+- Group related equations into coherent derivations and add prose that states the purpose and interpretation of each group.
+- Use pseudocode only when it clarifies a nontrivial executable procedure beyond the equations.
 - Pair formal results with short intuition when possible.
 - Preserve theorem, lemma, proposition, proof, and equation environments.
 
@@ -427,6 +444,8 @@ Introduction structure:
 4. Contributions, usually 2-4 concrete items if the venue expects them.
 5. Strongest result preview.
 6. Optional roadmap.
+
+Treat these as argumentative stages, not a six-sentence or fixed-paragraph form. Expand the motivation and gap across enough paragraphs for a first-time reader to follow the narrowing without a jump.
 
 ### Systems Papers
 
@@ -772,3 +791,8 @@ Check every output against the following list:
 14. Applied mathematics text contains mathematical motivation and avoids ML-conference hype.
 15. Terminology, tone, and style are consistent with the existing English manuscript when one is provided.
 16. Output format exactly matches the user's requested or mode-specific format.
+17. Introduction motivation is complete; Method symbols are defined and equations form readable groups rather than isolated displays.
+18. Pseudocode, lists, and emphasis are necessary and structurally justified; dependent reasoning is not flattened into bullets.
+19. Component names and abbreviations are concise and consistent; Method does not contain avoidable baseline comparison.
+20. No local editing constraint has displaced the paper's established motivation or contribution hierarchy.
+21. Every substantive citation is supported by the inspected source and remains paired with the correct claim.

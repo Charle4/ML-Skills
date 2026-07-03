@@ -52,6 +52,8 @@ Tell Codex to read the draft file, the original text, and the plan, then review 
 - Claim-evidence mapping: does every claim in the text have a corresponding evidence anchor (theorem, experiment, citation)?
 - Cross-section consistency: do quantities, assumptions, and method names used in this section match the rest of the paper?
 - Argument logic: are there circular arguments, unsupported leaps, or redundant re-statements?
+- Structural integrity: is the Introduction motivation abruptly compressed; are symbols defined before use; are equation groups readable; are pseudocode, bullets, and emphasis necessary; does Method contain misplaced baseline comparison?
+- Focus and citation integrity: did the requested local edit change the paper's main motivation, and does every citation still support the exact claim attached to it?
 
 **Handling Codex output.** Codex routinely produces three types of feedback:
 
@@ -92,6 +94,7 @@ You own the final manuscript. After Stages 2 and 3:
 2. **LaTeX and convention check.** Verify that all LaTeX commands, equations, labels, references, and variable names survive intact. Verify formatting conventions match the style guide.
 3. **Linear read.** Read the final text as a reviewer who knows only what the paper has said so far. Check concept introduction order, transition coherence, and argument completeness.
 4. **Full-text consistency.** Verify terminology, notation, tense, and claim scope are consistent with the rest of the manuscript.
+5. **Integrity check.** Verify that local edits did not change the paper's center of gravity; every citation still entails its attached claim; Method contains coherent notation and equation flow; and no decorative pseudocode, bullets, boldface, semicolons, dashes, or evaluative adverbs were introduced.
 
 ### File-System Exchange Pattern
 
@@ -215,8 +218,10 @@ Write in standard academic English. Rules:
 - Forbidden words: burgeoning, pivotal, in the realm of, keen, adept, endeavor, uphold, imperative, profound, ponder, cultivate, hone, delve, embrace, pave, embark, encompass, monumental, scrutinize, vast, versatile, paramount, foster, necessitates.
 - Always use full forms: "it is", "he would" — never contractions.
 - No stylistic double quotes or dashes.
+- No ornamental semicolons or sentence-medial `therefore`/`thus`/`hence`; no evaluative `elegantly` or `theoretically` used as praise.
 - No unverified data or figures. No exaggeration or figurative language.
 - Use direct academic claims with concrete scope and evidence boundaries.
+- Do not add bullets, boldface, or promotional modifiers to component names.
 - Tense: past tense for what prior authors did and for completed experiment conclusions; present tense for algorithms, methods, and findings that hold generally.
 - Non-proper-noun technical terms are not capitalised in running text.
 ```
@@ -232,6 +237,10 @@ Editing constraints:
 - Introduce no new claims.
 - Never alter equations, labels, \cite, \eqref, \cref, variable names, or figure/table references.
 - Do not introduce unnecessary bullet points.
+- Keep the paper's established motivation and contribution hierarchy; a local requested constraint stays local.
+- Define symbols before use, keep equation groups coherent, and add pseudocode only for a nontrivial procedure.
+- Keep baseline comparison out of Method unless required to define the mechanism.
+- Preserve citation-claim pairings; do not infer support from titles, snippets, or neighboring citations.
 ```
 
 ### Block E — Polish / Refinement
@@ -255,6 +264,8 @@ Draft the following section from the outline or notes provided:
 - Each paragraph should have a clear topic sentence and logical internal structure.
 - Transitions between paragraphs must be explicit.
 - Do not introduce claims not implied by the source materials.
+- Give the motivation enough connected prose for a first-time reader; do not compress distinct Introduction stages into one or two abrupt paragraphs.
+- Use bullets only for parallel items and pseudocode only for a nontrivial procedure.
 ```
 
 ### Block G — Literature Review / Related Work
@@ -265,6 +276,7 @@ Summarise and synthesise the following references for a related work section:
 - Group related works thematically, not chronologically.
 - Clearly state where each prior approach falls short relative to the user's setting.
 - Do not editorialize. State limitations factually with citations.
+- Verify that each cited source supports the exact contribution, result, assumption, or limitation attributed to it. Mark unresolved mappings for verification instead of guessing.
 - Use past tense for what prior authors did; present tense for what their results show.
 ```
 
