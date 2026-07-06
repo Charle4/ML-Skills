@@ -20,6 +20,8 @@ RESULT_COLUMNS = [
     "status",
     "params",
     "hypothesis",
+    "expected_signal",
+    "rationale",
     "priority",
     "gpu_id",
     "primary_metric",
@@ -31,6 +33,7 @@ RESULT_COLUMNS = [
     "start_time",
     "end_time",
     "annotation",
+    "benchmark_status",
     "goal",
 ]
 
@@ -240,12 +243,50 @@ def default_loop_state() -> dict[str, Any]:
         "strategist_call_count": 0,
         "last_strategist_at": None,
         "agent_history": [],
+        "pending_benchmark_updates": {},
     }
 
 
-def terminal_version(status: str, primary_metric: str, annotation: str) -> str:
-    raw = f"{status}|{primary_metric}|{annotation}"
+def terminal_version(
+    status: str,
+    primary_metric: str,
+    annotation: str,
+    metrics: str = "",
+    metric_name: str = "",
+    gpu_id: str = "",
+    output_dir: str = "",
+    log_path: str = "",
+    command: str = "",
+) -> str:
+    raw = "|".join((
+        status, primary_metric, annotation, metrics, metric_name,
+        gpu_id, output_dir, log_path, command,
+    ))
     return hashlib.sha1(raw.encode("utf-8")).hexdigest()[:8]
+
+
+def row_terminal_version(row: dict[str, str]) -> str:
+    return terminal_version(
+        row.get("status", ""),
+        row.get("primary_metric", ""),
+        row.get("annotation", ""),
+        row.get("metrics", ""),
+        row.get("metric_name", ""),
+        row.get("gpu_id", ""),
+        row.get("output_dir", ""),
+        row.get("log_path", ""),
+        row.get("command", ""),
+    )
+
+
+def parse_id_selector(value: str, label: str) -> list[str]:
+    raw = value.strip()
+    if raw == "none":
+        return []
+    ids = [item.strip() for item in raw.split(",") if item.strip()]
+    if not ids or any(not item.isdigit() for item in ids) or len(ids) != len(set(ids)):
+        raise SystemExit(f"{label} must be `none` or unique comma-separated numeric run_ids.")
+    return ids
 
 
 def load_loop_state(session: Path) -> dict[str, Any]:
@@ -262,7 +303,7 @@ def load_loop_state(session: Path) -> dict[str, Any]:
         if row.get("status") in TERMINAL_STATUSES:
             rid = row.get("run_id", "")
             state["pending_runs"][rid] = {
-                "version": terminal_version(row.get("status", ""), row.get("primary_metric", ""), row.get("annotation", "")),
+                "version": row_terminal_version(row),
                 "added_at": now_iso(),
             }
     return state
@@ -321,14 +362,12 @@ def specific_process_pattern(session: Path) -> str | None:
 
 def is_quiescent(session: Path) -> bool:
     rows = read_rows(session / "results.csv")
-    if any(row.get("status") == "planned" for row in rows):
-        return False
-    if any(row.get("status") == "created" for row in rows):
+    if any(row.get("status") in {"planned", "created", "running"} for row in rows):
         return False
     pattern = specific_process_pattern(session)
     if pattern:
         return count_live_processes(pattern) == 0
-    return not any(row.get("status") == "running" for row in rows)
+    return True
 
 
 # ---------------------------------------------------------------------------
@@ -434,7 +473,7 @@ def compute_route(state: dict[str, Any], runtime: str, planned_count: int) -> di
         role, invocation, target = "primary", "resume", state["strategist_agent_id"]
     else:
         role, invocation, target = "primary", "fresh", None
-    verb = "SendMessage" if runtime == "claude" else "send_input"
+    verb = "SendMessage" if runtime == "claude" else "send_message/followup_task"
     if runtime == "claude":
         mode = "background" if invocation == "resume" else ("blocking" if planned_count == 0 else "background")
     else:
@@ -448,8 +487,12 @@ def verb_instruction(runtime: str, route: dict[str, Any]) -> str:
     mode = route["mode"]
     if runtime == "codex":
         if invocation == "resume":
-            return f"Call `send_input(target={target}, message=<payload>)`, then `wait_agent`."
-        return "Call `spawn_agent(message=<payload>, fork_context=true)` with the custom agent `experiment-strategist`."
+            return (
+                f"Inspect `{target}` with `list_agents`. If it is running, call "
+                f"`send_message(target={target}, message=<payload>)`; if it is idle, call "
+                f"`followup_task(target={target}, message=<payload>)`; then call `wait_agent`."
+            )
+        return "Call `spawn_agent(task_name=\"experiment_strategist\", message=<payload>, fork_turns=\"all\")`."
     if invocation == "resume":
         return (
             f"Call the tool literally named `SendMessage` (NOT the `Agent` tool) — "
@@ -458,16 +501,20 @@ def verb_instruction(runtime: str, route: dict[str, Any]) -> str:
             f"a new one and discards that context. Call `SendMessage` directly — it is a real, always-available tool, "
             f"not something to pre-clear: its absence from `ToolSearch` or from your visible toolset does NOT mean it "
             f"is unavailable; if its schema is not loaded, load it, then call it. The ONLY signal that resume failed "
-            f"is the call itself returning `success:false` (e.g. 'no transcript to resume'). Knowing the agent is from "
-            f"a dead prior conversation is NOT that signal — make the call and let it fail. Only on `success:false` "
-            f"fall back to `Agent(subagent_type=\"experiment-strategist\", prompt=<payload>, run_in_background=True)` "
-            f"and pass `--resume-failed` to strategist-return (which clears the dead id even with no replacement id)."
+            f"is the call itself returning `success:false` (e.g. 'no transcript to resume'). On that failure, close "
+            f"this resume transaction with `strategist-return --resume-failed --candidates-count 0 "
+            f"--benchmark-promotion-run-ids none --benchmark-reviewed-run-ids none`; the next begin fresh-spawns."
         )
     bg = "run_in_background=True" if mode == "background" else "run_in_background=False"
     return f'Call `Agent(subagent_type="experiment-strategist", prompt=<payload>, {bg})`.'
 
 
-def build_payload(session: Path, snapshot: dict[str, str]) -> list[str]:
+def build_payload(
+    session: Path,
+    snapshot: dict[str, str],
+    finished_evidence_snapshot: dict[str, str],
+    benchmark_pending_snapshot: dict[str, str],
+) -> list[str]:
     rows = {row["run_id"]: row for row in read_rows(session / "results.csv")}
     items = []
     for rid in sorted(snapshot, key=lambda x: int(x) if x.isdigit() else x):
@@ -477,11 +524,15 @@ def build_payload(session: Path, snapshot: dict[str, str]) -> list[str]:
         runs_str = ", ".join(items)
     else:
         runs_str = "(empty — session start / first call; Strategist skips observations and plans from session.md)"
-    return [
-        f"runs_since_last_strategist: [{runs_str}]",
+    lines = [f"runs_since_last_strategist: [{runs_str}]"]
+    pending_ids = list(benchmark_pending_snapshot)
+    if pending_ids:
+        lines.append(f"benchmark_pending_run_ids: {pending_ids}")
+    lines += [
         "plus session_path, project_root, experiment scripts, algorithm_context, current_free_slots, total_capacity,",
         "current_best — fill from the standard template in references/subagents.md (do not summarize results).",
     ]
+    return lines
 
 
 def render_branch(runtime: str, route: dict[str, Any]) -> str:
@@ -493,11 +544,6 @@ def render_branch(runtime: str, route: dict[str, Any]) -> str:
 
 
 def compute_next(state: dict[str, Any], runtime: str, planned_ids: list[int], free_slots: int, total_capacity: int, free_gpu_ids: list[str] | None = None) -> list[str]:
-    if state.get("exhaustion_confirmed"):
-        return [
-            "SESSION EXHAUSTED. Two independent contexts confirmed no further candidates while quiescent.",
-            "Nothing to launch or plan. If you judge this premature, explicitly run `aet.py strategist-begin` to form a fresh handshake.",
-        ]
     active = state.get("active_strategist_call")
     if active:
         age = minutes_since(active.get("started_at"))
@@ -507,10 +553,29 @@ def compute_next(state: dict[str, Any], runtime: str, planned_ids: list[int], fr
             target = "the subagent you spawned for this call (use the agent id from your spawn result, not any stored id)"
         return [
             f"Strategist call {active['call_id']} is OPEN ({active['role']}/{active['invocation']}, age {age}m). This means YOU still owe an `aet.py strategist-return` for it — it does NOT mean the subagent is still running. This script cannot see the subagent; only you can. Do NOT open another call.",
-            f"Determine the subagent's real state yourself (its completion notification / the agent panel / its task-output file). If it already returned, close the call now: `aet.py strategist-return --call-id {active['call_id']} --candidates-count K [--agent-id A]`.",
-            f"If you cannot find its output, re-request it by resuming {target} (Claude Code: the `SendMessage` tool; Codex: `send_input`). Do NOT abort just because a result is momentarily lost from your context.",
-            f"Use `aet.py strategist-abort --call-id {active['call_id']} --reason unreachable` ONLY if that resume itself returns `success:false` (the subagent is truly gone). Abort discards this call AND clears the agent id, losing the resume chain and the strategist's already-produced work.",
+            f"Determine the subagent's real state yourself (its completion notification / the agent panel / its task-output file). If it already returned, close the call now: `aet.py strategist-return --call-id {active['call_id']} --candidates-count K --benchmark-promotion-run-ids none|IDS --benchmark-reviewed-run-ids none|IDS [--agent-id A]`.",
+            f"If you cannot find its output, re-request it by resuming {target} (Claude Code: `SendMessage`; Codex: `send_message` while running or `followup_task` while idle). Do NOT abort just because a result is momentarily lost from your context.",
+            (
+                f"If this is a resume route and the resume call fails, close it with `aet.py strategist-return "
+                f"--call-id {active['call_id']} --candidates-count 0 --resume-failed "
+                f"--benchmark-promotion-run-ids none --benchmark-reviewed-run-ids none`; do not abort it. "
+                f"For a fresh call whose spawned subagent is truly unreachable, use `aet.py strategist-abort "
+                f"--call-id {active['call_id']} --reason unreachable`."
+            ),
             "Meanwhile keep recording completions; `aet.py record` auto-adds them to pending.",
+        ]
+    benchmark_debt = state.get("pending_benchmark_updates") or {}
+    if benchmark_debt:
+        ids = sorted(benchmark_debt, key=lambda x: int(x) if x.isdigit() else x)
+        provenance = [f"{rid}@{benchmark_debt[rid].get('call_id', '?')}" for rid in ids]
+        return [
+            f"APPLY BENCHMARK UPDATES for run_id@call_id {provenance}, then run "
+            f"`aet.py benchmark-ack --run-ids {','.join(ids)}` and re-run `aet.py loop-state`."
+        ]
+    if state.get("exhaustion_confirmed"):
+        return [
+            "SESSION EXHAUSTED. Two independent contexts confirmed no further candidates while quiescent.",
+            "Nothing to launch or plan. If you judge this premature, explicitly run `aet.py strategist-begin` to form a fresh handshake.",
         ]
     actions: list[str] = []
     ready = len(planned_ids)
@@ -526,6 +591,7 @@ def compute_next(state: dict[str, Any], runtime: str, planned_ids: list[int], fr
     if projected_ready < total_capacity:
         route = compute_route(state, runtime, projected_ready)
         actions.append(
+            f"projected_ready_after_launch={projected_ready} < total_capacity={total_capacity}: "
             f"run `aet.py strategist-begin`  ->  {render_branch(runtime, route)}"
         )
     if not actions:
@@ -619,8 +685,11 @@ def command_init(args: argparse.Namespace) -> None:
         you.append("1) set up the `CronCreate` keepalive now (before the first launch); see `references/claude-code-adapter.md`.")
     if not has_gpu_flags:
         you.append(f"{len(you) + 1}) set GPU policy: run `aet.py set-policy --gpu-ids ... --max-per-gpu ...` (else conservative 1/gpu default).")
-    you.append(f"{len(you) + 1}) fill `session.md`: Target & Constraints, Hypotheses & Coupled Parameters.")
-    you.append(f"{len(you) + 1}) planned queue empty -> run `aet.py strategist-begin` (do NOT hand-design the initial candidate set).")
+    you.append(
+        f"{len(you) + 1}) fill `session.md`: Target & Constraints, Evaluation Contract, "
+        "Hypotheses & Coupled Parameters."
+    )
+    you.append(f"{len(you) + 1}) planned queue empty -> run `aet.py strategist-begin` for the initial candidate set.")
     emit(
         ok=[f"session: {session}", "files: meta.json session.md results.csv loop_state.json runs/"],
         state=[f"objective: {args.objective} ({args.goal})  runtime: {args.runtime}  process_pattern: {pp}  gpu_policy: {'set' if has_gpu_flags else 'default (1/gpu)'}"],
@@ -730,6 +799,10 @@ def command_record(args: argparse.Namespace) -> None:
             "annotation": args.annotation or row.get("annotation", ""),
         }
     )
+    if args.status == "finished":
+        row["benchmark_status"] = "pending"
+    else:
+        row["benchmark_status"] = ""
     run_dir = session / "runs" / run_id
     run_dir.mkdir(parents=True, exist_ok=True)
     dump_json(run_dir / "metrics.json", metrics)
@@ -749,7 +822,7 @@ def command_record(args: argparse.Namespace) -> None:
         return
 
     state = load_loop_state(session)
-    version = terminal_version(row["status"], row["primary_metric"], row.get("annotation", ""))
+    version = row_terminal_version(row)
     existing = state["pending_runs"].get(run_id)
     if existing is None or existing.get("version") != version:
         state["pending_runs"][run_id] = {"version": version, "added_at": now_iso()}
@@ -762,20 +835,23 @@ def command_record(args: argparse.Namespace) -> None:
     state_lines = [f"pending_run_ids={pending_run_ids(state)}"]
     best = best_finished(session, meta.get("goal", "max"))
     if best:
-        tag = "  (NEW BEST)" if new_best else ""
+        tag = "  (PROVISIONAL NEW BEST)" if new_best else ""
         state_lines.append(f"best: run {best[0]} {best[1]}={best[2]}{tag}")
     you = [
         "1) NEXT COMMAND (required): run `aet.py loop-state` — it returns what to launch/plan next and is the loop's control-flow router.",
     ]
     if new_best:
-        you.append(f"{len(you) + 1}) NEW BEST: if the project tracks a benchmark/current-best table, update it.")
+        you.append(
+            f"{len(you) + 1}) PROVISIONAL NEW BEST: preserve all diagnostic evidence; update any "
+            "benchmark/current-best table only after the Strategist lists this run in benchmark_promotion_run_ids."
+        )
     active = state.get("active_strategist_call")
     if active:
         you.insert(
             0,
             f"OPEN DEBT: Strategist call {active['call_id']} is still open (age {minutes_since(active.get('started_at'))}m) — "
-            f"you owe `aet.py strategist-return --call-id {active['call_id']} --candidates-count K` once that subagent "
-            f"returns (resume it via the `SendMessage` tool / Codex `send_input` if you lost its output). Do NOT open another call.",
+            f"you owe `aet.py strategist-return --call-id {active['call_id']} --candidates-count K --benchmark-promotion-run-ids none|IDS --benchmark-reviewed-run-ids none|IDS` once that subagent "
+            f"returns (resume it via Claude Code `SendMessage` / Codex `send_message` or `followup_task` if you lost its output). Do NOT open another call.",
         )
     emit(
         ok=[f"run {run_id} -> {args.status}{metric_str}", "results.csv updated; pending += this run"],
@@ -790,6 +866,13 @@ def command_queue_add(args: argparse.Namespace) -> None:
     candidates = load_json_list_arg(args.candidates)
     if not candidates:
         raise SystemExit("No candidates provided. Pass a JSON array or a file path.")
+    for i, cand in enumerate(candidates):
+        if not isinstance(cand, dict):
+            raise SystemExit(f"Candidate {i} must be a JSON object.")
+        for field in ("expected_signal", "rationale"):
+            value = cand.get(field)
+            if not isinstance(value, str) or not value.strip():
+                raise SystemExit(f"Candidate {i} requires a non-empty `{field}`.")
     rows = read_rows(session / "results.csv")
     base_id = next_run_id(session)
     mapping = []
@@ -801,6 +884,8 @@ def command_queue_add(args: argparse.Namespace) -> None:
         row["status"] = "planned"
         row["params"] = json.dumps(cand.get("params", {}), ensure_ascii=False, sort_keys=True)
         row["hypothesis"] = cand.get("hypothesis", "")
+        row["expected_signal"] = cand.get("expected_signal", "")
+        row["rationale"] = cand.get("rationale", "")
         row["priority"] = str(cand.get("priority", 999))
         row["goal"] = meta.get("goal", "")
         rows.append(row)
@@ -854,6 +939,8 @@ def command_queue_list(args: argparse.Namespace) -> None:
             "run_id": rid,
             "queue_id": row.get("queue_id", ""),
             "hypothesis": row.get("hypothesis", ""),
+            "expected_signal": row.get("expected_signal", ""),
+            "rationale": row.get("rationale", ""),
             "params": row.get("params", ""),
             "priority": row.get("priority", ""),
         })
@@ -1075,7 +1162,9 @@ def quiescence_blockers(session: Path) -> list[str]:
 
 def command_gpu_slots(args: argparse.Namespace) -> None:
     session = None
-    if getattr(args, "session", None) or getattr(args, "project_root", None):
+    if getattr(args, "session", None):
+        session = require_session(args)
+    elif getattr(args, "project_root", None):
         try:
             session = require_session(args)
         except SystemExit:
@@ -1115,11 +1204,20 @@ def command_loop_state(args: argparse.Namespace) -> None:
     best_str = f"run {best[0]} {best[1]}={best[2]}" if best else "(none)"
     active = state.get("active_strategist_call")
     active_str = f"{active['call_id']} ({active['role']}/{active['invocation']}, age {minutes_since(active.get('started_at'))}m)" if active else "none"
-    gap = total_capacity - planned
+    projected_ready_after_launch = max(0, planned - min(free_slots, planned))
+    gap_after_launch = max(0, total_capacity - projected_ready_after_launch)
     state_lines = [
         f"objective: {meta.get('objective', '')}   best: {best_str}",
-        f"free_slots={free_slots}  total_capacity={total_capacity}  planned={planned}  gap={gap if gap > 0 else 0}",
+        f"free_slots={free_slots}  total_capacity={total_capacity}  planned={planned}  "
+        f"projected_ready_after_launch={projected_ready_after_launch}  gap_after_launch={gap_after_launch}",
         f"pending_run_ids={pending_run_ids(state)}",
+        "benchmark_pending_run_ids=" + str([
+            row.get("run_id", "") for row in read_rows(session / "results.csv")
+            if row.get("benchmark_status") == "pending"
+        ]),
+        "pending_benchmark_updates=" + json.dumps(
+            state.get("pending_benchmark_updates") or {}, ensure_ascii=False, sort_keys=True
+        ),
         f"strategist_agent_id={state.get('strategist_agent_id')}  active_call={active_str}  pending_exhaustion={state.get('pending_exhaustion_confirmation')}  exhaustion_confirmed={state.get('exhaustion_confirmed', False)}",
     ]
     ok_lines = [f"session: {session}  runtime: {runtime}"]
@@ -1158,14 +1256,32 @@ def command_strategist_begin(args: argparse.Namespace) -> None:
             ok=[f"REFUSED: Strategist call {active['call_id']} already open ({active['role']}/{active['invocation']})."],
             you=[
                 f"You still owe an `aet.py strategist-return` for it — an open call is NOT evidence the subagent is still running. Check its real state; if it already returned: `aet.py strategist-return --call-id {active['call_id']} ...`",
-                f"if its output is merely lost, resume that subagent to re-request it; use `aet.py strategist-abort --call-id {active['call_id']} --reason unreachable` ONLY if that resume returns `success:false`.",
+                f"if its output is lost, resume that subagent to re-request it. On a resume-route failure, close with `aet.py strategist-return --call-id {active['call_id']} --candidates-count 0 --resume-failed --benchmark-promotion-run-ids none --benchmark-reviewed-run-ids none`; reserve strategist-abort for a fresh call whose spawned subagent is truly unreachable.",
                 "Do NOT open a second call.",
+            ],
+        )
+        raise SystemExit(1)
+
+    benchmark_debt = state.get("pending_benchmark_updates") or {}
+    if benchmark_debt:
+        ids = sorted(benchmark_debt, key=lambda x: int(x) if x.isdigit() else x)
+        emit(
+            ok=[f"REFUSED: pending benchmark updates must be applied before another Strategist call: {ids}"],
+            you=[
+                f"Update the project benchmark/current-best tables, run `aet.py benchmark-ack --run-ids {','.join(ids)}`, then re-run strategist-begin."
             ],
         )
         raise SystemExit(1)
 
     if state.get("exhaustion_confirmed"):
         state["exhaustion_confirmed"] = False
+        save_loop_state(session, state)
+
+    recovered_missing_primary = False
+    if state.get("pending_exhaustion_confirmation") and not state.get("strategist_agent_id"):
+        # A pending confirmation requires a recorded Primary id for the independence check.
+        state["pending_exhaustion_confirmation"] = False
+        recovered_missing_primary = True
         save_loop_state(session, state)
 
     planned = count_planned(session)
@@ -1177,12 +1293,23 @@ def command_strategist_begin(args: argparse.Namespace) -> None:
     state["strategist_call_count"] = state.get("strategist_call_count", 0) + 1
     call_id = f"strat-{state['strategist_call_count']:04d}"
     snapshot = {rid: meta_v["version"] for rid, meta_v in state["pending_runs"].items()}
+    rows = read_rows(session / "results.csv")
+    finished_evidence_snapshot = {
+        row.get("run_id", ""): row_terminal_version(row)
+        for row in rows if row.get("status") == "finished"
+    }
+    benchmark_pending_snapshot = {
+        row.get("run_id", ""): row_terminal_version(row)
+        for row in rows if row.get("status") == "finished" and row.get("benchmark_status") == "pending"
+    }
     state["active_strategist_call"] = {
         "call_id": call_id,
         "role": route["role"],
         "invocation": route["invocation"],
         "target_agent_id": route["target_agent_id"],
         "snapshot": snapshot,
+        "finished_evidence_snapshot": finished_evidence_snapshot,
+        "benchmark_pending_snapshot": benchmark_pending_snapshot,
         "started_at": now_iso(),
         "planned_count_at_call": planned,
         "free_slots_at_call": free_slots,
@@ -1191,13 +1318,19 @@ def command_strategist_begin(args: argparse.Namespace) -> None:
     save_loop_state(session, state)
 
     you = [f"[{runtime}] {render_branch(runtime, route)}", verb_instruction(runtime, route), "payload:"]
-    you += ["  " + line for line in build_payload(session, snapshot)]
+    you += ["  " + line for line in build_payload(
+        session, snapshot, finished_evidence_snapshot, benchmark_pending_snapshot
+    )]
     you.append(
         f"on return: run `aet.py strategist-return --call-id {call_id} --candidates-count K "
-        "[--agent-id A] [--observations-present] [--queue-edits-present] [--stop-update-present]`"
+        "[--agent-id A] [--observations-present] [--reusable-rules-present] [--queue-edits-present] "
+        "[--stop-update-present] --benchmark-promotion-run-ids none|IDS "
+        "--benchmark-reviewed-run-ids none|IDS`"
     )
     you.append(f"do NOT open another call while {call_id} is active.")
     ok_lines = [f"call opened: {call_id}  role={route['role']}  invocation={route['invocation']}  snapshot={pending_run_ids(state) or '[]'}"]
+    if recovered_missing_primary:
+        ok_lines.append("incomplete exhaustion handshake reset: Primary agent id was absent; this call is a fresh Primary")
     emit(
         ok=ok_lines,
         state=[f"target_agent={route['target_agent_id'] or '(none)'}  mode={route['mode']}  free_slots={free_slots}  total_capacity={total_capacity}"],
@@ -1220,20 +1353,110 @@ def command_strategist_return(args: argparse.Namespace) -> None:
     role = active["role"]
     invocation = active["invocation"]
     prior_agent_id = state.get("strategist_agent_id")
+    candidates = args.candidates_count
+    quiescent = is_quiescent(session)
+    if candidates < 0:
+        emit(ok=["REFUSED: --candidates-count must be >= 0."], you=["Correct the count; this call remains open."])
+        raise SystemExit(1)
+    promotion_ids = parse_id_selector(args.benchmark_promotion_run_ids, "--benchmark-promotion-run-ids")
+    reviewed_ids = parse_id_selector(args.benchmark_reviewed_run_ids, "--benchmark-reviewed-run-ids")
+    if invocation == "fresh" and not args.agent_id:
+        emit(
+            ok=["REFUSED: every fresh Strategist return requires `--agent-id`."],
+            you=["Re-run strategist-return with the id from the fresh spawn; this call remains open."],
+        )
+        raise SystemExit(1)
+    if args.resume_failed:
+        invalid_cleanup = (
+            invocation != "resume"
+            or candidates != 0
+            or args.agent_id is not None
+            or args.benchmark_promotion_run_ids != "none"
+            or args.benchmark_reviewed_run_ids != "none"
+            or args.observations_present
+            or args.reusable_rules_present
+            or args.queue_edits_present
+            or args.stop_update_present
+        )
+        if invalid_cleanup:
+            emit(
+                ok=["REFUSED: --resume-failed is pure cleanup for a resume call only."],
+                you=[
+                    "Use candidates-count=0, both benchmark selectors=`none`, no agent id, and no presence flags; this call remains open."
+                ],
+            )
+            raise SystemExit(1)
+    elif invocation == "resume" and args.agent_id and args.agent_id != prior_agent_id:
+        emit(
+            ok=[f"REFUSED: resume return agent id {args.agent_id} differs from stored id {prior_agent_id}."],
+            you=["Resume the stored strategist; this call remains open."],
+        )
+        raise SystemExit(1)
+    if role == "confirmer":
+        if not prior_agent_id:
+            emit(
+                ok=["REFUSED: cannot verify confirmer independence because the Primary agent id is absent."],
+                you=["Keep this call open and restore/provide the Primary identity before closing the confirmer transaction."],
+            )
+            raise SystemExit(1)
+        if args.agent_id == prior_agent_id:
+            emit(
+                ok=[f"REFUSED: confirmer agent id {args.agent_id} equals Primary agent id; contexts are not independent."],
+                you=["Use a fresh independent confirmer and re-run strategist-return with its distinct agent id."],
+            )
+            raise SystemExit(1)
+    elif candidates == 0 and quiescent and not (args.agent_id or prior_agent_id):
+        emit(
+            ok=["REFUSED: a quiescent zero-candidate Primary return requires an agent id for later independence checking."],
+            you=["Re-run strategist-return with `--agent-id` from the Primary spawn result."],
+        )
+        raise SystemExit(1)
+    overlap = sorted(set(promotion_ids) & set(reviewed_ids))
+    if overlap:
+        raise SystemExit(f"Benchmark run_ids cannot be both promoted and reviewed/rejected: {overlap}")
+    finished_evidence_snapshot = active.get("finished_evidence_snapshot", {})
+    benchmark_pending_snapshot = active.get("benchmark_pending_snapshot", {})
+    rows_by_id = {row.get("run_id", ""): row for row in read_rows(session / "results.csv")}
+    invalid_promotions = [
+        rid for rid in promotion_ids
+        if (
+            rid not in finished_evidence_snapshot
+            or rid not in rows_by_id
+            or rows_by_id[rid].get("status") != "finished"
+            or row_terminal_version(rows_by_id[rid]) != finished_evidence_snapshot[rid]
+        )
+    ]
+    invalid_reviews = [
+        rid for rid in reviewed_ids
+        if (
+            rid not in benchmark_pending_snapshot
+            or rid not in rows_by_id
+            or rows_by_id[rid].get("benchmark_status") != "pending"
+            or row_terminal_version(rows_by_id[rid]) != benchmark_pending_snapshot[rid]
+        )
+    ]
+    if invalid_promotions or invalid_reviews:
+        emit(
+            ok=[
+                "REFUSED: benchmark decisions must reference unchanged evidence from this call's snapshots; "
+                f"invalid_promotions={invalid_promotions} invalid_reviews={invalid_reviews}."
+            ],
+            you=["Correct both benchmark selectors and re-run strategist-return; this call remains open."],
+        )
+        raise SystemExit(1)
     snapshot = active.get("snapshot", {})
+    pure_resume_cleanup = role != "confirmer" and args.resume_failed and not args.agent_id
     cleared = []
-    for rid, version in snapshot.items():
-        current = state["pending_runs"].get(rid)
-        if current and current.get("version") == version:
-            del state["pending_runs"][rid]
-            cleared.append(rid)
+    if not pure_resume_cleanup:
+        for rid, version in snapshot.items():
+            current = state["pending_runs"].get(rid)
+            if current and current.get("version") == version:
+                del state["pending_runs"][rid]
+                cleared.append(rid)
     state["active_strategist_call"] = None
 
-    candidates = args.candidates_count
     exhaustion = candidates == 0
-    quiescent = is_quiescent(session)
     flag = None
-    substituted = False
 
     if role == "confirmer":
         if candidates > 0:
@@ -1241,33 +1464,27 @@ def command_strategist_return(args: argparse.Namespace) -> None:
             state["pending_exhaustion_confirmation"] = False
             flag = "CONFIRMER_OVERTURNED"
         elif candidates == 0 and exhaustion and quiescent:
+            if args.agent_id:
+                history_append(state, args.agent_id, "confirmed_exhaustion")
             state["pending_exhaustion_confirmation"] = False
             flag = "CONFIRMED_EXHAUSTION"
         else:
+            if args.agent_id:
+                history_append(state, args.agent_id, "confirmer_not_quiescent")
             state["pending_exhaustion_confirmation"] = False
             flag = "CONFIRMATION_NOT_QUIESCENT"
     else:
         # Pure cleanup: a resume failed and no replacement was spawned. The candidate count is a
         # placeholder, not a strategist result, so it must not feed the exhaustion handshake.
-        pure_resume_cleanup = args.resume_failed and not args.agent_id
         if args.resume_failed:
-            # The resume tool returned success:false — the prior agent is genuinely gone.
-            # Forget it whether or not a replacement was spawned: with --agent-id (a fresh
-            # strategist already spawned) record it; without it, clear the id so the next
-            # strategist-begin routes a fresh spawn instead of re-resuming the same corpse.
-            if args.agent_id:
-                maybe_update_primary_id(state, args.agent_id, "resume_failed")
-            elif prior_agent_id is not None:
+            if prior_agent_id is not None:
                 state["strategist_agent_id"] = None
                 history_append(state, "(cleared)", "resume_failed")
         elif args.agent_id:
             if invocation == "fresh":
                 reason = "first_spawn"
             else:
-                # Resume route but a new agent id came back with no asserted failure: the parent
-                # Agent-spawned a fresh strategist instead of resuming via SendMessage, losing context.
-                reason = "fresh_substituted"
-                substituted = args.agent_id != prior_agent_id
+                reason = "resume_confirmed"
             maybe_update_primary_id(state, args.agent_id, reason)
         if pure_resume_cleanup:
             pass
@@ -1281,46 +1498,96 @@ def command_strategist_return(args: argparse.Namespace) -> None:
             flag = "EXHAUSTION_NOT_QUIESCENT"
         else:
             state["pending_exhaustion_confirmation"] = False
+    benchmark_cleared = []
+    if not pure_resume_cleanup:
+        rows = read_rows(session / "results.csv")
+        clear_set = set(promotion_ids) | set(reviewed_ids)
+        for row in rows:
+            rid = row.get("run_id", "")
+            if rid not in clear_set or rid not in benchmark_pending_snapshot:
+                continue
+            if (
+                row.get("benchmark_status") == "pending"
+                and row_terminal_version(row) == benchmark_pending_snapshot[rid]
+            ):
+                row["benchmark_status"] = ""
+                benchmark_cleared.append(rid)
+        write_rows(session / "results.csv", rows)
+    benchmark_debt = state.setdefault("pending_benchmark_updates", {})
+    benchmark_debt_added = []
+    if not pure_resume_cleanup:
+        for rid in promotion_ids:
+            if rid not in benchmark_debt:
+                row = rows_by_id[rid]
+                benchmark_debt[rid] = {
+                    "call_id": args.call_id,
+                    "terminal_version": finished_evidence_snapshot[rid],
+                    "metric_name": row.get("metric_name", ""),
+                    "primary_metric": row.get("primary_metric", ""),
+                    "output_dir": row.get("output_dir", ""),
+                    "log_path": row.get("log_path", ""),
+                    "added_at": now_iso(),
+                }
+                benchmark_debt_added.append(rid)
     save_loop_state(session, state)
 
     ok = [f"call {args.call_id} closed  cleared={cleared or '[]'}  pending now={pending_run_ids(state)}"]
-    if args.agent_id:
+    if not pure_resume_cleanup:
+        deferred_ids = sorted(set(benchmark_pending_snapshot) - set(benchmark_cleared))
+        ok.append(
+            f"benchmark markers: cleared={benchmark_cleared or '[]'} deferred={deferred_ids or '[]'}"
+        )
+        if promotion_ids:
+            ok.append(
+                f"benchmark update debt: pending={promotion_ids} newly_added={benchmark_debt_added or '[]'}"
+            )
+    if role == "confirmer" and candidates == 0 and args.agent_id:
+        ok.append(
+            f"confirmer_agent_id={args.agent_id} recorded; primary strategist_agent_id="
+            f"{state.get('strategist_agent_id')} unchanged"
+        )
+    elif args.agent_id:
         ok.append(f"strategist_agent_id={state.get('strategist_agent_id')} ({role})")
     elif args.resume_failed and role != "confirmer" and state.get("strategist_agent_id") is None:
         ok.append("strategist_agent_id cleared (resume_failed, no replacement); the next `aet.py strategist-begin` will fresh-spawn")
-    if substituted:
-        ok.append(
-            "WARNING: a resume route returned a NEW agent id without `--resume-failed`. The existing strategist was "
-            "NOT resumed via the resume tool (`SendMessage` on Claude Code / `send_input` on Codex); a fresh one was "
-            "spawned instead, so its accumulated context is lost. If the resume genuinely failed (the resume tool "
-            "returned `success:false`), re-run with `--resume-failed`. Otherwise next cycle resume with the resume "
-            "tool, not a fresh spawn."
-        )
     state_lines = [f"candidates={candidates}  quiescent={quiescent}  pending_exhaustion={state.get('pending_exhaustion_confirmation')}"]
-
-    if flag == "CONFIRMED_EXHAUSTION":
-        state["exhaustion_confirmed"] = True
-        save_loop_state(session, state)
-        state_lines.append("CONFIRMED_EXHAUSTION (two independent quiescent 0-candidate signals agree)")
-        you = [
-            "Exhaustion confirmed by independent contexts. YOU own the final stop:",
-            "verify target/budget genuinely unmet -> write `## Final Analysis` to `session.md` -> run `aet.py summarize` -> cancel keepalive (Claude Code) or end supervision (Codex).",
-            "If you judge it premature you may continue; the next `aet.py strategist-begin` forms a fresh handshake.",
-        ]
-        emit(ok=ok, state=state_lines, you=you)
-        return
 
     you = []
     step = 1
     if candidates > 0:
         you.append(f"{step}) run `aet.py queue-add --candidates '<JSON array or file path>'` to register {candidates} candidate(s)")
         step += 1
-    if args.stop_update_present or args.observations_present:
-        you.append(f"{step}) update `session.md`: overwrite Current Analysis, append Reusable Rules, overwrite Stop/Continue Rule as needed.")
+    if args.observations_present:
+        you.append(f"{step}) overwrite `session.md` Current Analysis with returned observations.")
+        step += 1
+    if args.reusable_rules_present:
+        you.append(f"{step}) append returned reusable rules to `session.md` Reusable Rules.")
+        step += 1
+    if args.stop_update_present:
+        you.append(f"{step}) overwrite `session.md` Stop/Continue Rule with the returned update.")
         step += 1
     if args.queue_edits_present:
         you.append(f"{step}) apply Queue Edits: `aet.py queue-drop --run-ids <ids> --reason '<reason>'` for invalidated candidates")
         step += 1
+    if promotion_ids:
+        you.append(
+            f"{step}) update project benchmark/current-best tables only for promoted run_id(s): {', '.join(promotion_ids)}"
+        )
+        step += 1
+        you.append(
+            f"{step}) after those project-table writes succeed, run `aet.py benchmark-ack --run-ids {','.join(promotion_ids)}`"
+        )
+        step += 1
+    if flag == "CONFIRMED_EXHAUSTION":
+        state["exhaustion_confirmed"] = True
+        save_loop_state(session, state)
+        state_lines.append("CONFIRMED_EXHAUSTION (two independent quiescent 0-candidate signals agree)")
+        you.extend([
+            f"{step}) exhaustion confirmed by independent contexts: verify target/budget genuinely unmet, then write `## Final Analysis` to `session.md` and run `aet.py summarize`.",
+            f"{step + 1}) cancel keepalive (Claude Code) or end supervision (Codex). If you continue, the next `aet.py strategist-begin` forms a fresh handshake.",
+        ])
+        emit(ok=ok, state=state_lines, you=you)
+        return
     if flag == "CONFIRMER_OVERTURNED":
         state_lines.append("confirmer returned candidates, overturning the exhaustion signal; promoted to Primary")
     elif flag == "PRIMARY_EXHAUSTION_PENDING":
@@ -1344,20 +1611,6 @@ def command_strategist_abort(args: argparse.Namespace) -> None:
     state = load_loop_state(session)
     active = state.get("active_strategist_call")
     if not active or active["call_id"] != args.call_id:
-        # No matching open call. Still honor a pure agent-id reset: on a new-conversation
-        # recovery, loop_state.json may hold a strategist_agent_id whose subagent died with the
-        # prior conversation while no call is open. `--reason unreachable` clears it so the next
-        # strategist-begin fresh-spawns instead of routing resume to a corpse.
-        if args.reason == "unreachable" and state.get("strategist_agent_id"):
-            prior = state["strategist_agent_id"]
-            state["strategist_agent_id"] = None
-            history_append(state, "(cleared)", "abort_unreachable_reset")
-            save_loop_state(session, state)
-            emit(
-                ok=[f"no open call; cleared stale strategist_agent_id={prior} (unreachable reset)"],
-                you=["the next `aet.py strategist-begin` will fresh-spawn."],
-            )
-            return
         emit(
             ok=[f"REFUSED: no active call matching {args.call_id}. Current active: {active['call_id'] if active else '(none)'}."],
             you=["Inspect with `aet.py loop-state`."],
@@ -1375,6 +1628,55 @@ def command_strategist_abort(args: argparse.Namespace) -> None:
     emit(
         ok=ok,
         you=["pending runs were kept. Re-open with `aet.py strategist-begin` when ready."],
+    )
+
+
+def command_benchmark_ack(args: argparse.Namespace) -> None:
+    session = require_session(args)
+    run_ids = [item.strip() for item in args.run_ids.split(",") if item.strip()]
+    if not run_ids or any(not item.isdigit() for item in run_ids) or len(run_ids) != len(set(run_ids)):
+        raise SystemExit("--run-ids requires unique comma-separated numeric run_ids.")
+    state = load_loop_state(session)
+    debt = state.get("pending_benchmark_updates") or {}
+    missing = [rid for rid in run_ids if rid not in debt]
+    if missing:
+        emit(
+            ok=[f"REFUSED: run_id(s) have no pending benchmark-update debt: {missing}"],
+            you=["Acknowledge only ids shown by `aet.py loop-state` after their project-table writes succeed."],
+        )
+        raise SystemExit(1)
+    rows = read_rows(session / "results.csv")
+    rows_by_id = {row.get("run_id", ""): row for row in rows}
+    stale = []
+    for rid in run_ids:
+        row = rows_by_id.get(rid)
+        approved_version = debt[rid].get("terminal_version")
+        if not row or row.get("status") != "finished" or row_terminal_version(row) != approved_version:
+            stale.append(rid)
+    if stale:
+        requeued = []
+        for rid in stale:
+            row = rows_by_id.get(rid)
+            debt.pop(rid, None)
+            if row and row.get("status") == "finished":
+                row["benchmark_status"] = "pending"
+                requeued.append(rid)
+        write_rows(session / "results.csv", rows)
+        state["pending_benchmark_updates"] = debt
+        save_loop_state(session, state)
+        emit(
+            ok=[f"REFUSED: approved evidence changed before acknowledgement; stale debt removed={stale}, requeued_pending={requeued}"],
+            state=[f"pending_benchmark_updates={json.dumps(debt, ensure_ascii=False, sort_keys=True)}"],
+            you=["Run `aet.py loop-state`; changed finished evidence must pass Benchmark Review again."],
+        )
+        raise SystemExit(1)
+    acknowledged = {rid: debt.pop(rid) for rid in run_ids}
+    state["pending_benchmark_updates"] = debt
+    save_loop_state(session, state)
+    emit(
+        ok=[f"benchmark updates acknowledged: {json.dumps(acknowledged, ensure_ascii=False, sort_keys=True)}"],
+        state=[f"pending_benchmark_updates={json.dumps(debt, ensure_ascii=False, sort_keys=True)}"],
+        you=["run `aet.py loop-state` to resume routed work."],
     )
 
 
@@ -1399,6 +1701,13 @@ def command_summarize(args: argparse.Namespace) -> None:
     for row in rows:
         status_counts[row.get("status", "")] = status_counts.get(row.get("status", ""), 0) + 1
     print("statuses: " + json.dumps(status_counts, ensure_ascii=False, sort_keys=True))
+    print("benchmark_pending: " + json.dumps([
+        row.get("run_id", "") for row in rows if row.get("benchmark_status") == "pending"
+    ]))
+    state = load_loop_state(session)
+    print("pending_benchmark_updates: " + json.dumps(
+        state.get("pending_benchmark_updates") or {}, ensure_ascii=False, sort_keys=True
+    ))
     hint = reconcile_hint(session)
     if hint:
         print(hint)
@@ -1467,7 +1776,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--log-path")
     p.set_defaults(func=command_create_run)
 
-    p = sub.add_parser("record", help="Record a status/metric change. running after launch; finished/failed/inconclusive on completion. Terminal records add to pending + flag NEW BEST.")
+    p = sub.add_parser("record", help="Record a status/metric change. Terminal records add analysis evidence; every finished record sets benchmark_status=pending, and a numeric best is flagged provisional.")
     p.add_argument("--session")
     p.add_argument("--project-root", default=".")
     p.add_argument("--run-id", type=int, required=True)
@@ -1515,32 +1824,41 @@ def build_parser() -> argparse.ArgumentParser:
     add_policy_flags(p, include_process_pattern=True)
     p.set_defaults(func=command_strategist_begin)
 
-    p = sub.add_parser("strategist-return", help="Close the transaction after the subagent returns: clears the snapshot, records agent id, applies the exhaustion handshake. Presence flags gate the YOU doc reminders.")
+    p = sub.add_parser("strategist-return", help="Close the transaction after the subagent returns: version-clears the run and benchmark snapshots, records agent id, applies the exhaustion handshake, and prints gated YOU obligations. Both benchmark selectors are required; pass `none` explicitly when a section has no ids.")
     p.add_argument("--session")
     p.add_argument("--project-root", default=".")
     p.add_argument("--call-id", required=True)
-    p.add_argument("--candidates-count", type=int, required=True, help="Number of candidates the Strategist returned; exhaustion is derived from 0")
-    p.add_argument("--agent-id", help="Subagent id from the spawn result; on fresh spawn or fallback this updates strategist_agent_id. On a successful resume pass the same id (or omit) — a NEW id on a resume route triggers the substitution warning")
-    p.add_argument("--resume-failed", action="store_true", help="Set ONLY when a resume route's SendMessage/send_input actually returned failure (e.g. no transcript to resume). Forgets the dead agent: with --agent-id it records the replacement you spawned; without --agent-id it clears strategist_agent_id so the next strategist-begin fresh-spawns. Suppresses the substitution warning")
+    p.add_argument("--candidates-count", type=int, required=True, help="Non-negative number of candidates returned; exhaustion is derived from 0")
+    p.add_argument("--agent-id", help="Required for every fresh invocation. On a successful resume, pass the same stored id or omit it")
+    p.add_argument("--resume-failed", action="store_true", help="Pure cleanup after an actual resume-call failure. Valid only for invocation=resume with candidates-count=0, both benchmark selectors=none, no agent id, and no presence flags. Preserves pending evidence and makes the next begin fresh-spawn")
     p.add_argument("--observations-present", action="store_true", help="Strategist returned observations_to_append")
+    p.add_argument("--reusable-rules-present", action="store_true", help="Strategist returned reusable_rules_to_append")
     p.add_argument("--queue-edits-present", action="store_true", help="Strategist returned Queue Edits")
     p.add_argument("--stop-update-present", action="store_true", help="Strategist returned a Stop/Continue Rule update")
+    p.add_argument("--benchmark-promotion-run-ids", required=True, help="`none` or comma-separated finished run_ids promoted from this call's evidence snapshot")
+    p.add_argument("--benchmark-reviewed-run-ids", required=True, help="`none` or comma-separated pending run_ids reviewed/rejected in this call; unlisted pending ids remain deferred")
     p.set_defaults(func=command_strategist_return)
 
-    p = sub.add_parser("strategist-abort", help="Last resort when the subagent is truly gone (spawn failed / resume returned success:false / cancelled). An open call is not proof the subagent died — return it if it finished, or resume to re-request first. Clears the active call (and the agent id) but KEEPS pending runs. With no open call, `--reason unreachable` still clears a stale strategist_agent_id (new-conversation recovery reset).")
+    p = sub.add_parser("benchmark-ack", help="Acknowledge durable benchmark-update debt only after the promoted run_ids have been written to the project benchmark/current-best tables.")
+    p.add_argument("--session")
+    p.add_argument("--project-root", default=".")
+    p.add_argument("--run-ids", required=True, help="Unique comma-separated run_ids shown under pending_benchmark_updates")
+    p.set_defaults(func=command_benchmark_ack)
+
+    p = sub.add_parser("strategist-abort", help="Last resort for an OPEN fresh call when spawning failed, the spawned subagent is truly unreachable, or the call was cancelled. A failed resume route closes through strategist-return --resume-failed. Clears the active call (and the agent id) but KEEPS pending runs.")
     p.add_argument("--session")
     p.add_argument("--project-root", default=".")
     p.add_argument("--call-id", required=True)
     p.add_argument("--reason", choices=["spawn_failed", "unreachable", "cancelled"], required=True)
     p.set_defaults(func=command_strategist_abort)
 
-    p = sub.add_parser("status", help="Print session path, objective, run/status counts, and current best finished result.")
+    p = sub.add_parser("status", help="Print session path, objective, run/status counts, current best, and pending benchmark-review run_ids.")
     p.add_argument("--project-root", default=".")
     p.add_argument("--session")
     p.add_argument("--goal", choices=["max", "min"])
     p.set_defaults(func=command_summarize)
 
-    p = sub.add_parser("summarize", help="Same as status; run alongside the Session Final Analysis at stop time.")
+    p = sub.add_parser("summarize", help="Same as status; includes pending benchmark-review run_ids and accompanies the Session Final Analysis.")
     p.add_argument("--project-root", default=".")
     p.add_argument("--session")
     p.add_argument("--goal", choices=["max", "min"])

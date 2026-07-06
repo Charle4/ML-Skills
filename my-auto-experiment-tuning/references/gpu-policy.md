@@ -1,6 +1,6 @@
 # GPU Slot Policy
 
-Slot defaults, the override-priority chain, the runtime slot check, and the `total_capacity` definition are in `references/workflow.md` section 6. This file holds the override configuration tables and the conditions for running more than one experiment per GPU.
+Read this file at session start after [workflow.md](workflow.md). Persist the selected GPU policy and apply the multi-run conditions below.
 
 ## Configurable Parameters
 
@@ -16,6 +16,8 @@ Users and project adapters can provide any of the following overrides:
 
 If the user says "use GPU 2 and 3, up to 2 jobs each", persist it once with `aet.py set-policy --gpu-ids 2,3 --max-per-gpu 2` (or pass the same flags to `aet.py init`). It is stored in `meta.json` `gpu_policy`, and `gpu-slots` / `loop-state` / `strategist-begin` all read that one stored policy, so capacity is computed consistently across commands.
 
+Treat the GPU-id list printed by `loop-state` as slot occurrences. When `max_per_gpu > 1`, the same GPU id may appear more than once; assign one routed run to each occurrence.
+
 ## CLI Mapping
 
 Persist limits once via `aet.py set-policy` (or `init`); the flags below are also accepted as one-off overrides on `aet.py gpu-slots`. Do not add project-specific method names to the helper script. Use `--kind default|light|heavy` only for generic estimates when no policy is stored.
@@ -23,7 +25,7 @@ Persist limits once via `aet.py set-policy` (or `init`); the flags below are als
 | Policy setting | `aet.py gpu-slots` flag |
 |---|---|
 | `gpu_ids: [0, 1, 3]` | `--gpu-ids 0,1,3` |
-| `max_per_gpu: 2` | `--capacity 2` |
+| `max_per_gpu: 2` | `--max-per-gpu 2` |
 | `max_util: 80%` | `--max-util 80` |
 | "util unlimited" / "util 无限制" | `--max-util 101` (> 100 disables the ceiling entirely) |
 | `max_memory_used_mb: 70000` | `--max-memory-used-mb 70000` |

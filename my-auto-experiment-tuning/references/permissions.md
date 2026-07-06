@@ -6,7 +6,7 @@ Read this file only when running under an approval-gated sandbox (not full auto/
 
 A skill cannot grant filesystem, network, GPU, or shell permissions by itself. It only tells you how to work. Actual permission decisions still come from the active sandbox, the approval policy, and the user's approved command-prefix rules (Codex sandbox/approval policy, or Claude Code allow/deny rules in settings.json).
 
-If a command is blocked, the agent must request escalation once with a narrowly scoped prefix rule. After the user approves that prefix, later matching commands can run without repeated interruption.
+If a command is blocked, request escalation once with a narrowly scoped prefix rule. After approval, later matching commands can run without repeated interruption.
 
 ## Command Shape and Prefix Hygiene
 

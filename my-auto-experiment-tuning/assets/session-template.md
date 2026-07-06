@@ -15,9 +15,20 @@
 - Compute budget:
 - GPU parallelism: (authoritative policy is script-owned in `meta.json`; set with `aet.py set-policy`)
 - GPU slots / total_capacity: read `aet.py gpu-slots` or `aet.py loop-state` (live)
-- Queue invariant: keep `planned` count at or above total_capacity whenever useful unexplored regions remain. Run the Strategist transaction whenever count drops below total_capacity.
+- Queue invariant: keep `projected_ready_after_launch = planned_count - min(free_slots, planned_count)` at or above total_capacity whenever useful unexplored regions remain. Follow `aet.py loop-state` whenever the projected count is below total_capacity.
 - Invalid or untrusted conditions:
 - Forbidden parameter regions:
+
+## Evaluation Contract
+
+- Primary metric definition and direction:
+- Supporting metrics:
+- Required per-case / seed / slice / worst-case checks:
+- Documented baseline and plausible metric range (or `unknown`):
+- Initial headroom / saturation facts (or `unknown`; apply ongoing Strategist assessments in Current Analysis and Stop/Continue Rule):
+- Failure and invalid-candidate behavior:
+- Best artifact / config location:
+- Probe-to-full-run and checkpoint comparability:
 
 ## Hypotheses & Coupled Parameters
 
@@ -32,7 +43,7 @@
 
 ## Reusable Rules
 
-<!-- Promote repeated findings here: forbidden parameter regions, contamination patterns, consistently promising settings. Append only — this section accumulates across Strategist calls. -->
+<!-- Append only the Strategist's Reusable Rules section. This section accumulates across Strategist calls. -->
 
 ## Current Analysis
 
