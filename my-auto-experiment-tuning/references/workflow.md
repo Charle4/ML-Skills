@@ -9,7 +9,7 @@ After the user states the tuning target, benchmark setting, constraints, and bud
 - keep a queue of launchable candidates as `planned` rows in `results.csv`
 - launch experiments within allowed permissions
 - monitor and collect results
-- update lifecycle ledgers and benchmark docs
+- update lifecycle ledgers
 - delegate result analysis and candidate planning, then apply returned queue changes
 
 Escalate to the user only for destructive operations, ambiguous goals, missing required permissions, budget changes, or actions outside the active sandbox/approval policy.
@@ -67,8 +67,8 @@ Capture the printed session path. `aet.py init` creates `session.md` from [../as
 `aet/YYYY-MM-DD/HH-MM-SS/` contains:
 - `meta.json`: objective, metric direction, project root, creation time, `runtime` default, and `gpu_policy`
 - `session.md`: the single narrative ledger — `Target & Constraints`, `Evaluation Contract`, `Hypotheses & Coupled Parameters`, `Reusable Rules`, `Current Analysis`, `Stop/Continue Rule`, `Final Analysis`
-- `results.csv`: one row per run, including the launchable queue (`planned` rows). Columns: `run_id`, `queue_id`, `status`, `params`, `hypothesis`, `expected_signal`, `rationale`, `priority`, `gpu_id`, `primary_metric`, `metric_name`, `metrics`, `output_dir`, `log_path`, `command`, `start_time`, `end_time`, `annotation`, `benchmark_status`, `goal`. `benchmark_status` is empty or `pending`.
-- `loop_state.json`: script-owned Strategist state machine — pending runs, Strategist identity/open call, exhaustion handshake, agent history, and `pending_benchmark_updates`. Each debt entry records `call_id`, approved `terminal_version`, metric name/value, output/log locators, and `added_at`. Read it via `aet.py loop-state`; change it only through AET helper commands.
+- `results.csv`: one row per run, including the launchable queue (`planned` rows). Columns: `run_id`, `queue_id`, `status`, `params`, `hypothesis`, `expected_signal`, `rationale`, `priority`, `gpu_id`, `primary_metric`, `metric_name`, `metrics`, `output_dir`, `log_path`, `command`, `start_time`, `end_time`, `annotation`, `benchmark_status`, `goal`. `benchmark_status` is a retained legacy column that `record` no longer writes.
+- `loop_state.json`: script-owned Strategist state machine — pending runs, Strategist identity/open call, exhaustion handshake, agent history, and `last_evidence_hash` (the evidence hash used to detect a state-unchanged loop). Read it via `aet.py loop-state`; change it only through AET helper commands.
 - `runs/<id>/`: per-run params, command, and metrics
 
 Only this timestamped session directory holds session ledger files. Do not write narrative, observations, or run notes directly under `aet/` or the date-level directory `aet/YYYY-MM-DD/`. If a task needs narrative or observations, update `aet/YYYY-MM-DD/HH-MM-SS/session.md`. The one allowed file at the `aet/` root is the optional cross-session durable-rules file `aet/knowledge.md` (see section 12); it is not session-scoped, so it does not belong inside a timestamped session directory.
@@ -95,7 +95,7 @@ Helper call ownership for each run:
 - Use `aet.py queue-add` to register one or more Strategist candidates as `planned` rows in `results.csv`. Each gets a `queue_id`, `params`, `hypothesis`, `expected_signal`, `rationale`, and `priority`; GPU and run-directory allocation happen at `create-run`.
 - Use `aet.py create-run --run-id <id>` before launching any experiment. It points at an existing `planned` row, creates `runs/<id>/` and `runs/<id>/output/`, writes objective artifacts, activates the row `planned` → `created`, and prints `run_dir`, `run_id`, and `output_dir` as labeled lines.
 - Use `aet.py record --status running` after the process starts so `results.csv` records `start_time`.
-- Use `aet.py record` again for terminal statuses and metrics. Terminal records update `end_time`, `metrics.json`, and `results.csv`; every `finished` record sets `benchmark_status=pending`, while other statuses clear it.
+- Use `aet.py record` again for terminal statuses and metrics. Terminal records update `end_time`, `metrics.json`, and `results.csv`. `record` refuses a terminal status while the run's process is still alive; pass `--force` to override only when you have confirmed the process is actually gone.
 - Use `aet.py queue-drop --run-ids <id>` to invalidate a `planned` candidate before it launches (`planned` → `dropped`).
 - `record --annotation` stores a trust note in the run's `annotation` column. Use it mainly for terminal statuses or important anomalies; omit it on routine `running` transitions.
 - Commands, params, hypotheses, expected signals, rationales, annotations, and logs are durable artifacts. Use environment-variable names or secret-manager handles in place of credential values.
@@ -250,11 +250,11 @@ Do not perform inline strategy derivation. After inline recording:
 1. Check whether a self-evaluatable stop condition is met: explicit user stop ("stop"/"end tuning"), explicit numeric target cleanly met with evidence, explicit run/wall-clock budget consumed, or required permission/resource unavailable. These you can evaluate inline. Do NOT evaluate plateau or exhaustion here — that is Strategist's job.
 2. Run `aet.py loop-state` (it counts planned rows from `results.csv`). It reports free slots, total_capacity, pending runs, and the routed NEXT action.
 3. If it routes a Strategist call (`projected_ready_after_launch < total_capacity`, section 6), run the three-beat transaction:
-   - `aet.py strategist-begin` — snapshots pending runs, every finished run's evidence version, and every pending benchmark marker's version; computes the branch and blocking/background; opens the call; prints the spawn/resume tool call and payload. It refuses if a call is already open.
+   - `aet.py strategist-begin` — snapshots pending runs; computes the branch and blocking/background; opens the call; prints the spawn/resume tool call and payload. It refuses if a call is already open.
    - your spawn/resume tool_use (the printed call). On a background Claude Code resume, keep processing other completions meanwhile; each `record` adds to pending without disturbing the open call.
-   - `aet.py strategist-return --call-id C --candidates-count K --benchmark-promotion-run-ids none|IDS --benchmark-reviewed-run-ids none|IDS [--agent-id A] [--observations-present] [--reusable-rules-present] [--queue-edits-present] [--stop-update-present]` — requires non-negative `K`, both selectors, and an id for every fresh invocation. It clears version-matched CSV markers, records promotion debt, and applies the handshake. Unlisted pending markers remain deferred. Pure resume cleanup requires `K=0`, both selectors `none`, no id, and no presence flags; it consumes neither snapshot.
+   - `aet.py strategist-return --call-id C --candidates-count K [--agent-id A] [--observations-present] [--reusable-rules-present] [--queue-edits-present] [--stop-update-present]` — requires non-negative `K` and an id for every fresh invocation. It applies the handshake. Pure resume cleanup requires `K=0`, no id, and no presence flags; it consumes no snapshot.
    No other suppression is valid. Do not skip because Strategist was recently called or because the pending set is empty. Full protocol: [subagents.md](subagents.md).
-4. Apply the Strategist return per its YOU block, then run `aet.py loop-state`. Promotion debt is durable: use its metric/artifact locators to update project tables, acknowledge successful writes with `aet.py benchmark-ack --run-ids IDS`, and re-run `loop-state`. Ack verifies `terminal_version`; changed evidence removes stale debt and requeues the current finished run for Benchmark Review. Debt blocks another Strategist call; partial acknowledgement is allowed.
+4. Apply the Strategist return per its YOU block, then run `aet.py loop-state`.
 5. Immediately launch planned rows into free slots with `aet.py create-run --run-id <id> --gpu-id <gpu>`.
 
 Plateau/exhaustion is an **independent-context handshake owned by the script**. Quiescence means no `planned`/`created`/`running` rows and no live process matching the stored session process pattern. A Strategist signals exhaustion by returning zero candidates. When the Primary returns 0 candidates while quiescent, `strategist-return` sets the handshake so the next `strategist-begin` is forced to a **fresh confirmer** in a new context. Pass that fresh confirmer's id to `strategist-return --agent-id`. If the confirmer returns candidates, it is promoted to Primary and the loop continues. Only when the fresh confirmer also returns 0 candidates does `strategist-return` print `CONFIRMED_EXHAUSTION`. Any Strategist returning candidates resets the handshake.
@@ -268,7 +268,7 @@ Before stopping, verify the applicable condition:
 **Plateau/exhaustion stop**: all of the following must hold:
 - plateau or exhaustion has been confirmed by two independent-context Strategist signals: both produced while fully quiescent (no `planned`/`created`/`running` rows and no matching live process), both returning zero candidates. Signal (2) comes from a fresh confirmer whose id was passed to `strategist-return --agent-id`
 - at least one broad alternative regime has been tested after the current best was found
-- the current best has been confirmed if it is surprising, benchmark-facing, or produced under different load
+- the current best has been confirmed if it is surprising or produced under different load
 - the ledger records why further experiments are unlikely to change the user's decision
 
 When a valid stop condition is met, produce a **Session Final Analysis** before closing:
@@ -280,7 +280,5 @@ When a valid stop condition is met, produce a **Session Final Analysis** before 
 Write the final analysis to `session.md`'s `## Final Analysis` section, and include it in the response to the user. Run `aet.py summarize` alongside it for the quantitative run-count and metric statistics.
 
 ## 12. Project Records and Cross-Session Knowledge
-
-When `loop-state` prints `APPLY BENCHMARK UPDATES`, use each debt entry's metric and output/log locators to update the project benchmark/current-best table. After each successful subset, run `aet.py benchmark-ack --run-ids IDS`; unacknowledged ids remain debt. If ack rejects changed evidence, follow its re-review route before treating that table update as current.
 
 If a project has a memory system, store durable rules there. If not, append rules to `session.md`'s Reusable Rules section and optionally create `aet/knowledge.md` (the only file allowed at the `aet/` root; it is cross-session, not session-scoped).

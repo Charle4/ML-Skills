@@ -6,7 +6,7 @@ Use this file before spawning or resuming the registered Strategist subagent.
 
 ### Strategist (`experiment-strategist`)
 
-Returns seven sections: evidence-linked observations, reusable rules, Ready Queue candidates, stop/continue text, Queue Edits, escape/confirmation need, and Benchmark Review. Does not write session files; apply all returned outputs via `aet.py queue-add` / `queue-drop`, `session.md` edits, and promoted benchmark updates.
+Returns six sections: evidence-linked observations, reusable rules, Ready Queue candidates, stop/continue text, Queue Edits, and escape/confirmation need. Does not write session files; apply all returned outputs via `aet.py queue-add` / `queue-drop` and `session.md` edits.
 
 ## When to Delegate
 
@@ -16,7 +16,7 @@ Returns seven sections: evidence-linked observations, reusable rules, Ready Queu
 
 `projected_ready_after_launch = planned_count - min(current_free_slots, planned_count)`. It is the planned queue that remains after the launch pairings printed for this cycle.
 
-Self-evaluatable conditions that may suppress a Strategist call: explicit user stop, explicit numeric target cleanly met with evidence, explicit run/wall-clock budget consumed, required permission/resource unavailable. Plateau and exhaustion are never self-evaluatable — Strategist must be the one to declare them; they cannot gate this call. **Recency of the last Strategist call and an empty pending set are not suppression conditions.**
+Agent-side suppression conditions: explicit user stop, explicit numeric target cleanly met with evidence, explicit run/wall-clock budget consumed, required permission/resource unavailable. Plateau and exhaustion are never self-evaluatable — Strategist must be the one to declare them. `loop-state` handles state-unchanged detection automatically (routes a wait when session state is identical to the last Strategist call); always run it and follow its `YOU`.
 
 ## The Strategist Transaction: begin → tool_use → return
 
@@ -26,7 +26,7 @@ Calling the Strategist is your own tool_use (Agent/SendMessage on Claude Code, s
 Bookkeeping only; it does not call the subagent. It snapshots the current pending runs, computes the route from `loop_state.json`, opens an `active_strategist_call`, and prints:
 - `call_id`, `role` (`primary`|`confirmer`), `invocation` (`fresh`|`resume`), target agent id, blocking/background mode
 - the exact spawn/resume tool call to make
-- the payload (run list with status/metric, plus `benchmark_pending_run_ids` when any exist)
+- the payload (run list with status/metric)
 
 If an `active_strategist_call` is already open, `strategist-begin` refuses. An open call means YOU still owe a close for it — it is not evidence the subagent is still running. If it returned, use `strategist-return` with its result. If a resume-route call fails on the actual resume tool, close with `strategist-return --resume-failed`. Reserve `strategist-abort` for an open fresh call whose spawn failed, whose spawned subagent is truly unreachable, or which was cancelled.
 
@@ -42,10 +42,10 @@ Codex resume only: inspect the target with `list_agents`, then use `send_message
 
 On a resume the Strategist keeps its prior session context, so the payload's new-run list plus current free slots and current best is enough — the full prompt template is only needed for a fresh spawn (or confirmer).
 
-The subagent returns its seven sections plus a short "Main Agent: Next Steps" block pointing back here.
+The subagent returns its six sections plus a short "Main Agent: Next Steps" block pointing back here.
 
-**Beat 3 — `aet.py strategist-return --session S --call-id C --candidates-count K --benchmark-promotion-run-ids none|IDS --benchmark-reviewed-run-ids none|IDS [--agent-id A] [--observations-present] [--reusable-rules-present] [--queue-edits-present] [--stop-update-present]`** (`K` = how many Ready Queue candidates the Strategist returned; the script derives exhaustion from `K == 0`)
-Validates the call, confirmer identity, and evidence versions before clearing state. Promotion ids may reference any unchanged finished evidence snapshotted at begin; they create durable `pending_benchmark_updates` debt with call id, approved terminal version, metric name/value, output directory, and log path. Reviewed/rejected ids must reference unchanged pending markers. Listed pending markers clear to an empty value; unlisted pending markers remain deferred. Pure `--resume-failed` cleanup passes `none` for both selectors and consumes neither pending runs nor benchmark markers.
+**Beat 3 — `aet.py strategist-return --session S --call-id C --candidates-count K [--agent-id A] [--observations-present] [--reusable-rules-present] [--queue-edits-present] [--stop-update-present]`** (`K` = how many Ready Queue candidates the Strategist returned; the script derives exhaustion from `K == 0`)
+Validates the call, confirmer identity, and evidence versions before clearing state. Pure `--resume-failed` cleanup consumes no pending runs.
 Every fresh invocation requires `--agent-id`; `K` must be non-negative.
 
 Between Beat 1 and Beat 3 (background Strategist on Claude Code), keep processing completion notifications; each `aet.py record` adds the new run to pending without disturbing the open call. Do not `sleep` or poll the Strategist's output file to wait for it — a background Strategist notifies you on completion. With nothing else to do, end the turn; that notification will wake you for Beat 3.
@@ -57,9 +57,9 @@ You do not hand-derive fresh-vs-resume-vs-confirmer, set flags, or evaluate plat
 - Returning zero candidates IS the exhaustion signal.
 - Primary returns 0 candidates while quiescent (no `planned`/`created`/`running` runs, computed by the script) → the next `strategist-begin` is forced to a **fresh confirmer** (independent context).
 - Confirmer return requires its fresh agent id. The script refuses a missing id or an id equal to the Primary id.
-- A distinct confirmer returns 0 candidates while quiescent → `CONFIRMED_EXHAUSTION`; apply every returned session/benchmark update before the final stop steps printed by the script.
+- A distinct confirmer returns 0 candidates while quiescent → `CONFIRMED_EXHAUSTION`; apply every returned session update before the final stop steps printed by the script.
 - Confirmer returns candidates → the Primary's exhaustion signal is overturned; the confirmer is promoted to Primary and the loop continues.
-- A foreign-runtime or dead agent id makes the runtime resume call fail. Only after that actual failure, close with `strategist-return --resume-failed --candidates-count 0 --benchmark-promotion-run-ids none --benchmark-reviewed-run-ids none`, without agent id or presence flags. This pure cleanup consumes no pending evidence and makes the next `strategist-begin` fresh-spawn.
+- A foreign-runtime or dead agent id makes the runtime resume call fail. Only after that actual failure, close with `strategist-return --resume-failed --candidates-count 0`, without agent id or presence flags. This pure cleanup consumes no pending evidence and makes the next `strategist-begin` fresh-spawn.
 
 Prompt neutrality: always use the standard prompt template below. Never add context about previous Strategist conclusions, never ask "is the search exhausted?", never prime the conclusion in any direction — including during confirmation. Do not echo plateau, ceiling, or exhaustion language from `session.md` into the prompt.
 
@@ -71,7 +71,7 @@ Pass paths and stable context, not a parent-agent interpretation of results:
 - `session_path`
 - `project_root`
 - relevant experiment scripts and CLI notes
-- `algorithm_context`: metric meaning, target, benchmark constraints, known data/implementation risks, and important parameter couplings
+- `algorithm_context`: metric meaning, target, evaluation constraints, known data/implementation risks, and important parameter couplings
 - runtime notes: Codex vs Claude Code launch behavior, GPU policy, and current free slots when relevant
 
 Pass only session-specific context in the prompt; the Strategist's role instructions are already loaded via its registered system prompt (`experiment-strategist`). `strategist-begin` prints the run list for `runs_since_last_strategist`; fill the rest of the template from session files.
@@ -90,7 +90,6 @@ current_free_slots: N
 total_capacity: M  # capacity_per_gpu × gpu_count under the current stored policy. Refill target: after the parent fills current_free_slots, queue count must stay >= total_capacity, so target queue count ≈ current_free_slots + total_capacity (= 2× total_capacity at session start when the queue is empty and all slots are free).
 current_best: RUN_ID/METRIC as a locator only
 runs_since_last_strategist: [run_id list with recorded status, primary_metric, metric_name from results.csv — copy the line printed by strategist-begin]
-benchmark_pending_run_ids: [run_ids printed by strategist-begin, if any; omit this line when empty]
 # Values above are raw fields from results.csv — not interpreted conclusions about trends or plateau.
 
 Read SESSION_PATH/meta.json (objective, metric direction, project root), results.csv (all run data including planned rows = current queue), session.md (Evaluation Contract, hypotheses, reusable rules, current analysis, stop rule), and important runs/<id>/{params.json,metrics.json} artifacts directly.
@@ -102,7 +101,6 @@ Tasks:
 3. Include per-HP rationale for non-obvious values, cited from run evidence.
 4. If evaluator fidelity, metric headroom, failure handling, or aggregate-vs-slice robustness is unresolved, prioritize diagnostic probe/baseline/held-out/confirmation candidates and state the decision evidence required before exploitation.
 5. Return stop/continue rule updates and any existing queued runs the parent should rewrite or remove (reference them by run_id from results.csv).
-6. Review benchmark evidence against the Evaluation Contract. Promotion may select any finished run whose evidence you verified in this call; explicitly list reviewed/rejected pending ids from benchmark_pending_run_ids and leave unresolved pending ids out of both lists.
 
 Do not write any session file.
 Return:
@@ -113,19 +111,14 @@ Return:
 3. Stop/Continue Rule Update.
 4. Queue Edits (run_ids to rewrite/remove).
 5. Escape/Confirmation Need.
-6. Benchmark Review with both explicit lines:
-   benchmark_promotion_run_ids: none|IDS
-   benchmark_reviewed_run_ids: none|IDS
 ```
 
 ## Interpreting Returns
 
-Run `aet.py strategist-return` (Beat 3) with both benchmark selectors and follow its `YOU` block. The script version-clears only represented snapshot entries, records the agent id, and applies the handshake:
+Run `aet.py strategist-return` (Beat 3) and follow its `YOU` block. The script version-clears only represented snapshot entries, records the agent id, and applies the handshake:
 - run `aet.py queue-add --candidates '<JSON>'`, passing the Strategist's Ready Queue Candidates JSON array verbatim; this writes the new planned rows into `results.csv`
 - run `aet.py queue-drop` for each run_id in Queue Edits to remove invalidated planned rows
 - write `observations_to_append` into Current Analysis, append `reusable_rules_to_append` to Reusable Rules, and overwrite Stop/Continue Rule when those sections are present
-- for promotion ids, update project benchmark/current-best tables from the debt locators and then run `aet.py benchmark-ack --run-ids <ids>`; until acknowledgement, `loop-state` prioritizes `APPLY BENCHMARK UPDATES`. Ack requires the current terminal version to match the approved version; changed finished evidence is requeued as `pending` for another review
-- `results.csv.benchmark_status` is empty for promoted and reviewed/rejected pending markers, while deferred markers remain `pending`
 - then `aet.py loop-state` and launch the highest-priority planned rows into any free slots with `aet.py create-run --run-id <id> --gpu-id <gpu>` (the run-id points to a planned row from `queue-add`), one experiment at a time (Claude Code: one `Bash(run_in_background=True)` per experiment; Codex: one `exec_command` foreground session per experiment, recording any `session_id -> run_id/output_dir/log_path`).
 
 On `CONFIRMED_EXHAUSTION`, the script hands you the stop: verify the target/budget is genuinely unmet, write `## Final Analysis` into `session.md`, run `aet.py summarize`, then stop the keepalive. You may still continue if you judge it premature; the next `strategist-begin` forms a fresh handshake.

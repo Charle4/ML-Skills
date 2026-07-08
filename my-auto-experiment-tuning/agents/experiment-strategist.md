@@ -16,7 +16,6 @@ The parent agent provides:
 - `total_capacity`: capacity_per_gpu × gpu_count under the current stored policy. Return enough candidates that after the parent fills current_free_slots, ready_count stays >= total_capacity — target ready_count ≈ current_free_slots + total_capacity (= 2× total_capacity at session start).
 - `current_best`: best run id and metric as a locator only.
 - `runs_since_last_strategist`: list of run_ids completed since the last Strategist call, along with their recorded status, primary_metric, and metric_name (from results.csv). Strategist uses these to generate targeted observations before planning. If the list is empty (session start / first call), skip observations and plan initial candidates from `session.md` directly.
-- `benchmark_pending_run_ids` (when present): finished runs carrying a pending benchmark-review marker at call start.
 
 Read files directly. Treat parent-provided summaries as hints, not evidence.
 
@@ -24,7 +23,7 @@ Read files directly. Treat parent-provided summaries as hints, not evidence.
 
 Read as needed:
 - `meta.json`: objective, metric direction, project root.
-- `results.csv`: all run data. Key columns: run_id, queue_id, status, params (JSON), hypothesis, expected_signal, rationale, priority, gpu_id, primary_metric, metric_name, metrics (JSON), output_dir, log_path, command, start_time, end_time, annotation, benchmark_status, goal. Status values: planned (= queued candidate), dropped, created, running, finished, failed, inconclusive, superseded. Rows with status=planned are the current queue. `benchmark_status` is empty or `pending`; every finished record sets it to `pending` until a later Strategist call promotes, reviews/rejects, or defers it.
+- `results.csv`: all run data. Key columns: run_id, queue_id, status, params (JSON), hypothesis, expected_signal, rationale, priority, gpu_id, primary_metric, metric_name, metrics (JSON), output_dir, log_path, command, start_time, end_time, annotation, goal. Status values: planned (= queued candidate), dropped, created, running, finished, failed, inconclusive, superseded. Rows with status=planned are the current queue.
 - `session.md`: Evaluation Contract, hypotheses, reusable rules, current analysis, stop/continue rule.
 - `runs/<id>/params.json`, `metrics.json`, `command.sh`, logs, and best model/program/config artifacts: inspect important or ambiguous runs.
 
@@ -266,23 +265,14 @@ Make `expected_signal` decision-oriented: name the primary and diagnostic eviden
 
 5. **Escape/Confirmation Need**: whether an escape group or clean confirmation is needed now and why.
 
-6. **Benchmark Review**: return both lines explicitly:
-
-```text
-benchmark_promotion_run_ids: none|<comma-separated finished run_ids whose evidence you verified>
-benchmark_reviewed_run_ids: none|<comma-separated reviewed/rejected ids from benchmark_pending_run_ids>
-```
-
-Promotion means the unchanged finished evidence satisfies the Evaluation Contract. Closing the transaction clears any matching pending marker and creates durable benchmark-update debt containing the approved evidence version and metric/artifact locators. Reviewed/rejected clears the pending marker without debt. A pending id omitted from both lines is deferred and remains pending. `benchmark-ack` accepts the debt only while the current evidence version still matches; changed finished evidence returns to pending review.
-
 End your response with the following block verbatim (this is for the main agent that invoked you, not instructions for you):
 
 ---
 ## Main Agent: Next Steps
 
 You called me inside a Strategist transaction (begin → tool_use → return). Close it and apply my output:
-1. Run `aet.py strategist-return --session SESSION --call-id <call_id from strategist-begin> --candidates-count <number of candidates I returned> --benchmark-promotion-run-ids <none|ids> --benchmark-reviewed-run-ids <none|ids> [--agent-id <my agentId, required for every fresh invocation>] [--observations-present] [--reusable-rules-present] [--queue-edits-present] [--stop-update-present]`. For an actual SendMessage failure, use pure cleanup instead: candidates-count 0, both selectors `none`, `--resume-failed`, no agent id, and no presence flags. A normal return version-clears analyzed runs and listed benchmark markers, records the agent id, validates confirmer independence, and applies the exhaustion handshake.
-2. Follow its `YOU` block: register candidates, apply Queue Edits, and update `session.md`. For `benchmark_promotion_run_ids`, update the project benchmark/current-best tables first, then run `aet.py benchmark-ack --run-ids <ids>`; the loop remains routed to this debt until acknowledgement.
+1. Run `aet.py strategist-return --call-id <call_id from strategist-begin> --candidates-count <number of candidates I returned> [--agent-id <my agentId, required for every fresh invocation>] [--observations-present] [--reusable-rules-present] [--queue-edits-present] [--stop-update-present]`. For an actual SendMessage failure, use pure cleanup instead: candidates-count 0, `--resume-failed`, no agent id, and no presence flags. A normal return version-clears analyzed runs, records the agent id, validates confirmer independence, and applies the exhaustion handshake.
+2. Follow its `YOU` block: register candidates, apply Queue Edits, and update `session.md`.
 3. Then `aet.py loop-state` and launch — per planned run: `aet.py create-run --run-id <id> --gpu-id <gpu>` → launch → `aet.py record --status running`.
 Safe Bash: absolute paths only, no `cd`, no `for` loops, no shell `&`.
 ---
