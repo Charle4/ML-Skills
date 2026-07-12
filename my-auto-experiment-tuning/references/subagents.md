@@ -36,7 +36,7 @@ If an `active_strategist_call` is already open, `strategist-begin` refuses. An o
 - Codex fresh / confirmer: `spawn_agent(task_name="experiment_strategist", message=<payload>, fork_turns="all")`
 - Codex resume: inspect the target with `list_agents`; use `send_message(target=<target_agent_id>, message=<payload>)` while it is running or `followup_task(target=<target_agent_id>, message=<payload>)` while it is idle, then `wait_agent`
 
-Claude Code resume only: invoke the literal `SendMessage` tool. A successful resume keeps the same agent id, so pass that id or omit `--agent-id`. If `SendMessage` returns `success:false`, close the open resume transaction with pure `--resume-failed` cleanup; the next `strategist-begin` fresh-spawns.
+Claude Code resume only: output the `SendMessage` tool call directly — it always works. Do NOT skip it because the schema appears missing or "not loaded"; that is not a real error (anti-pattern #12). A successful resume keeps the same agent id, so pass that id or omit `--agent-id`. If `SendMessage` returns `success:false`, close the open resume transaction with pure `--resume-failed` cleanup; the next `strategist-begin` fresh-spawns.
 
 Codex resume only: inspect the target with `list_agents`, then use `send_message` while running or `followup_task` while idle. If the actual resume call fails, close the open resume transaction with pure `--resume-failed` cleanup; the next `strategist-begin` fresh-spawns.
 
@@ -44,7 +44,10 @@ On a resume the Strategist keeps its prior session context, so the payload's new
 
 The subagent returns its six sections plus a short "Main Agent: Next Steps" block pointing back here.
 
-**Beat 3 — `aet.py strategist-return --session S --call-id C --candidates-count K [--agent-id A] [--observations-present] [--reusable-rules-present] [--queue-edits-present] [--stop-update-present]`** (`K` = how many Ready Queue candidates the Strategist returned; the script derives exhaustion from `K == 0`)
+**Beat 2.5 — read the Strategist's output (mandatory)**
+When the Strategist returns (completion notification for background, or inline for blocking), read its full response: Ready Queue Candidates JSON, observations, reusable rules, stop/continue update, queue edits, and escape/confirmation need. Count the actual candidates. This is the `K` you pass to Beat 3. Closing with `--candidates-count 0` without reading the output is data falsification (anti-pattern #11) — it poisons the exhaustion handshake with a fabricated signal.
+
+**Beat 3 — `aet.py strategist-return --session S --call-id C --candidates-count K [--agent-id A] [--observations-present] [--reusable-rules-present] [--queue-edits-present] [--stop-update-present]`** (`K` = how many Ready Queue candidates the Strategist **actually returned**; the script derives exhaustion from `K == 0`)
 Validates the call, confirmer identity, and evidence versions before clearing state. Pure `--resume-failed` cleanup consumes no pending runs.
 Every fresh invocation requires `--agent-id`; `K` must be non-negative.
 

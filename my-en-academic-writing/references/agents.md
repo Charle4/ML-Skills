@@ -90,6 +90,7 @@ You own the final manuscript. After Stages 2 and 3:
 1. **Diff check.** Run `git diff` on the modified file. Read every change. Verify:
    - No information loss — rewriting often simplifies away local details. If a detail was present in the original and is substantively important, restore it. After several rewrite iterations, cumulative detail loss becomes severe; the diff is the only reliable safeguard.
    - No unintended additions — no new claims, no fabricated citations, no embellished numbers.
+   - No neutral rewrites — if a change replaces one acceptable phrasing with another equally valid alternative without fixing a real deficiency, discard it. Agent suggestions that rework your draft without genuine improvement are net-negative because they risk introducing new issues.
    - Only restructuring, rewording, or intentional deletions remain.
 2. **LaTeX and convention check.** Verify that all LaTeX commands, equations, labels, references, and variable names survive intact. Verify formatting conventions match the style guide.
 3. **Linear read.** Read the final text as a reviewer who knows only what the paper has said so far. Check concept introduction order, transition coherence, and argument completeness.
@@ -215,7 +216,9 @@ Assemble the relevant blocks for each agent call — both coordinated workflow s
 ```
 Write in standard academic English. Rules:
 - Use clear, scientifically accessible language. Avoid fancy vocabulary.
-- Forbidden words: burgeoning, pivotal, in the realm of, keen, adept, endeavor, uphold, imperative, profound, ponder, cultivate, hone, delve, embrace, pave, embark, encompass, monumental, scrutinize, vast, versatile, paramount, foster, necessitates.
+- Forbidden words: burgeoning, pivotal, in the realm of, keen, adept, endeavor, uphold, imperative, profound, ponder, cultivate, hone, delve, embrace, pave, embark, encompass, monumental, scrutinize, vast, versatile, paramount, foster, necessitates, tapestry, landscape (abstract), showcase, realm, seamless.
+- Also fix: over-claiming verbs (prove→show empirically), significance hype (paves the way, groundbreaking), empty intensifiers (extensive, comprehensive, a wide range of), novelty padding (novel ×2, "to the best of our knowledge"), formulaic openers (In recent years...), connective overuse (Moreover.../Furthermore.../Additionally... in consecutive sentences), boilerplate emphasis (It is worth noting that), overlong clause-stacked sentences, contribution-list cliches (generic "novel method; extensive experiments; strong results"), citation dumping (bracketed list without context).
+- Preserve legitimate academic constructs: evidence-tied hedging (suggests, is consistent with, may indicate), passive voice when actor is irrelevant, "we", semicolons in moderation.
 - Always use full forms: "it is", "he would" — never contractions.
 - No stylistic double quotes or dashes.
 - No ornamental semicolons or sentence-medial `therefore`/`thus`/`hence`; no evaluative `elegantly` or `theoretically` used as praise.
