@@ -582,10 +582,20 @@ def compute_next(state: dict[str, Any], runtime: str, planned_ids: list[int], fr
     if launch_n > 0:
         targets = (free_gpu_ids or [])[:launch_n]
         launch_ids = planned_ids[:launch_n]
-        actions.append(
+        launch_lines = [
             f"LAUNCH runs {launch_ids} onto GPU id(s) {targets} — one job per id, these are the only free GPUs, use no other. "
             f"Per run: `aet.py create-run --run-id <id> --gpu-id <gpu>` -> launch -> `aet.py record --status running`."
-        )
+        ]
+        if session:
+            rows_by_id = {r["run_id"]: r for r in read_rows(session / "results.csv")}
+            for lid, gpu in zip(launch_ids, targets):
+                row = rows_by_id.get(str(lid), {})
+                launch_lines.append(f"  run {lid} (gpu {gpu}):")
+                for field in ("params", "hypothesis", "expected_signal", "rationale"):
+                    value = row.get(field, "")
+                    if value:
+                        launch_lines.append(f"    {field}: {value}")
+        actions.append("\n".join(launch_lines))
     if projected_ready < total_capacity:
         # A pending confirmer is a fresh independent context — state-unchanged
         # detection does not apply (the confirmer has never seen this state).
@@ -608,7 +618,7 @@ def compute_next(state: dict[str, Any], runtime: str, planned_ids: list[int], fr
         actions.append("All slots full and planned queue >= total_capacity. Wait for the next completion; nothing to launch or plan now.")
     if len(actions) > 1:
         actions = [f"STEP {i+1}: {a}" for i, a in enumerate(actions)]
-        actions.append(f"Execute ALL {len(actions)} steps this cycle. Downstream commands (create-run, record) print their own YOU — those are sub-step guidance; they do NOT replace these steps.")
+        actions.append(f"Execute ALL {len(actions)} steps in order — do not skip or stop after any step. Downstream commands (create-run, record) print their own YOU — those are sub-step guidance; they do NOT replace these steps.")
     return actions
 
 
@@ -715,7 +725,7 @@ def command_init(args: argparse.Namespace) -> None:
         "Hypotheses & Coupled Parameters."
     )
     you.append(f"{len(you) + 1}) RUN `aet.py strategist-begin` for the initial candidate set (planned queue is empty).")
-    you.append(f"Execute ALL {len(you)} steps now — do not stop after any step.")
+    you.append(f"Execute ALL {len(you)} steps in order — do not skip or stop after any step.")
     emit(
         ok=[f"session: {session}", "files: meta.json session.md results.csv loop_state.json runs/"],
         state=[f"objective: {args.objective} ({args.goal})  runtime: {args.runtime}  process_pattern: {pp}  gpu_policy: {'set' if has_gpu_flags else 'default (1/gpu)'}"],
@@ -777,6 +787,13 @@ def command_create_run(args: argparse.Namespace) -> None:
     row["log_path"] = log_path
     row["command"] = command
     write_rows(session / "results.csv", rows)
+
+    state_lines = [f"status=created  gpu={args.gpu_id or '(unset)'}  queue_id={row.get('queue_id', '')}"]
+    for field in ("params", "hypothesis", "expected_signal", "rationale"):
+        value = row.get(field, "")
+        if value:
+            state_lines.append(f"{field}: {value}")
+
     emit(
         ok=[
             f"run {run_id} activated (planned -> created)",
@@ -785,7 +802,7 @@ def command_create_run(args: argparse.Namespace) -> None:
             f"output_dir: {output_dir}   (created)",
             f"log: {log_path}",
         ],
-        state=[f"status=created  gpu={args.gpu_id or '(unset)'}  queue_id={row.get('queue_id', '')}"],
+        state=state_lines,
         you=[
             f"1) LAUNCH: `python -u SCRIPT --gpu_id {args.gpu_id or 'G'} --output_dir {output_dir} > {log_path} 2>&1`",
             f"2) RECORD: run `aet.py record --run-id {run_id} --status running` once the process starts.",
@@ -1539,7 +1556,7 @@ def command_strategist_return(args: argparse.Namespace) -> None:
             state_lines.append(f"{who} returned 0 candidates but not quiescent; exhaustion handshake deferred")
     you.append(f"{step}) RUN `aet.py loop-state` to route the next launch/Strategist action.")
     if len(you) > 1:
-        you.append(f"Execute ALL {len(you)} steps now — do not stop after any step.")
+        you.append(f"Execute ALL {len(you)} steps in order — do not skip or stop after any step.")
     emit(ok=ok, state=state_lines, you=you)
 
 

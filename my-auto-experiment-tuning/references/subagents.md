@@ -40,7 +40,7 @@ Claude Code resume only: output the `SendMessage` tool call directly — it alwa
 
 Codex resume only: inspect the target with `list_agents`, then use `send_message` while running or `followup_task` while idle. If the actual resume call fails, close the open resume transaction with pure `--resume-failed` cleanup; the next `strategist-begin` fresh-spawns.
 
-On a resume the Strategist keeps its prior session context, so the payload's new-run list plus current free slots and current best is enough — the full prompt template is only needed for a fresh spawn (or confirmer).
+On a resume the Strategist keeps its prior session context, but still use the full prompt template below — fill every field. The Strategist may have lost context through compaction; a complete prompt costs little and prevents silent degradation.
 
 The subagent returns its six sections plus a short "Main Agent: Next Steps" block pointing back here.
 
