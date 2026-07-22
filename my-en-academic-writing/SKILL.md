@@ -98,10 +98,13 @@ Empirical work *shows* or *provides evidence*; it does not *prove* or *demonstra
 
 #### Formulaic openers
 
-**Watch:** "In recent years, X has attracted increasing attention"; "With the rapid development of..."; "Despite recent advances,...".
+**Watch:** "In recent years, X has attracted increasing attention"; "With the rapid development of..."; "Despite recent advances,...". Also watch meta-discourse openers that announce the forthcoming explanation style instead of stating the point: `At its core,`, `Fundamentally,`, `Simply put,`, `In essence,`, `To put it plainly,`, `Breaking this down,`. These carry zero information — drop them and start with the claim.
 
 *Before:* `In recent years, non-convex optimization has attracted increasing attention due to its wide applications.`
 *After:* `Non-convex composite minimization arises in sparse recovery and low-rank estimation, but existing convergence guarantees require either bounded gradients or global Lipschitz continuity.`
+
+*Before:* `At its core, the proposed framework fundamentally rethinks how we approach the deblurring problem.`
+*After:* `The framework replaces the per-pixel regression loss with a distribution-matching objective in feature space.`
 
 #### Connective overuse
 
@@ -116,6 +119,18 @@ Do not start consecutive sentences with Moreover/Furthermore/Additionally/In par
 
 *Before:* `It is worth noting that, importantly, the convergence holds without the Lipschitz condition.`
 *After:* `The convergence holds without the Lipschitz condition (Theorem 2).`
+
+#### False conceptual opposition
+
+AI-generated text fabricates a conceptual contrast by first negating a simplistic view no reader actually holds, then affirming a "deeper" restatement — creating the illusion of insight while adding zero information. The negated half is either a strawman the reader never assumed or a concept that does not conflict with the affirmed half. In academic writing this wastes sentence budget and signals the prose was generated rather than thought through. **Watch:** `not merely X, but rather Y`; `not simply X — it is Y`; `X is not just A, it is B`; `this goes beyond X; it represents Y` — where X and Y are compatible or X is a strawman.
+
+*Before:* `This is not merely a faster solver --- it represents a fundamental shift in how we approach non-smooth optimization.`
+*After:* `The solver removes the inner-loop requirement of proximal methods for non-smooth penalties (Algorithm~\ref{alg:main}).`
+
+*Before:* `The improvement is not simply numerical; it reflects a deeper structural advantage of the proposed formulation.`
+*After:* `The formulation exploits the block structure of the Hessian, which reduces per-iteration cost from $O(n^2)$ to $O(n)$.`
+
+When the contrast is genuine — both halves carry independent information and the negated concept is one the reader might plausibly hold — the opposition is legitimate and should be kept.
 
 #### Overlong, clause-stacked sentences
 
@@ -593,6 +608,22 @@ Writing implications:
 - Do not bury the main contribution.
 - Make the paper's value clear by the end of the Introduction.
 - Make Figure 1 and its caption self-contained when possible.
+- A reviewer who reads only the abstract and contributions should still grasp the motivation — see Cross-Section Coherence below.
+
+### Cross-Section Coherence
+
+A paper that reads smoothly section by section can still fail globally: reviewers call it "easy to follow" yet their questions reveal they missed the core motivation and innovation. The root cause is a locally optimal but globally disconnected narrative — each section is internally coherent but the highlights are buried rather than surfaced.
+
+Common failure pattern: the full motivation chain lives only in the Introduction; the contribution list states compressed results without echoing the insight; the Conclusion restates what was done without recalling why it matters. Each section independently passes a local quality check, but a reviewer who skims any one of them cannot reconstruct the paper's story.
+
+Prevention:
+
+- **Motivation echo:** the insight or difficulty that motivates the paper should appear in at least three surfaces — Introduction (full development), contribution list or abstract (compressed but recognizable), and Conclusion (tied back to the original problem). The reader should be able to pick up the core story from any of these entry points alone.
+- **Contribution list carries the "why":** each contribution bullet should name both what was achieved and why it matters or what gap it fills, not just the result. `We prove O(1/k) convergence` is a result; `We prove O(1/k) convergence under the relaxed Hölder assumption, removing the Lipschitz requirement of prior methods` is a contribution.
+- **Figure highlights:** the main figure (especially Figure 1) should visually mark the paper's key advantage — the region, component, or comparison that distinguishes this work. A clean, information-rich figure without visual emphasis on the novelty buries the highlight.
+- **Method-to-claim traceability:** each major experimental claim should trace backward to a specific method component and forward to a specific contribution bullet. If a claim floats without anchoring to both, the reader loses the thread.
+
+When drafting or rewriting at a full-section or full-paper level, diagnose the global story first: what is the one highlight, what story should the paper tell, and what experiments support that story. Only then write or polish individual sections. Per-section polish that optimizes each part independently tends to produce a paper where the logic is correct but the emphasis is wrong — the narrative equivalent of a local optimum.
 
 ### Sentence-Level Clarity
 
@@ -621,6 +652,8 @@ One paragraph should usually do one main job.
 
 Remove repeated explanations, duplicated claims, low-information framing phrases, and filler content that pads word count without adding substance. Emphasize core ideas and supporting evidence.
 
+A common AI pattern is multi-angle restating: describing the same concept from two or three near-synonymous dimensions to create an illusion of depth. Each "angle" adds no independent information. The test: does removing one dimension lose a fact the reader needs? If not, collapse to the single most precise term.
+
 Weak:
 
 ```text
@@ -632,6 +665,20 @@ Better:
 ```text
 The proposed method improves accuracy by 3.2 percentage points.
 ```
+
+Weak (multi-angle restating):
+
+```text
+The algorithm is efficient in computation, parsimonious in memory, and lightweight in deployment.
+```
+
+Better (when all three mean "fast"):
+
+```text
+The algorithm runs in $O(n \log n)$ time and stores only the active set.
+```
+
+If the dimensions carry genuinely independent information (e.g., time complexity and memory footprint are both relevant), keep them — the problem is restating one fact as if it were three.
 
 Use the quantitative version only when the number is provided.
 
@@ -658,7 +705,7 @@ Use direct academic claims with explicit scope:
 - Prefer topic sentences that say what the paper studies, proves, proposes, or observes.
 - Put scope in concrete modifiers such as `under Assumption 1`, `for nonconvex objectives`, or `on the evaluated benchmarks`.
 - Convert low-information caveat prefaces into the actual claim, scope, or evidence boundary.
-- Replace negative-to-positive scaffolding with a single affirmative claim whenever the scope is already clear.
+- Replace negative-to-positive scaffolding — including false conceptual oppositions that negate a view no reader holds — with a single affirmative claim whenever the scope is already clear.
 - In de-AI editing, treat defensive framing as a paragraph-level issue: revise the sentence so the argument becomes clearer and more direct.
 
 ### Active and Passive Voice
@@ -723,7 +770,7 @@ Check every output against the following list:
 
 1. The manuscript portion is in English unless the user requested otherwise.
 2. The text is standard academic English with simple, precise vocabulary.
-3. No AI-tell patterns remain in generated manuscript prose (check all categories: forbidden vocabulary, over-claiming verbs, significance hype, empty intensifiers, novelty padding, formulaic openers, connective overuse, boilerplate emphasis, overlong sentences, contribution-list cliches, citation dumping).
+3. No AI-tell patterns remain in generated manuscript prose (check all categories: forbidden vocabulary, over-claiming verbs, significance hype, empty intensifiers, novelty padding, formulaic openers, connective overuse, boilerplate emphasis, false conceptual opposition, overlong sentences, contribution-list cliches, citation dumping, multi-angle restating).
 4. Legitimate academic constructs (evidence-tied hedging, passive voice where appropriate, "we") were preserved, not incorrectly flattened.
 5. There are no contractions.
 6. No unsupported claims, numbers, citations, baselines, or causal statements were added.
@@ -743,4 +790,5 @@ Check every output against the following list:
 20. Pseudocode, lists, and emphasis are necessary and structurally justified; dependent reasoning is not flattened into bullets.
 21. Component names and abbreviations are concise and consistent; Method does not contain avoidable baseline comparison.
 22. No local editing constraint has displaced the paper's established motivation or contribution hierarchy.
-23. Every substantive citation is supported by the inspected source and remains paired with the correct claim.
+23. For full-section or multi-section tasks: the core motivation echoes across Introduction, contributions, and Conclusion; contribution bullets carry the "why", not just the result.
+24. Every substantive citation is supported by the inspected source and remains paired with the correct claim.
