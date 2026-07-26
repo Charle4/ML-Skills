@@ -54,6 +54,7 @@ Tell Codex to read the draft file, the original text, and the plan, then review 
 - Argument logic: are there circular arguments, unsupported leaps, or redundant re-statements?
 - Structural integrity: is the Introduction motivation abruptly compressed; are symbols defined before use; are equation groups readable; are pseudocode, bullets, and emphasis necessary; does Method contain misplaced baseline comparison?
 - Focus and citation integrity: did the requested local edit change the paper's main motivation, and does every citation still support the exact claim attached to it?
+- Claim posture: does the draft volunteer caveats the field already assumes, defend choices the text never presents as contested, or escalate a local result into a general assessment of the method? Is each limitation stated once, in the section that bounds scope, rather than in the opening lines or as new material in the Conclusion?
 
 **Handling Codex output.** Codex routinely produces three types of feedback:
 
@@ -155,14 +156,14 @@ mcp__codex__codex:
   cwd: <project directory, or /tmp if none>
   config: {"model_reasoning_effort": "high"}
   prompt: |
-    $my-en-academic-writing
+    $mpaper-en-academic-writing
 
     <Persona Constraint above>
 
     <Prompt Blocks — assemble from Block A + task-specific blocks>
 ```
 
-Start the prompt with `$my-en-academic-writing ` (trailing space or newline) so Codex loads this skill — without whitespace separation from subsequent text, Codex will not recognise the trigger. Use `sandbox: read-only` for review-only tasks; omit `sandbox` when Codex should edit files directly (e.g., coordinated workflow Stage 2).
+Start the prompt with `$mpaper-en-academic-writing ` (trailing space or newline) so Codex loads this skill — without whitespace separation from subsequent text, Codex will not recognise the trigger. Use `sandbox: read-only` for review-only tasks; omit `sandbox` when Codex should edit files directly (e.g., coordinated workflow Stage 2).
 
 Use `"model_reasoning_effort": "xhigh"` for the coordinated workflow (Stage 2), complex multi-section drafts, or full-paper reviews. Use `"high"` for single-agent review tasks. Use `"medium"` for quick fluency checks.
 
@@ -217,7 +218,7 @@ Assemble the relevant blocks for each agent call — both coordinated workflow s
 Write in standard academic English. Rules:
 - Use clear, scientifically accessible language. Avoid fancy vocabulary.
 - Forbidden words: burgeoning, pivotal, in the realm of, keen, adept, endeavor, uphold, imperative, profound, ponder, cultivate, hone, delve, embrace, pave, embark, encompass, monumental, scrutinize, vast, versatile, paramount, foster, necessitates, tapestry, landscape (abstract), showcase, realm, seamless.
-- Also fix: over-claiming verbs (prove→show empirically), significance hype (paves the way, groundbreaking), empty intensifiers (extensive, comprehensive, a wide range of), multi-angle restating (describing one fact from 2-3 near-synonymous dimensions to fake depth — collapse to the single most precise term), novelty padding (novel ×2, "to the best of our knowledge"), formulaic openers (In recent years... / meta-discourse: At its core / Fundamentally / Simply put), connective overuse (Moreover.../Furthermore.../Additionally... in consecutive sentences), boilerplate emphasis (It is worth noting that), false conceptual opposition (negating a view no reader holds to set up a "deeper" restatement: "not merely X, but rather Y" where X is a strawman or compatible with Y), overlong clause-stacked sentences, contribution-list cliches (generic "novel method; extensive experiments; strong results"), citation dumping (bracketed list without context).
+- Also fix: over-claiming verbs (prove→show empirically; reserve "we prove/establish" for formal proofs, use "we observe/conjecture" for weaker evidence), significance hype (paves the way, groundbreaking), empty intensifiers (extensive, comprehensive, a wide range of), multi-angle restating (describing one fact from 2-3 near-synonymous dimensions to fake depth — collapse to the single most precise term), novelty padding (novel ×2, "to the best of our knowledge"), formulaic openers (In recent years... / meta-discourse: At its core / Fundamentally / Simply put), connective overuse (Moreover.../Furthermore.../Additionally... in consecutive sentences), boilerplate emphasis (It is worth noting that), false conceptual opposition (negating a view no reader holds to set up a "deeper" restatement: "not merely X, but rather Y" where X is a strawman or compatible with Y), defensive self-qualification (volunteering caveats the field already assumes; "we use X rather than Y" or "this is a design choice, not a theoretical necessity" defending an uncontested choice; escalating one weak result into a verdict on the method), overlong clause-stacked sentences, contribution-list cliches (generic "novel method; extensive experiments; strong results"), citation dumping (bracketed list without context).
 - Preserve legitimate academic constructs: evidence-tied hedging (suggests, is consistent with, may indicate), passive voice when actor is irrelevant, "we", semicolons in moderation.
 - Always use full forms: "it is", "he would" — never contractions.
 - No stylistic double quotes or dashes.
@@ -241,7 +242,8 @@ Editing constraints:
 - Never alter equations, labels, \cite, \eqref, \cref, variable names, or figure/table references.
 - Do not introduce unnecessary bullet points.
 - Keep the paper's established motivation and contribution hierarchy; a local requested constraint stays local.
-- Define symbols before use, keep equation groups coherent, and add pseudocode only for a nontrivial procedure.
+- Do not insert caveats, disclaimers, or "X rather than Y" defenses of choices the text does not present as contested. A limitation the evidence establishes stays in the paper, stated once where the paper bounds its scope and at the granularity of the measurement.
+- Define symbols before use, keep equation groups coherent, and add pseudocode only for a nontrivial procedure. Flag notation drift: overloaded symbols, renamed variables, index or domain inconsistencies across sections.
 - Keep baseline comparison out of Method unless required to define the mechanism.
 - Preserve citation-claim pairings; do not infer support from titles, snippets, or neighboring citations.
 ```

@@ -1,5 +1,5 @@
 ---
-name: my-en-academic-writing
+name: mpaper-en-academic-writing
 description: English academic writing, LaTeX polishing, Chinese-to-English academic translation, AI-like wording reduction, claim-first academic framing, related-work synthesis, section drafting, grammar checking, focused proofreading, journal-style applied mathematics writing, and top-conference CS paper editing. Use when the user asks to polish, rewrite, translate, draft, proofread, de-AI, reduce defensive or formulaic academic wording, improve English academic prose, edit LaTeX snippets, prepare related work, adapt writing for journals, or improve papers for NeurIPS, ICLR, ICML, ACL, CVPR, IEEE, SCI journals, or CCF A venues.
 ---
 
@@ -75,6 +75,8 @@ Empirical work *shows* or *provides evidence*; it does not *prove* or *demonstra
 *Before:* `We prove that our algorithm significantly outperforms all existing solvers.`
 *After:* `Our algorithm reduces iteration count by 30--50\% relative to ADMM on the test problems in Table 2.`
 
+The same evidence boundary applies to negative statements about the work itself. One weak result on one benchmark supports `on ImageNet-C the method scores 2.1 points below \cite{ref9}`, not `the method is limited in robustness settings`. Generalizing a local observation into a verdict on the method is over-claiming with the sign reversed, and it costs the paper a contribution the evidence never disputed.
+
 #### Significance hype
 
 **Watch:** paves the way for, a crucial/pivotal step toward, has the potential to revolutionize, opens new avenues, sheds light on, of paramount importance, bridges the gap, groundbreaking.
@@ -132,6 +134,20 @@ AI-generated text fabricates a conceptual contrast by first negating a simplisti
 
 When the contrast is genuine — both halves carry independent information and the negated concept is one the reader might plausibly hold — the opposition is legitimate and should be kept.
 
+#### Defensive self-qualification
+
+Model-generated academic text over-defends: it volunteers caveats no reader disputes and pre-argues design choices nobody challenged. The passage then reads as a self-audit rather than a scientific claim, and it hands reviewers doubts they had not formed. Two forms appear repeatedly.
+
+**Volunteered common knowledge.** A caveat the field already assumes carries no information, and repeating it across sections turns a shared premise into an apparent weakness of this particular paper. Test: does the caveat change what the reader should conclude from the evidence just presented? If it is standing background — post-hoc attribution is one explanation among several, a benchmark is a proxy for the deployment setting, an ablation isolates correlation rather than mechanism — state it once where the paper bounds its scope, not in every paragraph that touches the topic.
+
+*Before:* `It is important to emphasize that our attribution maps, like all post-hoc attribution methods, provide only one possible explanation and cannot be guaranteed to correspond to the true internal computation of the network.`
+*After:* `The attribution maps localize the input regions the classifier responds to (Figure~\ref{fig:attr}).`
+
+**Preemptive design defense.** Justifying a choice by contrast with an alternative the reader never proposed makes the choice look contested and shifts the sentence from what the design achieves to what it concedes. **Watch:** `we use X rather than Y`, `this is an X, not a Y`, `this is a motivated design choice rather than a theoretical necessity` — when Y was never on the table and the contrast has no measurable consequence. State what the design does and what it buys; raise the alternative only where the paper compares the two with evidence.
+
+*Before:* `We adopt a feature-space objective rather than a pixel-space loss, and we stress that this is a modeling choice rather than a theoretical requirement.`
+*After:* `The objective matches feature-space distributions, which removes the per-pixel alignment requirement of the regression loss (Section~\ref{sec:method}).`
+
 #### Overlong, clause-stacked sentences
 
 AI-generated text chains three or four clauses with "which", "that", "while", "with". Split them: one idea per sentence. **Watch:** sentences past ~30 words or with 3+ subordinate clauses.
@@ -155,6 +171,7 @@ Cite the one or two works that matter and say *why*, not a bracketed list.
 A de-AI pass or aggressive polish risks flattening legitimate scholarly conventions. Keep these unless the user explicitly asks to change them:
 
 - **Evidence-tied hedging is correct.** Keep "suggests", "is consistent with", "we hypothesize", "may indicate", "appears to" when the claim is genuinely uncertain. Turning "the results suggest X" into "the results show X" manufactures over-claiming.
+- **A limitation the evidence establishes belongs in the paper.** Trimming defensive self-qualification removes caveats that are field-common knowledge or that defend an uncontested choice. It does not remove a scope boundary the reader needs to interpret a result, and it never licenses dropping an unfavorable number, softening a comparison the paper reports, or leaving a required assumption unstated. Assumptions, failure regimes, and results below a baseline stay in the text; what changes is that they are stated once, at the granularity of the evidence, in the section that handles scope.
 - **Passive voice** is fine when the actor is irrelevant: "The subproblem is solved by ADMM."
 - **First-person plural "we"** is standard; do not rewrite to avoid it.
 - **Semicolons** are fine in moderation for closely related independent clauses.
@@ -238,7 +255,11 @@ Do not escape characters inside existing mathematical expressions unless the exp
 Apply these requirements in every drafting, rewriting, translation, and de-AI mode. Venue style may change presentation, but does not override them.
 
 - **Introduction depth:** preserve the full motivation chain from problem context to concrete difficulty, prior-work gap, insight, and contribution. Give each distinct stage enough explanation for a first-time reader. Do not collapse the Introduction into one or two abrupt paragraphs merely to sound concise, and do not force a fixed paragraph count when the argument needs a different shape.
-- **Notation and equation flow:** define every symbol before or at first use. Introduce each equation group with its purpose, keep related derivations together, and interpret what the group establishes before moving on. Avoid alternating a short prose fragment with an isolated display equation throughout the Method.
+- **Notation and equation flow:** define every symbol before or at first use. Introduce each equation group with its purpose, keep related derivations together, and interpret what the group establishes before moving on. Avoid alternating a short prose fragment with an isolated display equation throughout the Method. When editing or drafting formula-heavy text, check for notation drift across sections: overloaded symbols (same letter for different objects), silently renamed variables, index convention changes, and domain or dimension inconsistencies. Treat these as semantic issues, not cosmetic ones, when they affect mathematical meaning. **Never introduce a symbol that is not already defined in the manuscript or defined inline at first use.** If a quantity needs a name (e.g., an oracle gradient, a tangent-projection cosine), either define it in the text or describe it in words. Using a symbol that looks like formal notation but has no definition misleads readers into thinking they missed a definition.
+- **Experiment discussion: mechanism, not implementation.** The body text of an analysis/discussion section explains *what was measured, why it matters, and what mechanism it reveals*. Implementation specifics (which layer, how many parameters, what percentage of iterations) belong in figure captions or supplementary material, not in the narrative. The correct register is neither a code-flavored technical report that dumps every setting, nor an evidence-free high-level gloss. The middle ground is: state the diagnostic quantity and its physical meaning, explain why a positive/negative/zero value matters for the paper's claim, cite the figure, and connect the observation to the theoretical framework. Concrete numbers (mean cosine, fraction positive) strengthen a caption but clutter a narrative paragraph — they make the analysis sound specific to one run rather than a property of the method.
+- **Comparison prose explains trends, not values.** Tables and figures carry specific metric values and per-category rankings; the prose explains the mechanism behind a trend and why it occurs. Restating numbers from an adjacent table reads as narration rather than analysis and anchors the discussion to particular cases rather than revealing a property of the method. Similarly, qualitative visual comparison is organized around the mechanism that distinguishes the methods, with specific figures cited briefly as evidence, rather than walking through each image category or example with its own descriptive sentence.
+- **Argument order, not project chronology:** organize a section by the logic that holds in the finished paper — what the problem is, why prior work is insufficient, what the mechanism is, what the evidence establishes. The order in which the work happened, the variants that were tried and dropped, and the debugging path are not that logic. Report an abandoned attempt only where the paper needs it to rule out a competing explanation, and then present it as that argument rather than as history.
+- **Result narration:** a result that supports the paper's claim needs prose stating the condition under which it holds and the mechanism that produces it. A table reference alone leaves the reader to reconstruct the contribution, and reviewers reading linearly usually do not. A result that does not support the claim is reported at the granularity of the measurement — setting, number, comparison — without being escalated into a general assessment of the method.
 - **Pseudocode economy:** add pseudocode only when it clarifies a nontrivial procedure, execution order, or reproducibility detail better than prose and equations. Do not create one block per module or restate a derivation as an algorithm.
 - **Logical form:** use bullets only for genuinely parallel, independently scannable items. Express causal, temporal, and progressive relations as connected prose or an explicitly ordered procedure. Do not format dependent reasoning as a flat list.
 - **Naming and emphasis:** assign one concise canonical name and, when needed, one abbreviation to each component. Define it once and reuse it exactly. Do not repeat desired properties as promotional modifiers, alternate long and short names, or add boldface to make module names appear important.
@@ -246,6 +267,7 @@ Apply these requirements in every drafting, rewriting, translation, and de-AI mo
 - **Section roles:** Method explains the proposed mechanism, formulation, and implementation. Put baseline positioning in Related Work and empirical comparison in Experiments unless a brief contrast is indispensable to define the method.
 - **Focus preservation:** preserve the manuscript's established problem and contribution hierarchy. Treat a local user-requested constraint as a local design requirement unless the provided scientific evidence establishes it as a central motivation. Do not rewrite the title, abstract, or global framing around a minor requested change.
 - **Citation entailment:** keep each citation attached to the claim it supports. Use a source only after inspecting evidence sufficient for that specific statement; a title, search snippet, neighboring citation, or another paper's summary is not enough. If the source is unavailable or the mapping is uncertain, mark the claim for verification rather than guessing, and do not move a citation to a newly rewritten claim by proximity alone.
+- **Source gaps:** when source materials are missing or incomplete during drafting or revision, produce an explicit evidence request or placeholder (`[citation needed]`, `[proof TBD]`) rather than filling with plausible-sounding prose. When sources conflict, surface the conflict and ask the user which is authoritative. When a proof or experiment is unverified, use provisional language and list what verification is still needed.
 
 ## Editing Principles
 
@@ -412,6 +434,7 @@ Requirements:
 - Make transitions between paragraphs explicit when needed.
 - Use claim-first topic sentences with necessary scope built into the sentence.
 - Do not introduce claims not implied by the outline.
+- Before drafting, identify the available evidence (theorems, experiments, citations, figures) and explicit gaps. Write gaps as placeholders (`[citation needed]`, `[proof TBD]`, `[experiment required]`) rather than plausible filler prose. When sources conflict, surface the conflict and ask which is authoritative.
 - For applied mathematics journals, motivate each algorithmic step with mathematical reasoning and keep theoretical claims prominent.
 - Avoid ML-conference rhetorical patterns such as `surprisingly`, `we find that`, or oversold contribution language.
 
@@ -502,6 +525,7 @@ Style reminders:
 - Use pseudocode only when it clarifies a nontrivial executable procedure beyond the equations.
 - Pair formal results with short intuition when possible.
 - Preserve theorem, lemma, proposition, proof, and equation environments.
+- Distinguish result status in language: use "we prove" or "we establish" only for formally proved results; use "we conjecture", "we observe empirically", "numerical experiments suggest", or "heuristic analysis indicates" for weaker evidence levels. Do not conflate theorem, conjecture, experimental observation, intuition, and future-work direction in word choice.
 
 ### Top CS and ML Conferences
 
@@ -622,6 +646,7 @@ Prevention:
 - **Contribution list carries the "why":** each contribution bullet should name both what was achieved and why it matters or what gap it fills, not just the result. `We prove O(1/k) convergence` is a result; `We prove O(1/k) convergence under the relaxed Hölder assumption, removing the Lipschitz requirement of prior methods` is a contribution.
 - **Figure highlights:** the main figure (especially Figure 1) should visually mark the paper's key advantage — the region, component, or comparison that distinguishes this work. A clean, information-rich figure without visual emphasis on the novelty buries the highlight.
 - **Method-to-claim traceability:** each major experimental claim should trace backward to a specific method component and forward to a specific contribution bullet. If a claim floats without anchoring to both, the reader loses the thread.
+- **Limitation placement:** state each limitation once, in the section where the paper bounds its scope. The Abstract and the Introduction establish the contribution before qualifying it, so a caveat placed in the opening lines subtracts from a claim the reader has not yet received. The Conclusion reinforces what the paper established; a limitation or a broader self-assessment introduced there for the first time arrives after the evidence has closed and reads as a concession rather than a scope statement.
 
 When drafting or rewriting at a full-section or full-paper level, diagnose the global story first: what is the one highlight, what story should the paper tell, and what experiments support that story. Only then write or polish individual sections. Per-section polish that optimizes each part independently tends to produce a paper where the logic is correct but the emphasis is wrong — the narrative equivalent of a local optimum.
 
@@ -706,7 +731,7 @@ Use direct academic claims with explicit scope:
 - Put scope in concrete modifiers such as `under Assumption 1`, `for nonconvex objectives`, or `on the evaluated benchmarks`.
 - Convert low-information caveat prefaces into the actual claim, scope, or evidence boundary.
 - Replace negative-to-positive scaffolding — including false conceptual oppositions that negate a view no reader holds — with a single affirmative claim whenever the scope is already clear.
-- In de-AI editing, treat defensive framing as a paragraph-level issue: revise the sentence so the argument becomes clearer and more direct.
+- In de-AI editing, treat defensive framing as a paragraph-level issue: revise the sentence so the argument becomes clearer and more direct. A paragraph's job is to establish its claim; pre-litigating objections the paper has not reached spends the paragraph on doubts and displaces the evidence that would have answered them.
 
 ### Active and Passive Voice
 
@@ -770,7 +795,7 @@ Check every output against the following list:
 
 1. The manuscript portion is in English unless the user requested otherwise.
 2. The text is standard academic English with simple, precise vocabulary.
-3. No AI-tell patterns remain in generated manuscript prose (check all categories: forbidden vocabulary, over-claiming verbs, significance hype, empty intensifiers, novelty padding, formulaic openers, connective overuse, boilerplate emphasis, false conceptual opposition, overlong sentences, contribution-list cliches, citation dumping, multi-angle restating).
+3. No AI-tell patterns remain in generated manuscript prose (check all categories: forbidden vocabulary, over-claiming verbs, significance hype, empty intensifiers, novelty padding, formulaic openers, connective overuse, boilerplate emphasis, false conceptual opposition, defensive self-qualification, overlong sentences, contribution-list cliches, citation dumping, multi-angle restating).
 4. Legitimate academic constructs (evidence-tied hedging, passive voice where appropriate, "we") were preserved, not incorrectly flattened.
 5. There are no contractions.
 6. No unsupported claims, numbers, citations, baselines, or causal statements were added.
@@ -779,16 +804,18 @@ Check every output against the following list:
 9. Literal special characters are escaped when generating LaTeX from plain text.
 10. Tense is consistent with the selected mode.
 11. Non-proper-noun technical terms are not incorrectly capitalized.
-12. Claims use direct framing with concrete scope and evidence boundaries.
+12. Claims use direct framing with concrete scope and evidence boundaries. Statements about the work's own limitations stay at the granularity of the evidence and are not escalated into general assessments of the method.
 13. Existing formatting is preserved, and no new emphasis formatting was added.
 14. Paragraph logic is coherent; transitions are natural rather than mechanical.
 15. Related-work text is grouped thematically and states limitations factually.
-16. Applied mathematics text contains mathematical motivation and avoids ML-conference hype.
+16. Applied mathematics text contains mathematical motivation, avoids ML-conference hype, and uses language that correctly reflects result status (theorem vs conjecture vs empirical observation).
 17. Terminology, tone, and style are consistent with the existing English manuscript when one is provided.
 18. Output format exactly matches the user's requested or mode-specific format.
-19. Introduction motivation is complete; Method symbols are defined and equations form readable groups rather than isolated displays.
+19. Introduction motivation is complete; Method symbols are defined and equations form readable groups rather than isolated displays. No notation drift across sections (overloaded symbols, renamed variables, index or domain inconsistencies).
 20. Pseudocode, lists, and emphasis are necessary and structurally justified; dependent reasoning is not flattened into bullets.
 21. Component names and abbreviations are concise and consistent; Method does not contain avoidable baseline comparison.
 22. No local editing constraint has displaced the paper's established motivation or contribution hierarchy.
-23. For full-section or multi-section tasks: the core motivation echoes across Introduction, contributions, and Conclusion; contribution bullets carry the "why", not just the result.
-24. Every substantive citation is supported by the inspected source and remains paired with the correct claim.
+23. For full-section or multi-section tasks: the core motivation echoes across Introduction, contributions, and Conclusion; contribution bullets carry the "why", not just the result; each limitation appears once in the section that bounds scope rather than in the Abstract, the Introduction lead, or as new material in the Conclusion.
+24. Sections follow the finished paper's argument order rather than the chronology of the work, and results that support the paper's claim are narrated with their condition and mechanism instead of being left in a table.
+25. Comparison and ablation prose explains trends and mechanisms rather than restating metric values from adjacent tables; qualitative visual analysis is organized by mechanism, not as a per-category or per-example inventory.
+26. Every substantive citation is supported by the inspected source and remains paired with the correct claim.

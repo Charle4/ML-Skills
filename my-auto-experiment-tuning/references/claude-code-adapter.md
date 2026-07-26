@@ -7,7 +7,7 @@ Read this file only when the session runtime is `claude`.
 For Claude Code, the skill is installed at:
 
 ```
-~/.claude/skills/my-auto-experiment-tuning
+~/.claude/skills/my-exp-auto-tuning
 ```
 
 Substitute this path whenever the main skill uses the placeholder `SKILL_DIR`.
@@ -82,7 +82,7 @@ Do not batch notifications — process each one as soon as it arrives, even if a
 ```python
 CronCreate(
     cron="7 * * * *",
-    prompt="/my-auto-experiment-tuning Continue fine-tuning. Target: PSNR > XX (substitute actual target, or omit if none). Keep GPUs occupied. At the start of each invocation: (1) run `aet.py loop-state` and follow its YOU block — it routes launches and Strategist transactions. Skip this prompt only if you are currently mid-execution of these steps in this exact conversation turn.",
+    prompt="/my-exp-auto-tuning Continue fine-tuning. Target: PSNR > XX (substitute actual target, or omit if none). Keep GPUs occupied. At the start of each invocation: (1) run `aet.py loop-state` and follow its YOU block — it routes launches and Strategist transactions. Skip this prompt only if you are currently mid-execution of these steps in this exact conversation turn.",
     recurring=True,
     durable=False,
 )
@@ -90,7 +90,7 @@ CronCreate(
 
 `CronCreate` returns a job id; cancel with it later, or recover it via `CronList`.
 
-**After scheduling, run the first cycle now** — do not wait for the first cron fire. Each tick re-enqueues the prompt; the leading `/my-auto-experiment-tuning` re-triggers the skill after a context compaction drops the loaded instructions.
+**After scheduling, run the first cycle now** — do not wait for the first cron fire. Each tick re-enqueues the prompt; the leading `/my-exp-auto-tuning` re-triggers the skill after a context compaction drops the loaded instructions.
 
 Customize the call:
 - Replace `PSNR > XX` with the actual metric target, or omit the target clause entirely if none was given.

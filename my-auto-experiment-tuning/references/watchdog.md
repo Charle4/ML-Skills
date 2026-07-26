@@ -38,13 +38,13 @@ Codex cannot self-wake and has no background completion notification. During an 
 If an external scheduler can send a message to the active conversation, use a short prompt like:
 
 ```text
-$my-auto-experiment-tuning Continue the existing tuning session. Run `aet.py loop-state` and follow its routing. Keep GPUs occupied within contention limits and stop only for a recorded valid stop condition.
+$my-exp-auto-tuning Continue the existing tuning session. Run `aet.py loop-state` and follow its routing. Keep GPUs occupied within contention limits and stop only for a recorded valid stop condition.
 ```
 
 If the objective has a numeric target, include it:
 
 ```text
-$my-auto-experiment-tuning Continue the existing tuning session. Target: PSNR > 25 on the benchmark metric. Keep filling available GPU slots from the ready queue until a clean run reaches the target or the user stops the job. If no active experiments are running, inspect the ledger, replenish ready candidates, and launch as resources allow immediately.
+$my-exp-auto-tuning Continue the existing tuning session. Target: PSNR > 25 on the benchmark metric. Keep filling available GPU slots from the ready queue until a clean run reaches the target or the user stops the job. If no active experiments are running, inspect the ledger, replenish ready candidates, and launch as resources allow immediately.
 ```
 
 ## Watchdog Behavior

@@ -1,5 +1,5 @@
 ---
-name: my-auto-experiment-tuning
+name: my-exp-auto-tuning
 description: Autonomous, hypothesis-driven experiment and hyperparameter tuning for ML/research codebases. Use when you need to run many experiments, tune hyperparameters, manage GPU slots, analyze results, maintain experiment ledgers, resume an interrupted tuning loop, or coordinate subagents for strategy/result analysis. Supports project-specific adapters while keeping the main workflow generic.
 ---
 
@@ -172,8 +172,8 @@ Follow [references/claude-code-adapter.md](references/claude-code-adapter.md) fo
 
 Select the runtime from the available execution primitives:
 
-- **`codex`**: use when long commands run as foreground `exec_command` sessions and yielded sessions are polled with `write_stdin`; background notifications and `CronCreate` are unavailable. The skill root is `~/.codex/skills/my-auto-experiment-tuning/`; the Strategist id lives in `loop_state.json`, and `strategist-begin` prints the Codex spawn/resume call.
-- **`claude`**: use when Bash supports `run_in_background=True`, completion notifications, and `CronCreate`. The skill root is `~/.claude/skills/my-auto-experiment-tuning/`; read [references/claude-code-adapter.md](references/claude-code-adapter.md) immediately.
+- **`codex`**: use when long commands run as foreground `exec_command` sessions and yielded sessions are polled with `write_stdin`; background notifications and `CronCreate` are unavailable. The skill root is `~/.codex/skills/my-exp-auto-tuning/`; the Strategist id lives in `loop_state.json`, and `strategist-begin` prints the Codex spawn/resume call.
+- **`claude`**: use when Bash supports `run_in_background=True`, completion notifications, and `CronCreate`. The skill root is `~/.claude/skills/my-exp-auto-tuning/`; read [references/claude-code-adapter.md](references/claude-code-adapter.md) immediately.
 
 Throughout this skill, `SKILL_DIR` means the install root above. Substitute it when running `aet.py` commands.
 

@@ -24,7 +24,7 @@ Useful approvals are narrow command prefixes, not broad shells. Project-specific
 
 Recommended:
 - `["nvidia-smi"]`
-- the skill helper script, such as `["python", "~/.codex/skills/my-auto-experiment-tuning/scripts/aet.py"]` for Codex or the equivalent runtime install path
+- the skill helper script, such as `["python", "~/.codex/skills/my-exp-auto-tuning/scripts/aet.py"]` for Codex or the equivalent runtime install path
 - process checks scoped to experiment scripts, such as `["pgrep", "-af", "experiments/exp_"]`
 - one prefix per experiment script that may be tuned, such as `["python", "-u", "/path/to/project/experiments/exp_method.py"]`
 - if the project venv interpreter is used directly, mirror the same narrow shape with that interpreter path
