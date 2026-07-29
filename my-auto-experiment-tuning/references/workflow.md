@@ -19,7 +19,7 @@ Default duration semantics:
 - Do not end after 1-3 planning groups just because a plausible local best was found. A local best is a signal for the next queue update, not a stopping reason.
 - If no explicit run or wall-clock budget is provided, assume the budget is open-ended until the user intervenes or the target is cleanly met.
 - Keep all usable GPU slots occupied within the configured contention limits. When any run finishes, immediately identify it, record inline: verify output files, parse metrics in priority order (JSON/CSV/NPZ → TensorBoard → log regex), determine status, call `aet.py record` (which adds the terminal run to the pending set), then `aet.py loop-state` to re-check resources and launch as many `planned` candidates as the now-free slots allow — do not wait for other running experiments to finish first.
-- Keep `projected_ready_after_launch = planned_count - min(free_slots, planned_count)` at or above total_capacity (see section 6) whenever useful unexplored regions remain. `loop-state` routes the Strategist transaction whenever the projected count is below total_capacity.
+- Keep `projected_ready_after_launch = planned_count - min(free_slots, planned_count)` at or above total_capacity (see [6. Capacity Check](#6-capacity-check)) whenever useful unexplored regions remain. `loop-state` routes the Strategist transaction whenever the projected count is below total_capacity.
 - If the system forces a final response before the target is met, report the next planned candidates or search group and the reason continuation is blocked; do not present a local best as final.
 
 ## 2. Context Pass
@@ -71,7 +71,7 @@ Capture the printed session path. `aet.py init` creates `session.md` from [../as
 - `loop_state.json`: script-owned Strategist state machine — pending runs, Strategist identity/open call, exhaustion handshake, agent history, and `last_evidence_hash` (the evidence hash used to detect a state-unchanged loop). Read it via `aet.py loop-state`; change it only through AET helper commands.
 - `runs/<id>/`: per-run params, command, and metrics
 
-Only this timestamped session directory holds session ledger files. Do not write narrative, observations, or run notes directly under `aet/` or the date-level directory `aet/YYYY-MM-DD/`. If a task needs narrative or observations, update `aet/YYYY-MM-DD/HH-MM-SS/session.md`. The one allowed file at the `aet/` root is the optional cross-session durable-rules file `aet/knowledge.md` (see section 12); it is not session-scoped, so it does not belong inside a timestamped session directory.
+Only this timestamped session directory holds session ledger files. Do not write narrative, observations, or run notes directly under `aet/` or the date-level directory `aet/YYYY-MM-DD/`. If a task needs narrative or observations, update `aet/YYYY-MM-DD/HH-MM-SS/session.md`. The one allowed file at the `aet/` root is the optional cross-session durable-rules file `aet/knowledge.md` (see [12. Project Records and Cross-Session Knowledge](#12-project-records-and-cross-session-knowledge)); it is not session-scoped, so it does not belong inside a timestamped session directory.
 
 ### Run Status Values
 
@@ -237,7 +237,7 @@ If a run is contaminated, record it as `inconclusive` rather than deleting it.
 
 ## 10. Analysis
 
-Recording is inline (see section 9). Analysis is delegated, not done inline: synthesizing per-HP influence patterns across runs is the Strategist's job.
+Recording is inline (see [9. Collection and Result Integrity](#9-collection-and-result-integrity)). Analysis is delegated, not done inline: synthesizing per-HP influence patterns across runs is the Strategist's job.
 - Strategist returns `observations_to_append` (per-HP influence patterns, boundary hits, forbidden regions) when called.
 - Write returned observations into `session.md`'s Current Analysis section (overwrite). `aet.py strategist-return` clears the pending-run snapshot for you (version-guarded), so runs that completed during analysis stay pending for the next call.
 

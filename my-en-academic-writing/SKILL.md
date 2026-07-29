@@ -1,6 +1,6 @@
 ---
 name: mpaper-en-academic-writing
-description: English academic writing, LaTeX polishing, Chinese-to-English academic translation, AI-like wording reduction, claim-first academic framing, related-work synthesis, section drafting, grammar checking, focused proofreading, journal-style applied mathematics writing, and top-conference CS paper editing. Use when the user asks to polish, rewrite, translate, draft, proofread, de-AI, reduce defensive or formulaic academic wording, improve English academic prose, edit LaTeX snippets, prepare related work, adapt writing for journals, or improve papers for NeurIPS, ICLR, ICML, ACL, CVPR, IEEE, SCI journals, or CCF A venues.
+description: English academic writing, LaTeX polishing, Chinese-to-English academic translation, AI-like wording reduction, claim-first academic framing, related-work synthesis, section drafting, title and abstract writing, conclusion writing, grammar checking, focused proofreading, journal-style applied mathematics writing, and top-conference CS paper editing. Use when the user asks to polish, rewrite, translate, draft, proofread, de-AI, reduce defensive or formulaic academic wording, improve English academic prose, edit LaTeX snippets, prepare related work, sharpen a paper title, tighten an abstract or conclusion, fix paragraph flow or sentence-level wordiness, adapt writing for journals, or improve papers for NeurIPS, ICLR, ICML, ACL, CVPR, IEEE, SCI journals, or CCF A venues.
 ---
 
 # English Academic Writing
@@ -13,33 +13,42 @@ Preserve the author's technical meaning, evidence boundary, LaTeX source, citati
 
 ## Task Modes
 
-Identify the user's requested mode before editing:
+Identify the user's requested mode before editing, then work from that mode's section:
 
-- Conservative polish: minimally improve an existing English academic passage while preserving structure and meaning. Also use for close-to-submission cleanup.
-- Deep polish / rewrite: substantially improve clarity, rigor, sentence structure, grammar, and readability for publication or top-conference submission.
-- De-AI rewrite: remove formulaic, inflated, mechanical, or model-like wording while keeping the technical content.
-- Chinese-to-English academic translation: translate Chinese drafts or notes into English academic LaTeX prose, usually with a Chinese back-translation for checking.
-- Section drafting from outline: draft an English section from an outline, notes, or required points without adding unsupported claims.
-- Related-work synthesis: summarize references thematically, state contributions and limitations factually, and position the user's work.
-- Grammar check: list spelling, grammar, punctuation, article, agreement, and tense issues without rewriting unless requested.
-- Focused proofreading: correct grammar and surface errors while preserving near-submission style.
-- Venue/style adaptation: tune prose for an applied mathematics journal, SCI journal, systems venue, IEEE venue, or top CS/ML/NLP conference.
+- [Minimal Polish](#minimal-polish): minimally improve an existing English academic passage while preserving structure and meaning.
+- [Deep Polish and Rewriting](#deep-polish-and-rewriting): substantially improve clarity, rigor, sentence structure, grammar, and readability for publication or top-conference submission.
+- [De-AI Rewrite](#de-ai-rewrite): remove formulaic, inflated, mechanical, or model-like wording while keeping the technical content.
+- [Chinese-to-English Academic Translation](#chinese-to-english-academic-translation): translate Chinese drafts or notes into English academic LaTeX prose, usually with a Chinese back-translation for checking.
+- [Section Drafting From Outline](#section-drafting-from-outline): draft an English section from an outline, notes, or required points without adding unsupported claims.
+- [Related-Work Synthesis](#related-work-synthesis): summarize references thematically, state contributions and limitations factually, and position the user's work.
+- [Grammar Check Only](#grammar-check-only): list spelling, grammar, punctuation, article, agreement, and tense issues without rewriting unless requested.
+- [Focused Proofreading](#focused-proofreading): correct grammar and surface errors while preserving near-submission style.
 
-If multiple modes apply, use the most specific mode. For example, a request to "de-AI this NeurIPS paragraph" uses de-AI rewrite plus the top-conference venue profile.
+A venue or style profile is a modifier on a mode, not a mode of its own. Choose the task mode first, then apply the matching profile from [Venue and Style Profiles](#venue-and-style-profiles). The profiles tune the prose for applied mathematics journals, SCI journals, systems venues, IEEE venues, and top CS/ML/NLP conferences. A request to "de-AI this NeurIPS paragraph" is De-AI Rewrite under the top-conference profile.
+
+Three modes answer to the words "proofread" and "close to submission". They differ in how much the text is allowed to change, so choose by the intervention the user is asking for:
+
+- **Grammar Check Only** reports issues and leaves the text alone. Choose it when the user wants to see what is wrong.
+- **Focused Proofreading** fixes errors in place and changes nothing else. Choose it when the paper is near submission and the priority is minimal risk.
+- **Minimal Polish** fixes errors and additionally trims verbosity and smooths transitions. Choose it when the user wants the passage to read better, not only to be correct.
+
+If several modes still apply, use the most specific one.
 
 ## Workflow
 
 1. Identify the mode, target venue if provided, input language, desired output surface, and whether the user wants a text response or file edits.
 2. Extract the central claim, evidence, technical terms, constraints, and intended argument flow before editing.
 3. Preserve all LaTeX commands, equations, citations, labels, variables, method names, dataset names, and references unless the user explicitly asks to fix them.
-4. Apply the minimum effective edit for the requested mode:
-   - For conservative polish, leave correct text unchanged.
-   - For deep polish, rewrite sentences when clarity or rigor clearly improves.
+4. Work in the order given by [Editing Order](#editing-order): organization, paragraphs, sentences, words, with a concision, precision, and coherence pass at each level.
+5. Apply the minimum effective edit for the requested mode:
+   - For Minimal Polish, leave correct text unchanged.
+   - For deep polish, rewrite sentences when doing so removes a real deficiency in clarity or rigor.
    - For de-AI editing, remove formulaic phrasing, inflated claims, needless connectors, and ornamental wording.
    - For drafting, follow the outline or organize loose materials into coherent structure, and avoid unsupported claims.
-5. Use the default academic English policy unless a task mode, venue profile, or user instruction provides a more specific rule.
-6. Keep claims bounded by the provided evidence. Do not add new numbers, citations, baselines, experimental conclusions, or causal explanations.
-7. Before output, run the self-check: LaTeX preservation, no unsupported claims, no AI-tell patterns, legitimate constructs preserved, tense consistency, capitalization, and output-format compliance.
+6. Use the default academic English policy unless a task mode, venue profile, or user instruction provides a more specific rule.
+7. Keep claims bounded by the provided evidence. Do not add new numbers, citations, baselines, experimental conclusions, or causal explanations.
+8. When a specific phrase, term, punctuation mark, or citation-syntax detail needs checking against a table, look it up in [references/line-editing.md](references/line-editing.md).
+9. Before output, run the self-check: LaTeX preservation, no unsupported claims, no AI-tell patterns, legitimate constructs preserved, tense consistency, capitalization, and output-format compliance.
 
 ## General Academic English Policy
 
@@ -91,6 +100,8 @@ The same evidence boundary applies to negative statements about the work itself.
 *Before:* `We conduct extensive numerical experiments on a wide range of optimization problems.`
 *After:* `We test on three problem classes: sparse recovery, matrix completion, and total variation denoising.`
 
+The same emptiness appears one word at a time in modifiers that assert an attitude instead of a fact: `actually`, `basically`, `certainly`, `clearly`, `obviously`, `of course`, `naturally`, `quite`, `very`, `extremely`, `practically`, `still`, `interesting`, `important`. Two of these do specific damage in a paper. `Clearly` and `obviously` in front of a step tell a reader who did not find it obvious that the fault is theirs, and reviewers read the word as a place where the argument was skipped. `Interesting` and `important` announce a judgment where the sentence should supply the reason the reader would reach it. Delete the modifier, or replace it with the fact that earned it.
+
 #### Novelty padding
 
 **Watch:** "novel" used more than once per section; "to the best of our knowledge"; "for the first time".
@@ -101,6 +112,8 @@ The same evidence boundary applies to negative statements about the work itself.
 #### Formulaic openers
 
 **Watch:** "In recent years, X has attracted increasing attention"; "With the rapid development of..."; "Despite recent advances,...". Also watch meta-discourse openers that announce the forthcoming explanation style instead of stating the point: `At its core,`, `Fundamentally,`, `Simply put,`, `In essence,`, `To put it plainly,`, `Breaking this down,`. These carry zero information — drop them and start with the claim.
+
+Replacement strategy: open with the specific problem, phenomenon, or contradiction the paper addresses. A concrete, grounded opening — a failure case, a measurable tension, or a real-world scenario — lets the reader grasp the problem in one paragraph and gives the reviewer a reason to keep reading. The "what" and "why it matters" should land before any literature survey begins.
 
 *Before:* `In recent years, non-convex optimization has attracted increasing attention due to its wide applications.`
 *After:* `Non-convex composite minimization arises in sparse recovery and low-rank estimation, but existing convergence guarantees require either bounded gradients or global Lipschitz continuity.`
@@ -138,7 +151,7 @@ When the contrast is genuine — both halves carry independent information and t
 
 Model-generated academic text over-defends: it volunteers caveats no reader disputes and pre-argues design choices nobody challenged. The passage then reads as a self-audit rather than a scientific claim, and it hands reviewers doubts they had not formed. Two forms appear repeatedly.
 
-**Volunteered common knowledge.** A caveat the field already assumes carries no information, and repeating it across sections turns a shared premise into an apparent weakness of this particular paper. Test: does the caveat change what the reader should conclude from the evidence just presented? If it is standing background — post-hoc attribution is one explanation among several, a benchmark is a proxy for the deployment setting, an ablation isolates correlation rather than mechanism — state it once where the paper bounds its scope, not in every paragraph that touches the topic.
+**Volunteered common knowledge.** A caveat the field already assumes carries no information, and repeating it across sections turns a shared premise into an apparent weakness of this particular paper. Test: does the caveat change what the reader should conclude from the evidence just presented? Some caveats are standing background: post-hoc attribution is one explanation among several, a benchmark is a proxy for the deployment setting, an ablation isolates correlation rather than mechanism. State those once, where the paper bounds its scope, not in every paragraph that touches the topic.
 
 *Before:* `It is important to emphasize that our attribution maps, like all post-hoc attribution methods, provide only one possible explanation and cannot be guaranteed to correspond to the true internal computation of the network.`
 *After:* `The attribution maps localize the input regions the classifier responds to (Figure~\ref{fig:attr}).`
@@ -191,7 +204,7 @@ A de-AI pass or aggressive polish risks flattening legitimate scholarly conventi
 - Do not add bold, italics, quotation marks, or emphasis formatting unless the source already uses it or the venue requires it.
 - Do not add stylistic double quotation marks.
 - Avoid colons in running prose when a subordinate clause or apposition conveys the same relation.
-- Avoid dashes for stylistic effect. Prefer commas, clauses, parentheses, or sentence splitting.
+- Avoid dashes for stylistic effect. Prefer commas, clauses, parentheses, or sentence splitting. This governs the em dash (`---`). The en dash (`--`) in numeric ranges, page ranges, and joined-equal compounds such as `epochs 10--50`, `Newton--Raphson`, and `precision--recall trade-off` is required typography and stays.
 - Do not introduce bullet points unless the user asks for them, the source already uses them, or the venue convention strongly expects them, such as contribution bullets in a conference Introduction.
 - Do not convert coherent paragraphs into item lists.
 - Keep LaTeX source clean. Do not add decorative commands.
@@ -254,22 +267,35 @@ Do not escape characters inside existing mathematical expressions unless the exp
 
 Apply these requirements in every drafting, rewriting, translation, and de-AI mode. Venue style may change presentation, but does not override them.
 
-- **Introduction depth:** preserve the full motivation chain from problem context to concrete difficulty, prior-work gap, insight, and contribution. Give each distinct stage enough explanation for a first-time reader. Do not collapse the Introduction into one or two abrupt paragraphs merely to sound concise, and do not force a fixed paragraph count when the argument needs a different shape.
-- **Notation and equation flow:** define every symbol before or at first use. Introduce each equation group with its purpose, keep related derivations together, and interpret what the group establishes before moving on. Avoid alternating a short prose fragment with an isolated display equation throughout the Method. When editing or drafting formula-heavy text, check for notation drift across sections: overloaded symbols (same letter for different objects), silently renamed variables, index convention changes, and domain or dimension inconsistencies. Treat these as semantic issues, not cosmetic ones, when they affect mathematical meaning. **Never introduce a symbol that is not already defined in the manuscript or defined inline at first use.** If a quantity needs a name (e.g., an oracle gradient, a tangent-projection cosine), either define it in the text or describe it in words. Using a symbol that looks like formal notation but has no definition misleads readers into thinking they missed a definition.
+- **Notation and equation flow:** define every symbol before or at first use. Introduce each equation group with its purpose, keep related derivations together, and interpret what the group establishes before moving on. Avoid alternating a short prose fragment with an isolated display equation throughout the Method. When editing or drafting formula-heavy text, check for notation drift across sections: overloaded symbols (same letter for different objects), silently renamed variables, index convention changes, and domain or dimension inconsistencies. When drift affects mathematical meaning, treat it as a semantic issue rather than a cosmetic one. **Never introduce a symbol that is not already defined in the manuscript or defined inline at first use.** If a quantity needs a name (e.g., an oracle gradient, a tangent-projection cosine), either define it in the text or describe it in words. A symbol that looks like formal notation but has no definition misleads readers into thinking they missed one. Typeset each display equation as a grammatical part of the sentence that carries it, and put the sentence punctuation after the equation. Do not open a sentence with a symbol. Pair every equation group with what it means physically or algorithmically and with the assumptions it requires. `It can be shown that` standing in for the derivation is a gap a reviewer will ask about.
 - **Experiment discussion: mechanism, not implementation.** The body text of an analysis/discussion section explains *what was measured, why it matters, and what mechanism it reveals*. Implementation specifics (which layer, how many parameters, what percentage of iterations) belong in figure captions or supplementary material, not in the narrative. The correct register is neither a code-flavored technical report that dumps every setting, nor an evidence-free high-level gloss. The middle ground is: state the diagnostic quantity and its physical meaning, explain why a positive/negative/zero value matters for the paper's claim, cite the figure, and connect the observation to the theoretical framework. Concrete numbers (mean cosine, fraction positive) strengthen a caption but clutter a narrative paragraph — they make the analysis sound specific to one run rather than a property of the method.
-- **Comparison prose explains trends, not values.** Tables and figures carry specific metric values and per-category rankings; the prose explains the mechanism behind a trend and why it occurs. Restating numbers from an adjacent table reads as narration rather than analysis and anchors the discussion to particular cases rather than revealing a property of the method. Similarly, qualitative visual comparison is organized around the mechanism that distinguishes the methods, with specific figures cited briefly as evidence, rather than walking through each image category or example with its own descriptive sentence.
+- **Comparison prose explains trends, not values.** Tables and figures carry specific metric values and per-category rankings; the prose explains the mechanism behind a trend and why it occurs. Restating numbers from an adjacent table reads as narration rather than analysis and anchors the discussion to particular cases rather than revealing a property of the method. Similarly, qualitative visual comparison is organized around the mechanism that distinguishes the methods, with specific figures cited briefly as evidence, rather than walking through each image category or example with its own descriptive sentence. A comparison that holds only in part is reported in both directions: state where the two agree, state where they diverge, then argue why the agreement supports the claim the paper makes. Compressing this into `the results match closely` or `the reconstruction is remarkably similar to the ground truth` leaves the reviewer to locate the disagreement. A disagreement the reviewer finds costs more than one the paper handled itself.
 - **Argument order, not project chronology:** organize a section by the logic that holds in the finished paper — what the problem is, why prior work is insufficient, what the mechanism is, what the evidence establishes. The order in which the work happened, the variants that were tried and dropped, and the debugging path are not that logic. Report an abandoned attempt only where the paper needs it to rule out a competing explanation, and then present it as that argument rather than as history.
+- **Evidence before inference:** within a section, move down the certainty ladder: measurements, then results, then interpretation, then inference, then speculation. A reader who meets the speculation first discounts the evidence that follows, because the framing arrived before the grounds for it. Mark each step down in the language rather than leaving the reader to infer it: `we observe`, `this is consistent with`, `one explanation is`, `we speculate that`. For a claim the reader is likely to resist, place every supporting piece ahead of it so the conclusion arrives as the last step of an argument the reader has already walked. Word choice tracks the same ladder — see the result-status distinction under [Applied Mathematics](#applied-mathematics). Conclusion verbs track it too: classify each conclusion by what backs it and choose the verb accordingly. Direct data support takes `indicate` or `show`; inference supported by the literature but not by the paper's own data takes `suggest`; reasoning without direct evidence takes `may` or `might`.
 - **Result narration:** a result that supports the paper's claim needs prose stating the condition under which it holds and the mechanism that produces it. A table reference alone leaves the reader to reconstruct the contribution, and reviewers reading linearly usually do not. A result that does not support the claim is reported at the granularity of the measurement — setting, number, comparison — without being escalated into a general assessment of the method.
 - **Pseudocode economy:** add pseudocode only when it clarifies a nontrivial procedure, execution order, or reproducibility detail better than prose and equations. Do not create one block per module or restate a derivation as an algorithm.
 - **Logical form:** use bullets only for genuinely parallel, independently scannable items. Express causal, temporal, and progressive relations as connected prose or an explicitly ordered procedure. Do not format dependent reasoning as a flat list.
 - **Naming and emphasis:** assign one concise canonical name and, when needed, one abbreviation to each component. Define it once and reuse it exactly. Do not repeat desired properties as promotional modifiers, alternate long and short names, or add boldface to make module names appear important.
 - **AI-like language:** avoid ornamental semicolons and dashes, sentence-medial `therefore`/`thus`/`hence`, hollow transitions, and evaluative adverbs such as `elegantly` or `theoretically` when they merely praise the method. Use `theoretically` only for a real distinction between theoretical and empirical evidence.
-- **Section roles:** Method explains the proposed mechanism, formulation, and implementation. Put baseline positioning in Related Work and empirical comparison in Experiments unless a brief contrast is indispensable to define the method.
 - **Focus preservation:** preserve the manuscript's established problem and contribution hierarchy. Treat a local user-requested constraint as a local design requirement unless the provided scientific evidence establishes it as a central motivation. Do not rewrite the title, abstract, or global framing around a minor requested change.
-- **Citation entailment:** keep each citation attached to the claim it supports. Use a source only after inspecting evidence sufficient for that specific statement; a title, search snippet, neighboring citation, or another paper's summary is not enough. If the source is unavailable or the mapping is uncertain, mark the claim for verification rather than guessing, and do not move a citation to a newly rewritten claim by proximity alone.
+- **Citation entailment:** keep each citation attached to the claim it supports. Use a source only after inspecting evidence sufficient for that specific statement; a title, search snippet, neighboring citation, or another paper's summary is not enough. If the source is unavailable or the mapping is uncertain, mark the claim for verification rather than guessing, and do not move a citation to a newly rewritten claim by proximity alone. Position carries attribution: a citation supports the clause it follows, so end-of-sentence placement, the smoothest option, silently widens the scope to the whole sentence. When only part of the sentence comes from the source, the citation belongs mid-sentence at the boundary of what the source actually supports. A single citation after a paragraph's topic sentence covers the paragraph that develops it.
 - **Source gaps:** when source materials are missing or incomplete during drafting or revision, produce an explicit evidence request or placeholder (`[citation needed]`, `[proof TBD]`) rather than filling with plausible-sounding prose. When sources conflict, surface the conflict and ask the user which is authoritative. When a proof or experiment is unverified, use provisional language and list what verification is still needed.
 
 ## Editing Principles
+
+### Editing Order
+
+Work from the largest scale down: organization, then paragraphs, then sentences, then words. Sentences polished inside a paragraph that later gets cut or moved are wasted work, and a fluent paragraph can hide the fact that it belongs in a different section. For a single-paragraph request the top two levels collapse into one question (does this paragraph do one job, in the right place), but the order still holds.
+
+At each level, make three passes rather than one mixed pass:
+
+1. **Concision:** remove what carries no information.
+2. **Precision:** replace what is vague or ambiguous with the exact term, number, or scope.
+3. **Coherence:** repair the transitions and referring expressions that the first two passes disturbed.
+
+The coherence pass is where the edit is finished. Deleting a clause in pass 1 often orphans a `this` or a `therefore` three sentences later, and sharpening a term in pass 2 can break the keyword repetition that was holding a paragraph together. For full-section or full-paper work, run the global narrative diagnosis in [Cross-Section Coherence](#cross-section-coherence) before touching the organization level.
+
+Writers repeat themselves. Across a section or a manuscript, a second occurrence of a defect is evidence of a habit rather than of a slip. Treat every finding as a search pattern. When a stacked negative, an undefined symbol, an inconsistent term, or a citation attached to the wrong clause turns up once, sweep the rest of the text for that pattern before moving on. Report the class and its instances together, not the one instance that happened to be read first.
 
 ### Preserve Meaning and Structure
 
@@ -283,7 +309,7 @@ Apply these requirements in every drafting, rewriting, translation, and de-AI mo
 
 ### Minimal Polish
 
-Use this mode when the user asks for minimal polishing, conservative editing, proofreading, or a close-to-submission language pass.
+Use this mode when the user asks for minimal polishing, conservative editing, or a close-to-submission language pass.
 
 Requirements:
 
@@ -293,7 +319,7 @@ Requirements:
 - Fix grammar, spelling, punctuation, article usage, and subject-verb agreement.
 - Preserve the original paragraph structure and argument order.
 - Preserve all LaTeX commands exactly.
-- Do not introduce unnecessary bullet points.
+- Do not introduce bullet points that the source does not already use.
 - If the input is already clear and natural, keep it mostly unchanged and say so in the modification note.
 
 Default output:
@@ -358,7 +384,7 @@ Requirements:
 - Trim redundancy.
 - Preserve the author's terms and technical content.
 - Do not rewrite merely to make changes. If the input is already natural and rigorous, keep it unchanged.
-- Do not add bold or italic emphasis.
+- Do not add bold, italics, or quotation marks that the source does not already use.
 - Do not introduce unrelated format commands.
 - Convert item lists to paragraphs only when the user asks for paragraph-style academic prose and the list is not structurally necessary.
 - Before output, check whether each modification truly improves readability. Revert changes made only for variation.
@@ -397,6 +423,7 @@ Requirements:
 - Do not use `\item` lists unless the source is already a formal list or the user explicitly asks for lists.
 - Remove AI-like phrasing and translationese.
 - Use common, precise words.
+- Rebuild the rhetorical structure, not only the words. English scientific prose is low-context. An explicit connective or a subordinate clause carries the logical relation between two statements, the claim of a paragraph sits in its first sentence, and the reader is not expected to reconstruct the point from the arrangement. Chinese academic drafts often build in the opposite direction. Context and justification accumulate first, the conclusion lands at the end of the paragraph, and adjacent sentences sit side by side with the relation left to the reader. Rendered word by word, that shape reads to an English reviewer as an unfocused paragraph rather than as a considered one. Three moves handle most of it. Lift the paragraph-final conclusion into a topic sentence and let the original build become its support. Name each implicit relation (`because`, `whereas`, `so that`), or fold the weaker clause into a subordinate one. Cut the ceremonial run-up (`随着……的快速发展`, `众所周知`, `本文首先介绍……`) rather than finding an English equivalent for it.
 - Keep the original meaning and do not add unsupported claims or expand beyond what the source says.
 - Ensure the output is consistent with the existing English manuscript in terminology, tone, and style.
 - Default tense for this mode: present tense for methods, architectures, and experimental conclusions; past tense only for specific historical events or prior authors' actions, unless the user requests the general tense policy.
@@ -430,6 +457,7 @@ Requirements:
 - When the user provides a structured outline, follow its structure exactly and do not add or remove major points.
 - When the user provides loose materials or notes without a fixed structure, organize the content into a coherent logical order. Headings, paragraph grouping, and narrative sequence may all be adjusted as long as the reasoning is explained.
 - Write in academic English suitable for the stated venue.
+- Apply the requirements for whichever component is being drafted from [Paper Components](#paper-components).
 - Each paragraph should have a clear topic sentence and logical internal structure.
 - Make transitions between paragraphs explicit when needed.
 - Use claim-first topic sentences with necessary scope built into the sentence.
@@ -475,6 +503,25 @@ Paragraph pattern:
 3. State the assumptions, scope, or limitation relevant to the user's problem.
 4. Connect the limitation to the current paper's setting.
 
+Four failure modes reviewers name explicitly. Check the draft against each:
+
+- **Coverage skewed.** Citing mostly one group (often the authors' own), citing only the last few years when the problem has an older literature, or omitting the work that disagrees with the paper's position. The omitted authors are candidate reviewers, and an argument that never meets its opposition reads as one that cannot survive it, so discuss the disagreeing work and rebut it. The opposite failure is a tour of everything adjacent, which spends the reader's attention before the paper's own contribution arrives.
+- **Facts without interpretation.** A sequence of `\cite{a} proposed X. \cite{b} extended it to Y.` records what exists and settles nothing. Write about the problem and let the citations attach to the moves made on it.
+- **Significance asserted, never argued.** Each theme paragraph ends where the line of work stops being sufficient for this paper's setting, stated as a specific assumption, scope, or cost rather than as `however, limitations remain`.
+- **Unquantified scarcity claims.** `Little work has addressed X` is unverifiable and invites a reviewer to produce a counterexample. Replace it with a statement that can be checked: which setting has been studied, which has not, and by what boundary the two differ.
+
+When restating a source, work from your understanding of what it did, not from its sentences. Emulating how a well-written paper builds an argument is legitimate; carrying over its phrasing is not, and the risk does not disappear when the borrowed span is short.
+
+Default output:
+
+```text
+Part 1 [LaTeX]
+[drafted related work in English LaTeX]
+
+Part 2 [Writing Notes]
+[brief note, in the user's language, giving the thematic grouping used and listing every claim-citation pairing that could not be verified against the source]
+```
+
 ### Grammar Check Only
 
 Use this mode when the user asks for a grammar check, spelling check, or proofread without rewriting.
@@ -504,6 +551,18 @@ Requirements:
 - Do not refactor paragraphs.
 - Do not change the rhetorical style unless a sentence is unclear or wrong.
 - Preserve all LaTeX commands exactly.
+
+Default output:
+
+```text
+Part 1 [LaTeX]
+[corrected English LaTeX]
+
+Part 2 [Modification Log]
+[brief Chinese log listing every change, one line each]
+```
+
+The log is exhaustive rather than summarized here: the point of this mode is that the user can audit the risk of each edit before submitting. A back-translation is omitted because the pass does not re-express meaning.
 
 ## Venue and Style Profiles
 
@@ -543,24 +602,7 @@ Requirements:
 - Report quantitative results only when provided.
 - Include limitations and reproducibility details when the user asks for paper-level drafting or final polishing.
 
-Abstract structure:
-
-1. What the paper contributes.
-2. Why the problem is difficult or important.
-3. How the method works at a high level.
-4. What evidence supports the claim.
-5. What result, guarantee, or finding the reader should remember.
-
-Introduction structure:
-
-1. Problem and motivation.
-2. Specific gap in prior work.
-3. Approach and key insight.
-4. Contributions, usually 2-4 concrete items if the venue expects them.
-5. Strongest result preview.
-6. Optional roadmap.
-
-Treat these as argumentative stages, not a six-sentence or fixed-paragraph form. Expand the motivation and gap across enough paragraphs for a first-time reader to follow the narrowing without a jump.
+The abstract ordering and the six-stage Introduction for these venues are in [Paper Components](#paper-components).
 
 ### Systems Papers
 
@@ -603,6 +645,151 @@ Requirements:
 - Avoid excessive similarity to existing text.
 - Keep human-like, intuitive phrasing.
 
+## Paper Components
+
+Reviewers read nonlinearly: title, abstract, introduction, figures (especially Figure 1), and then the rest, if the first four earned it. Apply the requirements below whenever a task touches one of these components, in drafting, rewriting, translation, and de-AI alike, and spend the most editing effort on the components that are read first.
+
+Two consequences shape all of them:
+
+- **Do not bury the contribution.** The paper's value is clear by the end of the Introduction, and a reviewer who reads only the abstract and the contribution list still recovers the motivation. See [Cross-Section Coherence](#cross-section-coherence).
+- **Work backward from the conclusions.** Identify the three to five strongest conclusions the evidence supports, then verify that the Introduction sets up exactly the tensions those conclusions resolve and that the results sentence of the abstract previews them. Content that serves none of them is secondary. This reverse alignment keeps the Introduction focused and makes the reviewer's path from problem to payoff direct.
+
+### Title
+
+Five properties trade against each other, and which one gives way is the author's call: informative, accurate, clear, concise, attention-commanding.
+
+- Put the load-bearing words first or last. A title that opens with `A Study of`, `An Investigation into`, `Towards`, `On the`, or `Some Remarks on` spends its strongest position on nothing.
+- Use the word order a searcher would type. `Sharpness-aware minimization for federated learning` finds readers; `On the minimization of sharpness in the federated setting` does not.
+- Spell out acronyms that are ambiguous outside the immediate subfield. An acronym that collides with another field's term costs search hits and confuses the reviewer assigned from an adjacent area.
+- Check `using` and other participial phrases for the noun they attach to. `Reexamination of the ImageNet baselines using modern augmentation` says the baselines use the augmentation; `Using modern augmentation to reexamine the ImageNet baselines` says what was meant.
+- Treat an assertive-sentence title (`Batch normalization does not reduce internal covariate shift`) as a commitment that outlives the result. If the finding is later narrowed to one architecture or one regime, the title does not narrow with it.
+- Question titles attract attention and lose search matches. A colon title moves the memorable half forward at the cost of length.
+- Avoid splitting work into `Part I` and `Part II`. Each part is harder to review alone, and Part II sometimes never appears. If a split is unavoidable, submit the parts together.
+
+Draft a working title early to keep the paper focused, then re-check it against the finished manuscript, because the paper usually drifts from what the working title claimed.
+
+### Abstract
+
+Four contents in the journal default: objectives and scope, methods, summary of results, principal conclusions. Length follows the venue; roughly 250 words when the venue is silent.
+
+At NeurIPS, ICLR, ICML, ACL, CVPR and similar venues, lead with the contribution instead:
+
+1. What the paper contributes.
+2. Why the problem is difficult or important.
+3. How the method works at a high level.
+4. What evidence supports the claim.
+5. What result, guarantee, or finding the reader should remember.
+
+Three constraints follow from the fact that the abstract travels alone through databases, detached from the paper:
+
+- No citations.
+- No figure, table, section, or equation references.
+- No abbreviation that is not defined inside the abstract itself.
+
+Every sentence carries a specific fact. `Differences between the two models are examined and discussed` states only that the paper exists. Replace announcements of activity with the finding the activity produced.
+
+Keep background to the minimum that makes the result legible, and finalize the abstract after the body is stable, then re-read it against the finished text. An abstract written early usually promises a paper that was not the one written.
+
+### Keywords
+
+Choose what a searcher would type to find this paper: specific enough to select, broad enough that someone would type it. Words already in the title are wasted slots; spend them on synonyms, the application domain, or the method family the title does not name.
+
+### Introduction
+
+Three moves, in order:
+
+1. **Contextualizing background:** familiar ground, established quickly. State why this problem was worth the author's attention; a concrete motivation is welcome and underused.
+2. **The problem, or the hook.** A paper engages through conflict: a paradox, an inconsistency between two accepted results, a method that fails in a regime it should cover, a gap in what has been measured. Establish common ground, then disrupt it. Opening with a statement no reader disputes (`Deep learning has achieved remarkable success in many domains`) forfeits the position; see [formulaic openers](#formulaic-openers).
+3. **The response:** what the paper does about it, with one explicit purpose sentence the reader cannot miss.
+
+For a conference paper the three moves expand into six argumentative stages:
+
+1. Problem and motivation — open with a concrete phenomenon, failure, or contradiction, not a generic background sentence. A specific example that makes the problem tangible in two sentences outperforms a paragraph of "X has attracted increasing attention." The reader should know what the paper is about and why it matters before the end of the first paragraph.
+2. Specific gap in prior work — the gap must be concrete, verifiable, and sharp enough that a reviewer thinks "yes, that needs solving." A gap statement that could apply to any paper in the subfield ("existing methods have limitations") is not a gap. Effective gap patterns: prior methods assume condition A that fails in setting B; existing work addresses X but introduces Y; benchmarks cover dimensions P and Q but miss critical dimension R. The sharper the gap, the stronger the case for the paper's existence.
+3. Approach and key insight — state not only what the method does but why this approach addresses the gap. A method described without its rationale reads as "A + B stitched together."
+4. Contributions, usually 2-4 concrete items if the venue expects them.
+5. Strongest result preview.
+6. Optional roadmap.
+
+Treat these as argumentative stages, not a six-sentence or fixed-paragraph form. Preserve the full motivation chain from problem context to concrete difficulty, prior-work gap, insight, and contribution, giving each distinct stage enough explanation for a first-time reader, and expand the motivation and the gap across enough paragraphs that the reader follows the narrowing without a jump. Do not collapse the Introduction into one or two abrupt paragraphs merely to sound concise, and do not force a fixed paragraph count when the argument needs a different shape. In conference format the Introduction typically runs 1.5 to 2 pages; beyond two pages reviewer attention drops, and below one page the motivation is probably underdeveloped.
+
+State the scope alongside the purpose: which setting the paper addresses and which neighboring setting it leaves open. A scope statement delimits the claim and belongs with it; it is not the same move as the caveat governed by the limitation-placement rule in [Cross-Section Coherence](#cross-section-coherence), which concerns qualifying a claim the reader has not yet received. `We analyze the single-node case; the distributed setting requires a different consistency argument and is not treated here` bounds a claim. `Our approach has several limitations` in the same position subtracts from one.
+
+Do not deliver every result in the Introduction; leave the reader a reason to keep going. When a roadmap paragraph is expected, say why the paper is organized as it is rather than listing section numbers. Writing the Introduction after the body is normal and usually produces a sharper one.
+
+### Literature placement
+
+The synthesis can live inside the Introduction, in its own section, or distributed through the paper. Put each discussion of prior work where the reader needs it, which for method comparisons is often the discussion rather than the front. The content requirements and the four failure modes are in [Related-Work Synthesis](#related-work-synthesis).
+
+### Methods
+
+The completeness standard is that a competent reader could reproduce the study. Methods sections are cited for years after publication, and an incomplete one propagates its gaps into everything built on it.
+
+Keep the section's role clean: Method explains the proposed mechanism, formulation, and implementation. Baseline positioning belongs in Related Work and empirical comparison in Experiments, unless a brief contrast is indispensable to define the method.
+
+Do not cite standard tooling for its own sake. Name the library or solver when a specific version, tolerance, or numerical choice affects the result, and leave it out when it does not.
+
+Write `methods`, not `methodology`, which means the study of methods. When the methods are short, merging them into the section that uses them reads better than a separate section of three sentences.
+
+### Results
+
+Open with the overall picture, then move from the most visible effect to the least. A reader who is told the fine structure before the main effect has no frame to place it in.
+
+Select ruthlessly. A result that is sound and interesting but does not advance this paper's argument belongs in another paper; keeping it dilutes the one being written. Negative results that save others a dead end deserve their sentence, and one sentence is often the right size.
+
+### Discussion
+
+Use a discussion section for what interpretation requires and results reporting does not accommodate: generalization beyond the measured cases, outliers and exceptions, alternative readings of the same evidence, unresolved questions, comparison against the literature, answers to the questions the Introduction raised, implications, limitations, and explicitly labeled speculation.
+
+Do not restate results here. The section that interprets and the section that reports are separated so that speculation is visibly bounded; a discussion that reruns the numbers dissolves that boundary.
+
+### Conclusions
+
+Two jobs: where this work leaves us (the summary) and where it leads us (the conclusions). Both linear and nonlinear readers reach this section, so it earns the same editing effort as the abstract, and it recaps from a different angle than the abstract rather than repeating its sentences. See [Cross-Section Coherence](#cross-section-coherence).
+
+- Prose, not a bullet list. Bullets separate what the conclusion should be integrating.
+- No new material, and no limitation appearing here for the first time.
+- Future work is specific or absent. `More cases should be studied` is filler; a testable hypothesis or a named objective is a contribution. Avoid promising that something `will be reported in future work`, because the promise outlives most intentions.
+- End on the strongest statement the evidence supports, not on a procedural sentence.
+
+### Section headings and organization
+
+- A section that is subdivided has at least two subsections at each level. One subsection means the heading is either unnecessary or hiding a missing sibling.
+- Put introductory text between a heading and its first subheading. A heading immediately followed by another heading gives the reader no orientation.
+- Keep headings parallel in form within a level: all noun phrases or all verb phrases, not a mixture.
+- Extract every heading into a flat list and read it as an outline. Gaps, repetitions, and misordered arguments are visible there that are invisible while reading the prose.
+- Repeated long-range cross-references are a symptom, not a style choice. When the text keeps sending the reader forward to a later section or back to an earlier one, the material is in the wrong order.
+
+The IMRaD skeleton flexes. Literature can fold into the Introduction; a paper with two independent studies may repeat methods and results per study; results and discussion may merge when the interpretation of each result is what motivates the next.
+
+### Figures, tables, and equations in the running text
+
+**Figure 1 carries weight equal to text.** After scanning the first paragraphs, reviewers jump to it. Design it to make the problem or insight undeniable at a glance: show the failure old methods produce and the improvement the paper achieves, not a system architecture block diagram. Keep it simple, with no Method-level detail, and make its caption self-contained so a reader who lands on the figure first understands the story without hunting through the text.
+
+**Division of labor.** The caption teaches the reader how to read the figure; the text discusses what the figure shows about the science. A caption that analyzes and a text passage that explains axis conventions have swapped jobs.
+
+**Captions.** Open with a phrase that captures what this figure is, distinct from every other caption in the paper. Be complete before being concise: every panel, every symbol, every line style, including the ones that seem self-evident. Then cut. Cross-check the caption against the figure and against the text that cites it, because text-figure inconsistency is among the errors reviewers react to most sharply.
+
+**Discussing a figure.** State the obvious feature first, then the fine structure and the anomalies; a reader who cannot find the main effect will not follow the exception to it. Match the depth of the discussion to the complexity of the figure: a conceptual diagram may need paragraphs, a single learning curve one sentence. What the discussion should carry (mechanism rather than implementation detail, trends rather than restated table values) is set out in [Structural and Evidence Integrity](#structural-and-evidence-integrity).
+
+**Citing.** Use a direct citation (`Figure 2 shows the trajectory of the iterates`) when the figure needs a paragraph of its own. Use an indirect one at the end of a science-first sentence (`the iterates converge to the boundary of the feasible set (Fig.~2)`) for everything else; most authors default to the indirect form. Tables do not act: write `Table 6 lists`, not `Table 6 demonstrates`. Number figures and tables in order of first mention, and cite every panel; an uncited panel is either an uncited result or a panel to delete.
+
+Figure design itself (canvas size, fonts, color, legends, export) belongs to `mpaper-plotting-style`.
+
+**Equations.** Every variable is defined at first use, in prose: `where $\eta$ denotes the step size`, not `where $\eta$ = step size`. Keep scalars italic, vectors bold, and operators roman. Number equations sequentially and refer to them by name where one exists (`the stationarity condition~\eqref{eq:kkt}`) rather than by bare number. The requirements on equation grouping, sentence-level typesetting, and skipped derivations are in [Structural and Evidence Integrity](#structural-and-evidence-integrity).
+
+### Content check before submission
+
+This checks the manuscript's content and internal consistency. File size, source packaging, page count, and hbox warnings are handled by `mpaper-submission-package` and `mpaper-latex-typeset-polish`.
+
+- The abstract and the conclusions each carry the paper's most important results, and they agree with each other and with the body.
+- Every claim made in the abstract is established somewhere in the body.
+- Terminology is consistent throughout; each abbreviation is defined at first use and then used consistently.
+- Every in-text citation appears in the reference list and every entry in the list is cited.
+- Sections, figures, tables, and equations are numbered sequentially, and every in-text number points to the object intended.
+- Every figure and table is discussed in the text, and every panel is cited.
+- Symbols are defined before use, and no symbol carries two meanings.
+
 ## Narrative and Paragraph-Level Principles
 
 ### One-Sentence Contribution Test
@@ -616,23 +803,6 @@ A paper's core contribution should be expressible in one sentence:
 If the contribution cannot be stated in one sentence, the framing is probably too loose.
 
 Contributions typically fall into one of three levels: framing a scattered phenomenon as a well-defined problem, establishing a new benchmark that exposes blind spots in existing metrics, or redefining the problem from a new angle. Pure method improvement on an unchanged problem definition needs stronger ablation and baseline evidence to clear the contribution bar.
-
-### Reviewer Reading Order
-
-Reviewers often read:
-
-1. title
-2. abstract
-3. introduction
-4. figures, especially Figure 1
-5. the rest
-
-Writing implications:
-
-- Do not bury the main contribution.
-- Make the paper's value clear by the end of the Introduction.
-- Make Figure 1 and its caption self-contained when possible.
-- A reviewer who reads only the abstract and contributions should still grasp the motivation — see Cross-Section Coherence below.
 
 ### Cross-Section Coherence
 
@@ -660,6 +830,14 @@ When drafting or rewriting at a full-section or full-paper level, diagnose the g
 - Avoid long noun stacks when a verb phrase is clearer.
 - Replace ambiguous `this`, `it`, and `these` with a specific noun when needed.
 - Split sentences that carry multiple logical relations.
+- Keep parallel content in parallel form. Items joined by `and`, `or`, `whereas`, or a numbered list take the same grammatical shape, because a break in the pattern reads as a difference in kind. *Before:* `The primal variable is updated by a proximal step, whereas gradient ascent updates the dual variable.` *After:* `A proximal step updates the primal variable, whereas a gradient ascent step updates the dual variable.`
+- Complete every comparison, and compare like with like. `The error is much smaller` leaves out what it is smaller than. `The residual of the subproblem is lower than the full problem` compares a residual to a problem; write `lower than that of the full problem`.
+- Write parenthetical inversions out. `When $T$ increases (decreases), the residual decreases (increases)` forces the reader to run the sentence twice; write both cases, or state the relation directly as `$T$ and the residual move in opposite directions`.
+- Repeat the noun instead of writing `the former` and `the latter`, which send the reader backward to recount.
+- State conditions positively. Readers parse a negative and then invert it, so `did not prove conclusive` costs more than `was inconclusive`, and stacked negatives (`not ... unless ... not`) cost more than the sentence is worth.
+- Keep modifiers next to what they modify. Sentence-opening phrases are the danger zone: `Using a frozen encoder, the reconstruction error was reevaluated` attaches the encoder to the error, and `After 200 epochs, Figure 3 shows a plateau in validation loss` puts the figure through training. Write `We reevaluated the reconstruction error using a frozen encoder` and `The validation loss plateaus after 200 epochs (Fig.~3)`.
+- Replace nominalizations with the verb they were built from: `perform a comparison` becomes `compare`, `is used to denote` becomes `denotes`, `was found to be` becomes `was`. See the full table in [references/line-editing.md](references/line-editing.md).
+- Keep `that` and `where` explicit rather than dropping them. The omission saves one word and adds a parse the reader has to back out of, which is more costly for readers who are not native speakers.
 
 ### Paragraph Shape
 
@@ -669,7 +847,20 @@ A strong academic paragraph usually has:
 2. supporting explanation, evidence, or comparison,
 3. a closing sentence that reinforces the point or transitions to the next idea.
 
-One paragraph should usually do one main job.
+One paragraph does one job. Two themes means split it, broaden the topic sentence to cover both, or delete one.
+
+Coherence between the sentences comes from three devices:
+
+- **Repetition of the key term.** Repeating the noun beats replacing it with a pronoun or a synonym more often than writers expect: a paper that alternates `the operator`, `the map`, and `it` makes the reader re-establish the referent each time. This is the same consistency rule as [Terminology and Capitalization](#terminology-and-capitalization), applied inside a paragraph.
+- **Enumeration.** `First`, `Second`, `Third`, never `Firstly`. When the items run long, give each its own paragraph.
+- **Transition words that name the actual relation:** contrast, cause, example, sequence, conclusion. This is what turns a list of observations into an argument, and it is compatible with the ban on [connective overuse](#connective-overuse): the pattern to remove is consecutive sentences opening with interchangeable `Moreover`/`Furthermore`/`Additionally`, where the connective marks no relation the logic did not already carry.
+
+Chain the sentences by position: the new information at the end of one sentence becomes the familiar subject at the start of the next. A paragraph where every sentence opens with new material reads as a list of facts even when each fact is correct.
+
+Two checks:
+
+- Read only the first and last sentence of each paragraph in sequence. If the argument no longer holds, the topic sentences are carrying description rather than claims.
+- Paragraphs of four to eight sentences are typical. A single-sentence paragraph is usually an orphaned point that belongs to a neighbor, and a paragraph running most of a page usually holds two themes.
 
 ## Common Revisions
 
@@ -719,9 +910,11 @@ Replace vague terms with specific ones when evidence exists:
 | fast | the actual runtime, speedup, or latency |
 | good results | the specific metric and comparison |
 
+Vagueness also enters through abstract nouns that name a category instead of a thing: `factor`, `role`, `nature`, `mechanism`, `dynamics`, `behavior`, `effect`, `process`, `aspect`, `issue`, `capability`. Each is legitimate once defined, and each is a placeholder when it is not. `Several factors play a role in the degradation` names nothing; `the degradation comes from three sources: quantization error, gradient clipping, and the truncated context window` names three. When such a noun is genuinely needed, define it precisely at first use. The full list is in [references/line-editing.md](references/line-editing.md).
+
 ### Hedging
 
-Avoid excessive `may`, `might`, `can`, and `potentially` unless uncertainty is real. Keep uncertainty where the evidence is limited.
+Avoid excessive `may`, `might`, `can`, and `potentially` unless uncertainty is real. Keep uncertainty where the evidence is limited. Distribute conclusion verbs across the evidence ladder in [Structural and Evidence Integrity](#structural-and-evidence-integrity) so that verb choice reflects the strength of support behind each claim.
 
 ### Claim-First Framing
 
@@ -771,7 +964,7 @@ The rules in this skill are designed for different scenarios. Resolve conflicts 
 - Past tense for completed experiments vs present tense for experimental conclusions: use the general tense policy by default; use present tense for translated experimental conclusions in the Chinese-to-English translation mode when that prompt is active.
 - All writing in English vs Chinese back-translation: the manuscript part must be English; the optional `Translation` and `Modification Log` parts may be Chinese when the mode requests them.
 - No double quotes or dashes: avoid them in manuscript prose for style; keep necessary code, LaTeX, citations, and exact source text intact.
-- Preserve structure vs deep rewrite: conservative polish preserves structure; deep rewrite can restructure sentences and adjust paragraph order or internal structure when doing so strengthens logical progression, but preserves the overall argument.
+- Preserve structure vs deep rewrite: Minimal Polish preserves structure; Deep Polish and Rewriting can restructure sentences and adjust paragraph order or internal structure when doing so strengthens logical progression, but preserves the overall argument.
 
 If an active user instruction conflicts with these rules and the conflict cannot be handled by mode selection, ask the user before editing.
 
@@ -806,16 +999,21 @@ Check every output against the following list:
 11. Non-proper-noun technical terms are not incorrectly capitalized.
 12. Claims use direct framing with concrete scope and evidence boundaries. Statements about the work's own limitations stay at the granularity of the evidence and are not escalated into general assessments of the method.
 13. Existing formatting is preserved, and no new emphasis formatting was added.
-14. Paragraph logic is coherent; transitions are natural rather than mechanical.
+14. Paragraph logic is coherent; transitions are natural rather than mechanical. Each paragraph does one job, key terms are repeated rather than varied, and reading only the first and last sentence of each paragraph still carries the argument.
 15. Related-work text is grouped thematically and states limitations factually.
 16. Applied mathematics text contains mathematical motivation, avoids ML-conference hype, and uses language that correctly reflects result status (theorem vs conjecture vs empirical observation).
 17. Terminology, tone, and style are consistent with the existing English manuscript when one is provided.
 18. Output format exactly matches the user's requested or mode-specific format.
-19. Introduction motivation is complete; Method symbols are defined and equations form readable groups rather than isolated displays. No notation drift across sections (overloaded symbols, renamed variables, index or domain inconsistencies).
+19. Introduction motivation is complete; Method symbols are defined and equations form readable groups rather than isolated displays, each equation reading as part of the sentence that carries it. No notation drift across sections (overloaded symbols, renamed variables, index or domain inconsistencies) and no derivation replaced by `it can be shown that`.
 20. Pseudocode, lists, and emphasis are necessary and structurally justified; dependent reasoning is not flattened into bullets.
 21. Component names and abbreviations are concise and consistent; Method does not contain avoidable baseline comparison.
 22. No local editing constraint has displaced the paper's established motivation or contribution hierarchy.
 23. For full-section or multi-section tasks: the core motivation echoes across Introduction, contributions, and Conclusion; contribution bullets carry the "why", not just the result; each limitation appears once in the section that bounds scope rather than in the Abstract, the Introduction lead, or as new material in the Conclusion.
-24. Sections follow the finished paper's argument order rather than the chronology of the work, and results that support the paper's claim are narrated with their condition and mechanism instead of being left in a table.
-25. Comparison and ablation prose explains trends and mechanisms rather than restating metric values from adjacent tables; qualitative visual analysis is organized by mechanism, not as a per-category or per-example inventory.
-26. Every substantive citation is supported by the inspected source and remains paired with the correct claim.
+24. Sections follow the finished paper's argument order rather than the chronology of the work, evidence precedes the interpretation and speculation drawn from it with each step down the certainty ladder marked in the language, and results that support the paper's claim are narrated with their condition and mechanism instead of being left in a table.
+25. Comparison and ablation prose explains trends and mechanisms rather than restating metric values from adjacent tables; a partial agreement is reported in both directions rather than compressed into a claim of close match; qualitative visual analysis is organized by mechanism, not as a per-category or per-example inventory.
+26. Every substantive citation is supported by the inspected source, remains paired with the correct claim, and sits at the position that scopes it to the clause the source actually supports.
+27. Sentences are free of the structural defects that survive a grammar check: broken parallelism, incomplete or mismatched comparisons, parenthetical inversions, `the former`/`the latter` back-references, stacked negatives, misplaced opening modifiers, nominalizations standing in for verbs, and dropped `that`/`where`.
+28. Vague category nouns and empty modifiers were replaced by the specific quantity, process, or reason, or defined at first use where the abstraction was needed.
+29. Every defect class found once was swept for across the whole passage rather than fixed only where it was first noticed.
+30. For Chinese-to-English translation: each paragraph carries its claim in the first sentence, implicit logical relations are made explicit or subordinated, and ceremonial run-up is removed rather than rendered into English.
+31. For any task touching a paper component: the title carries its load-bearing words in the first or last position and no participial phrase attached to the wrong noun; the abstract is self-contained with no citations, cross-references, or undefined abbreviations; the conclusion introduces no new material; headings are parallel in form and every subdivided section has at least two subsections; figure and table captions teach how to read them while the analysis stays in the text.
