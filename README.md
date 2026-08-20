@@ -2,35 +2,34 @@
 
 <!-- TOC -->
 
-- [Skills for research workflows](#skills-for-research-workflows)
-  - [Skills](#skills)
-    - [`my-exp-auto-tuning`](#my-exp-auto-tuning)
-      - [Install](#install)
-      - [Example invocation](#example-invocation)
-      - [What to tell the agent](#what-to-tell-the-agent)
-    - [`my-zh-academic-polish`](#my-zh-academic-polish)
-      - [Install](#install-1)
-      - [Example invocation](#example-invocation-1)
-      - [What to tell the agent](#what-to-tell-the-agent-1)
-    - [`mpaper-en-academic-writing`](#mpaper-en-academic-writing)
-      - [Install](#install-2)
-      - [Example invocation](#example-invocation-2)
-      - [What to tell the agent](#what-to-tell-the-agent-2)
-    - [`mpaper-bib-tidy`](#mpaper-bib-tidy)
-      - [Install](#install-3)
-      - [Example invocation](#example-invocation-3)
-    - [`mpaper-cover-letter`](#mpaper-cover-letter)
-      - [Install](#install-4)
-      - [Example invocation](#example-invocation-4)
-    - [`mpaper-review-revision`](#mpaper-review-revision)
-      - [Install](#install-5)
-      - [Example invocation](#example-invocation-5)
-      - [What to tell the agent](#what-to-tell-the-agent-3)
-    - [`mpaper-revision-response`](#mpaper-revision-response)
-      - [Install](#install-6)
-      - [Example invocation](#example-invocation-6)
-      - [What to tell the agent](#what-to-tell-the-agent-4)
-  - [See Also](#see-also)
+- [Skills](#skills)
+  - [`my-exp-auto-tuning`](#my-exp-auto-tuning)
+    - [Install](#install)
+    - [Example invocation](#example-invocation)
+    - [What to tell the agent](#what-to-tell-the-agent)
+  - [`my-zh-academic-polish`](#my-zh-academic-polish)
+    - [Install](#install-1)
+    - [Example invocation](#example-invocation-1)
+    - [What to tell the agent](#what-to-tell-the-agent-1)
+  - [`mpaper-en-academic-writing`](#mpaper-en-academic-writing)
+    - [Install](#install-2)
+    - [Example invocation](#example-invocation-2)
+    - [What to tell the agent](#what-to-tell-the-agent-2)
+  - [`mpaper-bib-tidy`](#mpaper-bib-tidy)
+    - [Install](#install-3)
+    - [Example invocation](#example-invocation-3)
+  - [`mpaper-cover-letter`](#mpaper-cover-letter)
+    - [Install](#install-4)
+    - [Example invocation](#example-invocation-4)
+  - [`mpaper-review-revision`](#mpaper-review-revision)
+    - [Install](#install-5)
+    - [Example invocation](#example-invocation-5)
+    - [What to tell the agent](#what-to-tell-the-agent-3)
+  - [`mpaper-revision-response`](#mpaper-revision-response)
+    - [Install](#install-6)
+    - [Example invocation](#example-invocation-6)
+    - [What to tell the agent](#what-to-tell-the-agent-4)
+- [See Also](#see-also)
 
 <!-- /TOC -->
 
@@ -422,10 +421,10 @@ The skill adapts depth to your request — a narrow ask gets a focused edit, a b
 
 | Information              | Example                                                            |
 | ------------------------ | ------------------------------------------------------------------ |
-| Manuscript location      | `"paper/ directory"` / `"main.tex"` / `"draft.pdf"`               |
-| Target venue             | `"ICLR 2026"` / `"Pattern Recognition"` / `"NeurIPS"`             |
-| Scope of work            | `"full review"` / `"just the introduction"` / `"rebuttal only"`   |
-| Reviewer feedback (if R) | `"reviews in reviews.txt"` / `"rejected, comments attached"`      |
+| Manuscript location      | `"paper/ directory"` / `"main.tex"` / `"draft.pdf"`                |
+| Target venue             | `"ICLR 2026"` / `"Pattern Recognition"` / `"NeurIPS"`              |
+| Scope of work            | `"full review"` / `"just the introduction"` / `"rebuttal only"`    |
+| Reviewer feedback (if R) | `"reviews in reviews.txt"` / `"rejected, comments attached"`       |
 | Specific concerns        | `"reviewers said experiments are weak"` / `"contribution unclear"` |
 
 ### `mpaper-revision-response`
@@ -467,13 +466,13 @@ ln -s $(pwd)/mpaper-revision-response ~/.codex/skills/mpaper-revision-response
 
 #### What to tell the agent
 
-| Information                | Example                                                                 |
-| -------------------------- | ----------------------------------------------------------------------- |
-| Reviewer report(s)        | `"decision_letter.pdf"` / `"reviews.txt"` / pasted text                |
-| Manuscript source          | `"paper/"` / `"src/main.tex"`                                          |
+| Information                | Example                                                                    |
+| -------------------------- | -------------------------------------------------------------------------- |
+| Reviewer report(s)         | `"decision_letter.pdf"` / `"reviews.txt"` / pasted text                    |
+| Manuscript source          | `"paper/"` / `"src/main.tex"`                                              |
 | Scope                      | `"full cycle"` / `"just the revision plan"` / `"only the response letter"` |
-| Reference response letters | `"see previous_response.tex for format reference"` (optional)          |
-| Specific priorities        | `"Reviewer 2's concern about convergence is the main issue"`           |
+| Reference response letters | `"see previous_response.tex for format reference"` (optional)              |
+| Specific priorities        | `"Reviewer 2's concern about convergence is the main issue"`               |
 
 ---
 
