@@ -1,0 +1,85 @@
+{
+  "expectations": [
+    {
+      "text": "No doi fields remain",
+      "passed": true,
+      "evidence": "passed"
+    },
+    {
+      "text": "No url fields remain",
+      "passed": true,
+      "evidence": "passed"
+    },
+    {
+      "text": "No month fields remain",
+      "passed": true,
+      "evidence": "passed"
+    },
+    {
+      "text": "No address fields remain",
+      "passed": true,
+      "evidence": "passed"
+    },
+    {
+      "text": "All pages use double dash",
+      "passed": true,
+      "evidence": "passed"
+    },
+    {
+      "text": "All author fields use Last, First",
+      "passed": true,
+      "evidence": "passed"
+    },
+    {
+      "text": "All original citation keys remain",
+      "passed": true,
+      "evidence": "passed"
+    },
+    {
+      "text": "String definitions remain",
+      "passed": true,
+      "evidence": "passed"
+    },
+    {
+      "text": "Exact @String match uses PAMI",
+      "passed": true,
+      "evidence": "passed"
+    },
+    {
+      "text": "Exact @String match uses NeurIPS",
+      "passed": true,
+      "evidence": "passed"
+    },
+    {
+      "text": "Exact @String match uses ICLR",
+      "passed": true,
+      "evidence": "passed"
+    },
+    {
+      "text": "Unlisted full journal is recased",
+      "passed": true,
+      "evidence": "passed"
+    },
+    {
+      "text": "Flattened CNN is brace-protected",
+      "passed": true,
+      "evidence": "passed"
+    },
+    {
+      "text": "Flattened Real-ESRGAN is brace-protected",
+      "passed": true,
+      "evidence": "passed"
+    },
+    {
+      "text": "Conference candidate is retained",
+      "passed": true,
+      "evidence": "passed"
+    }
+  ],
+  "summary": {
+    "passed": 15,
+    "failed": 0,
+    "total": 15,
+    "pass_rate": 1.0
+  }
+}

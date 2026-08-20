@@ -1,0 +1,12 @@
+{
+  "eval_id": 4,
+  "eval_name": "real-entries-constructed-format-defects",
+  "prompt": "请整理 real-eccv-constructed.bib。文件开头已有 @String 定义，因此与定义 value 逐字对应的 venue 应改用对应 key；没有逐字对应 key 的 venue 只进行已有词序内的格式化。请统一 title sentence case、恢复并保护由数据库 flatten 的模型名、缩略语和人名术语、统一作者为 Last, First、删除可清理字段并修正 pages 单短横线。and others 不得补全，保持原样并报告。对需要外部事实却没有完成核验的项目保持原样并报告。",
+  "assertions": [
+    "所有条目素材均来自真实 main.bib，fixture 仅注入格式缺陷",
+    "@String 的逐字匹配映射到 CVPR、TMLR、ICML、ICLR、PAMI",
+    "DeblurGAN、L0、DINOv2、SigLIP、SAM、Bayesian 的大小写恢复与花括号保护",
+    "URL 清理、页码和作者格式",
+    "and others 原样保留并报告"
+  ]
+}

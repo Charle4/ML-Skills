@@ -1,0 +1,11 @@
+{
+  "eval_id": 1,
+  "eval_name": "fullname-mode",
+  "prompt": "我的论文投 CSIAM-AM 期刊，这个模板格式不改变期刊名大小写，所以 bib 里要统一用全称。请帮我整理 test-fullname.bib，格式要统一。这个 bib 有不少问题：有的期刊名用了缩写，有的会议论文被标成了 @article，有的作者名不是 Last, First 格式，有些 title 中的专有名词没有用花括号保护。",
+  "assertions": [
+    "格式字段清理、页码双横线和作者 Last, First 格式",
+    "无需外部事实的 venue Title Case 与术语花括号保护",
+    "and others 保留并报告",
+    "未核验的 entry type 候选保持原值或报告"
+  ]
+}

@@ -1,0 +1,65 @@
+{
+  "expectations": [
+    {
+      "text": "No doi fields remain",
+      "passed": true,
+      "evidence": "passed"
+    },
+    {
+      "text": "No url fields remain",
+      "passed": true,
+      "evidence": "passed"
+    },
+    {
+      "text": "No month fields remain",
+      "passed": true,
+      "evidence": "passed"
+    },
+    {
+      "text": "No address fields remain",
+      "passed": true,
+      "evidence": "passed"
+    },
+    {
+      "text": "All pages use double dash",
+      "passed": true,
+      "evidence": "passed"
+    },
+    {
+      "text": "All author fields use Last, First",
+      "passed": true,
+      "evidence": "passed"
+    },
+    {
+      "text": "All original citation keys remain",
+      "passed": true,
+      "evidence": "passed"
+    },
+    {
+      "text": "Full-name venue is recased without word substitution",
+      "passed": true,
+      "evidence": "passed"
+    },
+    {
+      "text": "Flattened model name SwinIR is brace-protected",
+      "passed": true,
+      "evidence": "passed"
+    },
+    {
+      "text": "Incomplete author list is preserved",
+      "passed": true,
+      "evidence": "passed"
+    },
+    {
+      "text": "Conference candidate was not dropped",
+      "passed": true,
+      "evidence": "passed"
+    }
+  ],
+  "summary": {
+    "passed": 11,
+    "failed": 0,
+    "total": 11,
+    "pass_rate": 1.0
+  }
+}

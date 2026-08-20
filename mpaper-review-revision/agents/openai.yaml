@@ -1,0 +1,4 @@
+interface:
+  display_name: "Review Revision"
+  short_description: "Review-driven paper improvement: diagnose weaknesses, reposition the contribution, plan revisions, rewrite sections"
+  default_prompt: "Use $mpaper-review-revision to diagnose this manuscript's weaknesses from a reviewer's perspective, plan concrete revisions, and improve the writing."

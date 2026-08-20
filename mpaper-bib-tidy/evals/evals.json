@@ -1,0 +1,52 @@
+{
+  "skill_name": "mpaper-bib-tidy",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "我的论文投 CSIAM-AM 期刊，这个模板格式不改变期刊名大小写，所以 bib 里要统一用全称。请帮我整理 test-fullname.bib，格式要统一。这个 bib 有不少问题：有的期刊名用了缩写，有的会议论文被标成了 @article，有的作者名不是 Last, First 格式，有些 title 中的专有名词没有用花括号保护。",
+      "expected_output": "清理纯格式字段并将可在文件内完成的 venue recase、title sentence case、术语保护、作者格式和页码格式规范化。外部 venue/entry-type 事实只有在三支柱核验后才能改写；未核验项及 and others 必须保留并报告。",
+      "files": ["evals/files/test-fullname.bib"],
+      "assertions": [
+        "删除可清理字段，页码为双横线，作者为 Last, First",
+        "仅同词序 venue 的 Title Case 与 title 术语保护",
+        "and others 留在 bib 中并在摘要报告",
+        "未核验 entry type 保持原值或明确报告"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "main.bib 中的期刊和会议名称不太统一，我的投稿模板提供了 @String 定义（文件开头已有），请用那些 @String key 来统一期刊/会议名。没有对应 key 的期刊用官方全称 Title Case。顺便把 title 大小写也规范一下，专有名词要用花括号保护。请整理 test-string.bib。",
+      "expected_output": "逐字对应的 @String value 改为裸 key；未列入宏的完整 venue 仅按同词序做 Title Case。处理纯格式问题，保留并报告未完成核验的外部事实。",
+      "files": ["evals/files/test-string.bib"],
+      "assertions": [
+        "@String 定义和 citation key 保留",
+        "PAMI、NeurIPS、ICLR 等逐字对应 venue 使用宏 key",
+        "CNN 和 Real-ESRGAN 等 flatten 术语恢复并保护",
+        "未核验 entry type 不得强制改写"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "我投的期刊要求参考文献中期刊名用 LTWA 缩写形式。请帮我整理 test-ltwa.bib，把所有期刊名统一成 LTWA 缩写格式，同时修正其他格式问题。",
+      "expected_output": "完成纯格式整理。每个 LTWA 变换必须先通过三支柱核验；无 Confirmed 证据的 venue 保持原样并进入 Tier 3，不因期望缩写而猜测。",
+      "files": ["evals/files/test-ltwa.bib"],
+      "assertions": [
+        "删除 doi/url、页码双横线、作者 Last, First、标题 sentence case",
+        "Bregman 与 L1 恢复并保护",
+        "无 Confirmed 证据的 LTWA 和 journal identity 保留并报告"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "请整理 real-eccv-constructed.bib。文件开头已有 @String 定义，因此与定义 value 逐字对应的 venue 应改用对应 key；没有逐字对应 key 的 venue 只进行已有词序内的格式化。请统一 title sentence case、恢复并保护由数据库 flatten 的模型名、缩略语和人名术语、统一作者为 Last, First、删除可清理字段并修正 pages 单短横线。and others 不得补全，保持原样并报告。对需要外部事实却没有完成核验的项目保持原样并报告。",
+      "expected_output": "该 fixture 的全部条目素材逐字取自 evals/files/real-eccv-main.bib（真实论文 bibliography，仅作溯源保留、本身不作为待整理对象），只在副本中注入格式缺陷。应恢复 DeblurGAN、L0、DINOv2、SigLIP、SAM、Bayesian 等大小写，应用逐字 @String 映射，保留 and others 并报告。",
+      "files": ["evals/files/real-eccv-constructed.bib"],
+      "assertions": [
+        "CVPR、TMLR、ICML、ICLR、PAMI 的逐字宏映射",
+        "DeblurGAN、L0、DINOv2、SigLIP、SAM、Bayesian 的保护性花括号",
+        "URL 清理、页码与作者格式",
+        "and others 保留并报告"
+      ]
+    }
+  ]
+}

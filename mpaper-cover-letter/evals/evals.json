@@ -1,0 +1,23 @@
+{
+  "skill_name": "mpaper-cover-letter",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "帮我写一封 cover letter, 论文已定稿准备投 Pattern Recognition. 论文在 /home/xschen/ssd_cache/CLIP-Deblur/Paper/PR/latex/main.tex, 参考文献在同目录的 refs.bib. 通讯作者是 Fang Li, 邮箱 fli@math.ecnu.edu.cn, 单位是 East China Normal University School of Mathematical Sciences. 写到 /tmp/claude-2028/-home-xschen-claude-skill-repos-my-skills/3b74fb1b-c572-454f-b87b-a1eb63a1133e/scratchpad/eval1_cover_letter.tex",
+      "expected_output": "A compilable LaTeX cover letter, ≤1 page, 4-5 paragraphs, no bibliography section, confident tone without defensive language, PR-specific SOTA/dataset/metric requirements woven into a natural paragraph",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "我的论文 /home/xschen/ssd_cache/CLIP-Deblur/Paper/PR/latex/main.tex 要投 SIAM Journal on Imaging Sciences, 帮我起草 coverletter. 通讯作者 Fang Li, School of Mathematical Sciences, ECNU, fli@math.ecnu.edu.cn. 输出到 /tmp/claude-2028/-home-xschen-claude-skill-repos-my-skills/3b74fb1b-c572-454f-b87b-a1eb63a1133e/scratchpad/eval2_cover_letter.tex",
+      "expected_output": "A compilable LaTeX cover letter adapted for SIAM SIIMS (no PR-specific Q1-Q3 questions). Should emphasize the mathematical/theoretical contribution (vMF framework, Wasserstein metric) more than image processing applications. ≤1 page, no defensive language.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "Paper at /home/xschen/ssd_cache/CLIP-Deblur/Paper/PR/latex/main.tex, target journal: IEEE Transactions on Pattern Analysis and Machine Intelligence. Write a cover letter to /tmp/claude-2028/-home-xschen-claude-skill-repos-my-skills/3b74fb1b-c572-454f-b87b-a1eb63a1133e/scratchpad/eval3_cover_letter.tex. Corresponding author: Fang Li, ECNU, fli@math.ecnu.edu.cn",
+      "expected_output": "A compilable LaTeX cover letter for TPAMI. Should position the work at the ML/vision intersection. Emphasize cross-encoder generalization and the probabilistic framework as methodological contributions. ≤1 page, confident tone.",
+      "files": []
+    }
+  ]
+}

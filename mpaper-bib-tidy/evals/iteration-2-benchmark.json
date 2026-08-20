@@ -1,0 +1,795 @@
+{
+  "metadata": {
+    "skill_name": "mpaper-bib-tidy",
+    "skill_path": "/home/xschen/claude-skill-repos/my-skills/mpaper-bib-tidy",
+    "executor_model": "sonnet",
+    "analyzer_model": "claude-fable-5",
+    "timestamp": "2026-07-29T11:26:28Z",
+    "evals_run": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 11,
+        "failed": 0,
+        "total": 11,
+        "time_seconds": 0.0,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "No doi fields remain",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "No url fields remain",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "No month fields remain",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "No address fields remain",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "All pages use double dash",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "All author fields use Last, First",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "All original citation keys remain",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "Full-name venue is recased without word substitution",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "Flattened model name SwinIR is brace-protected",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "Incomplete author list is preserved",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "Conference candidate was not dropped",
+          "passed": true,
+          "evidence": "passed"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 15,
+        "failed": 0,
+        "total": 15,
+        "time_seconds": 0.0,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "No doi fields remain",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "No url fields remain",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "No month fields remain",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "No address fields remain",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "All pages use double dash",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "All author fields use Last, First",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "All original citation keys remain",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "String definitions remain",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "Exact @String match uses PAMI",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "Exact @String match uses NeurIPS",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "Exact @String match uses ICLR",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "Unlisted full journal is recased",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "Flattened CNN is brace-protected",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "Flattened Real-ESRGAN is brace-protected",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "Conference candidate is retained",
+          "passed": true,
+          "evidence": "passed"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 12,
+        "failed": 0,
+        "total": 12,
+        "time_seconds": 0.0,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "No doi fields remain",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "No url fields remain",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "No month fields remain",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "No address fields remain",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "All pages use double dash",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "All author fields use Last, First",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "All original citation keys remain",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "Trademark symbol is removed",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "Bregman method name is brace-protected",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "L1 is brace-protected",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "All original LTWA-mode venues remain present",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "Boyd entry remains present",
+          "passed": true,
+          "evidence": "passed"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 20,
+        "failed": 0,
+        "total": 20,
+        "time_seconds": 0.0,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "No doi fields remain",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "No url fields remain",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "No month fields remain",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "No address fields remain",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "All pages use double dash",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "All author fields use Last, First",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "All original citation keys remain",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "String definitions remain",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "Exact CVPR value maps to CVPR",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "Exact TMLR value maps to TMLR",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "Exact ICML value maps to ICML",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "Exact ICLR value maps to ICLR",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "Exact PAMI value maps to PAMI",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "Flattened DeblurGAN is brace-protected",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "Flattened L0 is brace-protected",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "Flattened DINOv2 restores conventional capitalization",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "Flattened SigLIP is brace-protected",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "Flattened SAM is brace-protected",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "Flattened Bayesian is brace-protected",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "Incomplete author list remains",
+          "passed": true,
+          "evidence": "passed"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.64,
+        "passed": 7,
+        "failed": 4,
+        "total": 11,
+        "time_seconds": 0.0,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "No doi fields remain",
+          "passed": false,
+          "evidence": "failed"
+        },
+        {
+          "text": "No url fields remain",
+          "passed": false,
+          "evidence": "failed"
+        },
+        {
+          "text": "No month fields remain",
+          "passed": false,
+          "evidence": "failed"
+        },
+        {
+          "text": "No address fields remain",
+          "passed": false,
+          "evidence": "failed"
+        },
+        {
+          "text": "All pages use double dash",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "All author fields use Last, First",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "All original citation keys remain",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "Full-name venue is recased without word substitution",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "Flattened model name SwinIR is brace-protected",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "Incomplete author list is preserved",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "Conference candidate was not dropped",
+          "passed": true,
+          "evidence": "passed"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.53,
+        "passed": 8,
+        "failed": 7,
+        "total": 15,
+        "time_seconds": 0.0,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "No doi fields remain",
+          "passed": false,
+          "evidence": "failed"
+        },
+        {
+          "text": "No url fields remain",
+          "passed": false,
+          "evidence": "failed"
+        },
+        {
+          "text": "No month fields remain",
+          "passed": false,
+          "evidence": "failed"
+        },
+        {
+          "text": "No address fields remain",
+          "passed": false,
+          "evidence": "failed"
+        },
+        {
+          "text": "All pages use double dash",
+          "passed": false,
+          "evidence": "failed"
+        },
+        {
+          "text": "All author fields use Last, First",
+          "passed": false,
+          "evidence": "failed"
+        },
+        {
+          "text": "All original citation keys remain",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "String definitions remain",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "Exact @String match uses PAMI",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "Exact @String match uses NeurIPS",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "Exact @String match uses ICLR",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "Unlisted full journal is recased",
+          "passed": false,
+          "evidence": "failed"
+        },
+        {
+          "text": "Flattened CNN is brace-protected",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "Flattened Real-ESRGAN is brace-protected",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "Conference candidate is retained",
+          "passed": true,
+          "evidence": "passed"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.75,
+        "passed": 9,
+        "failed": 3,
+        "total": 12,
+        "time_seconds": 0.0,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "No doi fields remain",
+          "passed": false,
+          "evidence": "failed"
+        },
+        {
+          "text": "No url fields remain",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "No month fields remain",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "No address fields remain",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "All pages use double dash",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "All author fields use Last, First",
+          "passed": false,
+          "evidence": "failed"
+        },
+        {
+          "text": "All original citation keys remain",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "Trademark symbol is removed",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "Bregman method name is brace-protected",
+          "passed": false,
+          "evidence": "failed"
+        },
+        {
+          "text": "L1 is brace-protected",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "All original LTWA-mode venues remain present",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "Boyd entry remains present",
+          "passed": true,
+          "evidence": "passed"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.85,
+        "passed": 17,
+        "failed": 3,
+        "total": 20,
+        "time_seconds": 0.0,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "No doi fields remain",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "No url fields remain",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "No month fields remain",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "No address fields remain",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "All pages use double dash",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "All author fields use Last, First",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "All original citation keys remain",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "String definitions remain",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "Exact CVPR value maps to CVPR",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "Exact TMLR value maps to TMLR",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "Exact ICML value maps to ICML",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "Exact ICLR value maps to ICLR",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "Exact PAMI value maps to PAMI",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "Flattened DeblurGAN is brace-protected",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "Flattened L0 is brace-protected",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "Flattened DINOv2 restores conventional capitalization",
+          "passed": true,
+          "evidence": "passed"
+        },
+        {
+          "text": "Flattened SigLIP is brace-protected",
+          "passed": false,
+          "evidence": "failed"
+        },
+        {
+          "text": "Flattened SAM is brace-protected",
+          "passed": false,
+          "evidence": "failed"
+        },
+        {
+          "text": "Flattened Bayesian is brace-protected",
+          "passed": false,
+          "evidence": "failed"
+        },
+        {
+          "text": "Incomplete author list remains",
+          "passed": true,
+          "evidence": "passed"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1.0,
+        "stddev": 0.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 0.0,
+        "stddev": 0.0,
+        "min": 0.0,
+        "max": 0.0
+      },
+      "tokens": {
+        "mean": 0.0,
+        "stddev": 0.0,
+        "min": 0,
+        "max": 0
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.6925,
+        "stddev": 0.1382,
+        "min": 0.53,
+        "max": 0.85
+      },
+      "time_seconds": {
+        "mean": 0.0,
+        "stddev": 0.0,
+        "min": 0.0,
+        "max": 0.0
+      },
+      "tokens": {
+        "mean": 0.0,
+        "stddev": 0.0,
+        "min": 0,
+        "max": 0
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.31",
+      "time_seconds": "+0.0",
+      "tokens": "+0"
+    }
+  },
+  "notes": [
+    "Each configuration was run once with Sonnet; pass-rate variation is across the four distinct evals, not repeated stochastic trials.",
+    "The Agent runtime prohibited subagents from writing summary.md. Their returned Tier 1/2/3 reports were persisted by the coordinator; the formal grader still evaluates only deterministic result.bib transformations.",
+    "The real-entry fixture contains eight entries copied from CLIP-Deblur/Paper/ECCV_2026/paper/main.bib and only deliberate formatting defects; the original source and its copied archival fixture were hash-verified unchanged.",
+    "The pre-existing iteration-1 benchmark is not comparable: it rewarded unverified Tier 2 venue and entry-type rewrites that the current skill correctly prohibits."
+  ]
+}

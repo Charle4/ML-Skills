@@ -1,0 +1,70 @@
+{
+  "expectations": [
+    {
+      "text": "No doi fields remain",
+      "passed": true,
+      "evidence": "passed"
+    },
+    {
+      "text": "No url fields remain",
+      "passed": true,
+      "evidence": "passed"
+    },
+    {
+      "text": "No month fields remain",
+      "passed": true,
+      "evidence": "passed"
+    },
+    {
+      "text": "No address fields remain",
+      "passed": true,
+      "evidence": "passed"
+    },
+    {
+      "text": "All pages use double dash",
+      "passed": true,
+      "evidence": "passed"
+    },
+    {
+      "text": "All author fields use Last, First",
+      "passed": true,
+      "evidence": "passed"
+    },
+    {
+      "text": "All original citation keys remain",
+      "passed": true,
+      "evidence": "passed"
+    },
+    {
+      "text": "Trademark symbol is removed",
+      "passed": true,
+      "evidence": "passed"
+    },
+    {
+      "text": "Bregman method name is brace-protected",
+      "passed": true,
+      "evidence": "passed"
+    },
+    {
+      "text": "L1 is brace-protected",
+      "passed": true,
+      "evidence": "passed"
+    },
+    {
+      "text": "All original LTWA-mode venues remain present",
+      "passed": true,
+      "evidence": "passed"
+    },
+    {
+      "text": "Boyd entry remains present",
+      "passed": true,
+      "evidence": "passed"
+    }
+  ],
+  "summary": {
+    "passed": 12,
+    "failed": 0,
+    "total": 12,
+    "pass_rate": 1.0
+  }
+}

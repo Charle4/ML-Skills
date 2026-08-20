@@ -4,7 +4,7 @@
 
 - [Skills for research workflows](#skills-for-research-workflows)
   - [Skills](#skills)
-    - [`my-auto-experiment-tuning`](#my-auto-experiment-tuning)
+    - [`my-exp-auto-tuning`](#my-exp-auto-tuning)
       - [Install](#install)
       - [Example invocation](#example-invocation)
       - [What to tell the agent](#what-to-tell-the-agent)
@@ -12,10 +12,24 @@
       - [Install](#install-1)
       - [Example invocation](#example-invocation-1)
       - [What to tell the agent](#what-to-tell-the-agent-1)
-    - [`my-en-academic-writing`](#my-en-academic-writing)
+    - [`mpaper-en-academic-writing`](#mpaper-en-academic-writing)
       - [Install](#install-2)
       - [Example invocation](#example-invocation-2)
       - [What to tell the agent](#what-to-tell-the-agent-2)
+    - [`mpaper-bib-tidy`](#mpaper-bib-tidy)
+      - [Install](#install-3)
+      - [Example invocation](#example-invocation-3)
+    - [`mpaper-cover-letter`](#mpaper-cover-letter)
+      - [Install](#install-4)
+      - [Example invocation](#example-invocation-4)
+    - [`mpaper-review-revision`](#mpaper-review-revision)
+      - [Install](#install-5)
+      - [Example invocation](#example-invocation-5)
+      - [What to tell the agent](#what-to-tell-the-agent-3)
+    - [`mpaper-revision-response`](#mpaper-revision-response)
+      - [Install](#install-6)
+      - [Example invocation](#example-invocation-6)
+      - [What to tell the agent](#what-to-tell-the-agent-4)
   - [See Also](#see-also)
 
 <!-- /TOC -->
@@ -24,7 +38,7 @@
 
 ## Skills
 
-### `my-auto-experiment-tuning`
+### `my-exp-auto-tuning`
 
 Hypothesis-driven hyperparameter tuning loop for ML experiments. Works with both Claude Code and Codex.
 
@@ -40,9 +54,8 @@ Claude Code:
 
 ```bash
 mkdir -p ~/.claude/skills ~/.claude/agents
-ln -s $(pwd)/my-auto-experiment-tuning ~/.claude/skills/my-auto-experiment-tuning
-ln -s $(pwd)/my-auto-experiment-tuning/agents/experiment-runner.md ~/.claude/agents/experiment-runner.md
-ln -s $(pwd)/my-auto-experiment-tuning/agents/experiment-strategist.md ~/.claude/agents/experiment-strategist.md
+ln -s $(pwd)/my-exp-auto-tuning ~/.claude/skills/my-exp-auto-tuning
+ln -s $(pwd)/my-exp-auto-tuning/agents/experiment-strategist.md ~/.claude/agents/experiment-strategist.md
 
 # Set environment variables
 CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1
@@ -52,9 +65,8 @@ Codex:
 
 ```bash
 mkdir -p ~/.codex/skills ~/.codex/agents
-ln -s $(pwd)/my-auto-experiment-tuning ~/.codex/skills/my-auto-experiment-tuning
-ln -s $(pwd)/my-auto-experiment-tuning/codex-agents/experiment-runner.toml ~/.codex/agents/experiment-runner.toml
-ln -s $(pwd)/my-auto-experiment-tuning/codex-agents/experiment-strategist.toml ~/.codex/agents/experiment-strategist.toml
+ln -s $(pwd)/my-exp-auto-tuning ~/.codex/skills/my-exp-auto-tuning
+ln -s $(pwd)/my-exp-auto-tuning/codex-agents/experiment-strategist.toml ~/.codex/agents/experiment-strategist.toml
 ```
 
 #### Example invocation
@@ -62,7 +74,7 @@ ln -s $(pwd)/my-auto-experiment-tuning/codex-agents/experiment-strategist.toml ~
 Claude Code:
 
 ```
-/my-auto-experiment-tuning Tune train.py (NAFNet deblurring). Maximize PSNR on test set.
+/my-exp-auto-tuning Tune train.py (NAFNet deblurring). Maximize PSNR on test set.
 Target: PSNR > 30 dB (hard stop). Use GPU 0 and 1 only, max 16 GB VRAM per slot, util ≤ 80%.
 Key hyperparams: lr [1e-5, 5e-3] log scale, batch_size {4, 8, 16}, num_blocks {8, 16, 32}.
 Current best is PSNR 28.7 with lr=1e-3, batch=8, num_blocks=16. lr > 1e-2 is unstable.
@@ -72,7 +84,7 @@ Launch: python train.py --lr LR --batch_size BS --num_blocks NB --gpu_id GPU --o
 Codex:
 
 ```
-$my-auto-experiment-tuning Tune train.py (NAFNet deblurring). Maximize PSNR on test set.
+$my-exp-auto-tuning Tune train.py (NAFNet deblurring). Maximize PSNR on test set.
 Target: PSNR > 30 dB (hard stop). Use GPU 0 and 1 only, max 16 GB VRAM per slot, util ≤ 80%.
 Key hyperparams: lr [1e-5, 5e-3] log scale, batch_size {4, 8, 16}, num_blocks {8, 16, 32}.
 Current best is PSNR 28.7 with lr=1e-3, batch=8, num_blocks=16. lr > 1e-2 is unstable.
@@ -199,7 +211,7 @@ _Default output behavior:_
 - File edits keep the target document clean: no review labels, modification logs, or skill metadata are inserted into the file unless explicitly requested.
 - If the original text is already clear and publishable, the skill may preserve it and explain that no substantive edit is needed.
 
-### `my-en-academic-writing`
+### `mpaper-en-academic-writing`
 
 English academic writing assistant for LaTeX polishing, Chinese-to-English translation, AI-like wording reduction, section drafting, related-work synthesis, grammar checking, and focused proofreading.
 
@@ -218,13 +230,13 @@ English academic writing assistant for LaTeX polishing, Chinese-to-English trans
 Claude Code:
 
 ```bash
-ln -s $(pwd)/my-en-academic-writing ~/.claude/skills/my-en-academic-writing
+ln -s $(pwd)/mpaper-en-academic-writing ~/.claude/skills/mpaper-en-academic-writing
 ```
 
 Codex:
 
 ```bash
-ln -s $(pwd)/my-en-academic-writing ~/.codex/skills/my-en-academic-writing
+ln -s $(pwd)/mpaper-en-academic-writing ~/.codex/skills/mpaper-en-academic-writing
 ```
 
 #### Example invocation
@@ -232,7 +244,7 @@ ln -s $(pwd)/my-en-academic-writing ~/.codex/skills/my-en-academic-writing
 Polish an English LaTeX passage:
 
 ```
-/my-en-academic-writing Deep polish the following paragraph for ICLR submission. Preserve all LaTeX commands.
+/mpaper-en-academic-writing Deep polish the following paragraph for ICLR submission. Preserve all LaTeX commands.
 
 Despite the success of diffusion-based methods in image restoration, existing approaches typically require
 the degradation type to be known \textit{a priori}, which significantly limits their practical applicability.
@@ -243,7 +255,7 @@ estimates the degradation kernel and performs restoration under a unified diffus
 Chinese-to-English translation:
 
 ```
-/my-en-academic-writing 把下面这段话翻译成 NeurIPS 风格的英文学术 LaTeX，保留公式符号，输出 Part 1 [LaTeX] 和 Part 2 [Translation]。
+/mpaper-en-academic-writing 把下面这段话翻译成 NeurIPS 风格的英文学术 LaTeX，保留公式符号，输出 Part 1 [LaTeX] 和 Part 2 [Translation]。
 
 尽管基于扩散模型的方法在图像复原中取得了显著进展，现有方法通常要求退化类型已知，
 这严重限制了其在真实场景中的适用性。
@@ -252,7 +264,7 @@ Chinese-to-English translation:
 De-AI rewrite:
 
 ```
-/my-en-academic-writing De-AI this paragraph. Remove mechanical connectors and inflated claims. Keep all \cite{} and \eqref{} unchanged.
+/mpaper-en-academic-writing De-AI this paragraph. Remove mechanical connectors and inflated claims. Keep all \cite{} and \eqref{} unchanged.
 
 In the realm of image restoration, our method leverages cutting-edge diffusion priors to foster robust
 and versatile recovery, paving the way for unprecedented performance across diverse degradation scenarios.
@@ -294,6 +306,174 @@ _Default output (chat mode):_
 - Grammar check returns a Markdown table of issues and suggested corrections.
 - Say `只输出英文` / `manuscript only` / `no explanation` to suppress the translation and log.
 - File edits keep the manuscript clean: no modification logs or skill metadata are inserted into the file.
+
+### `mpaper-bib-tidy`
+
+BibTeX `.bib` file cleanup and normalization. Handles entry type cross-validation, venue name formatting (full-name / abbreviated with verified LTWA or ISO 4 / `@String` macro), title sentence-casing with brace protection, author Last-First format, field pruning, and pages double-dash normalization.
+
+**Core features:**
+
+- Three-tier modification boundary: Tier 1 (safe, applied directly), Tier 2 (requires verification before editing), Tier 3 (report only)
+- Venue name abbreviation verified against LTWA / ISO 4 standards via web search
+- Title casing with automatic brace protection for proper nouns, acronyms, and chemical formulas
+- Entry type validation against actual publication venue (e.g., conference paper filed as `@article`)
+
+#### Install
+
+Claude Code:
+
+```bash
+ln -s $(pwd)/mpaper-bib-tidy ~/.claude/skills/mpaper-bib-tidy
+```
+
+Codex:
+
+```bash
+ln -s $(pwd)/mpaper-bib-tidy ~/.codex/skills/mpaper-bib-tidy
+```
+
+#### Example invocation
+
+```
+/mpaper-bib-tidy 整理 references.bib，期刊名用 ISO 4 缩写格式，标题做大小写保护
+```
+
+```
+/mpaper-bib-tidy Clean up main.bib: unify venue names to full names, fix author format to Last-First, prune unnecessary fields.
+```
+
+### `mpaper-cover-letter`
+
+Write a concise, confident journal cover letter in compilable LaTeX for a finalized manuscript. Covers ML, applied/computational math, image processing, optimization, and inverse problems journals.
+
+**Core features:**
+
+- Reads the manuscript to extract title, authors, key contributions, and relevant editors
+- Produces a single-page `.tex` file ready to compile
+- Positive framing throughout — states what the paper does, not what it lacks
+
+#### Install
+
+Claude Code:
+
+```bash
+ln -s $(pwd)/mpaper-cover-letter ~/.claude/skills/mpaper-cover-letter
+```
+
+Codex:
+
+```bash
+ln -s $(pwd)/mpaper-cover-letter ~/.codex/skills/mpaper-cover-letter
+```
+
+#### Example invocation
+
+```
+/mpaper-cover-letter 给这篇论文写一封投 Pattern Recognition 的 cover letter，稿件在 paper/ 目录下
+```
+
+```
+/mpaper-cover-letter Write a cover letter for submitting our manuscript to SIAM Journal on Imaging Sciences. The paper is at main.tex.
+```
+
+### `mpaper-review-revision`
+
+Review-driven paper improvement: use senior-reviewer thinking to diagnose weaknesses and produce concrete revision plans, section rewrites, experiment redesigns, and submission checklists. Works as the author's ally on your own paper.
+
+**Core features:**
+
+- Full diagnosis: abstract, intro, method, experiments, limitations, figures, tables
+- Concrete fixes for every finding — diagnosis without a fix is incomplete
+- Revision planning with prioritized action items
+- Section-level rewriting and narrative repositioning when results don't support the original story
+- Conference rebuttal drafting
+
+#### Install
+
+Claude Code:
+
+```bash
+ln -s $(pwd)/mpaper-review-revision ~/.claude/skills/mpaper-review-revision
+```
+
+Codex:
+
+```bash
+ln -s $(pwd)/mpaper-review-revision ~/.codex/skills/mpaper-review-revision
+```
+
+#### Example invocation
+
+```
+/mpaper-review-revision Review my paper (paper/ directory) as if you were an ICLR reviewer. Identify weaknesses and produce a revision plan with concrete fixes.
+```
+
+```
+/mpaper-review-revision 这篇论文被 PR 拒了，审稿意见在 reviews.txt。帮我分析问题，写一个修改计划，然后逐节修改。
+```
+
+```
+/mpaper-review-revision Draft a rebuttal for the CVPR reviews in rebuttal/reviews.pdf. Our new experiments are in rebuttal/new_results/.
+```
+
+#### What to tell the agent
+
+The skill adapts depth to your request — a narrow ask gets a focused edit, a broad ask gets full diagnosis and revision.
+
+| Information              | Example                                                            |
+| ------------------------ | ------------------------------------------------------------------ |
+| Manuscript location      | `"paper/ directory"` / `"main.tex"` / `"draft.pdf"`               |
+| Target venue             | `"ICLR 2026"` / `"Pattern Recognition"` / `"NeurIPS"`             |
+| Scope of work            | `"full review"` / `"just the introduction"` / `"rebuttal only"`   |
+| Reviewer feedback (if R) | `"reviews in reviews.txt"` / `"rejected, comments attached"`      |
+| Specific concerns        | `"reviewers said experiments are weak"` / `"contribution unclear"` |
+
+### `mpaper-revision-response`
+
+Full-cycle journal revision and response (R&R): reviewer comments analysis with multi-agent cross-validation, revision plan, manuscript editing with blue-marking, point-by-point response letter, and response-manuscript consistency verification.
+
+**Core features:**
+
+- Structured analysis of reviewer comments with severity classification
+- Multi-agent cross-validation (Codex / Gemini when available) for balanced response strategy
+- Revision plan with per-comment action items and manuscript change locations
+- Blue-marked manuscript edits (`\textcolor{blue}{...}`) for easy reviewer tracking
+- Point-by-point response letter in LaTeX with quoted reviewer comments and concrete replies
+- Consistency verification: every claim in the response letter is checked against actual manuscript changes
+
+#### Install
+
+Claude Code:
+
+```bash
+ln -s $(pwd)/mpaper-revision-response ~/.claude/skills/mpaper-revision-response
+```
+
+Codex:
+
+```bash
+ln -s $(pwd)/mpaper-revision-response ~/.codex/skills/mpaper-revision-response
+```
+
+#### Example invocation
+
+```
+/mpaper-revision-response 审稿意见在 decision_letter.pdf，原稿在 paper/ 目录。帮我分析意见、制定修改计划、修改稿件并写回复信。
+```
+
+```
+/mpaper-revision-response Handle the R&R for our SIIMS submission. Reviews are in reviews.txt, manuscript source in src/. Start with a revision plan.
+```
+
+#### What to tell the agent
+
+| Information                | Example                                                                 |
+| -------------------------- | ----------------------------------------------------------------------- |
+| Reviewer report(s)        | `"decision_letter.pdf"` / `"reviews.txt"` / pasted text                |
+| Manuscript source          | `"paper/"` / `"src/main.tex"`                                          |
+| Scope                      | `"full cycle"` / `"just the revision plan"` / `"only the response letter"` |
+| Reference response letters | `"see previous_response.tex for format reference"` (optional)          |
+| Specific priorities        | `"Reviewer 2's concern about convergence is the main issue"`           |
 
 ---
 

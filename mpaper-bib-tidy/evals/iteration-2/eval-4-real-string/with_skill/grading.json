@@ -1,0 +1,110 @@
+{
+  "expectations": [
+    {
+      "text": "No doi fields remain",
+      "passed": true,
+      "evidence": "passed"
+    },
+    {
+      "text": "No url fields remain",
+      "passed": true,
+      "evidence": "passed"
+    },
+    {
+      "text": "No month fields remain",
+      "passed": true,
+      "evidence": "passed"
+    },
+    {
+      "text": "No address fields remain",
+      "passed": true,
+      "evidence": "passed"
+    },
+    {
+      "text": "All pages use double dash",
+      "passed": true,
+      "evidence": "passed"
+    },
+    {
+      "text": "All author fields use Last, First",
+      "passed": true,
+      "evidence": "passed"
+    },
+    {
+      "text": "All original citation keys remain",
+      "passed": true,
+      "evidence": "passed"
+    },
+    {
+      "text": "String definitions remain",
+      "passed": true,
+      "evidence": "passed"
+    },
+    {
+      "text": "Exact CVPR value maps to CVPR",
+      "passed": true,
+      "evidence": "passed"
+    },
+    {
+      "text": "Exact TMLR value maps to TMLR",
+      "passed": true,
+      "evidence": "passed"
+    },
+    {
+      "text": "Exact ICML value maps to ICML",
+      "passed": true,
+      "evidence": "passed"
+    },
+    {
+      "text": "Exact ICLR value maps to ICLR",
+      "passed": true,
+      "evidence": "passed"
+    },
+    {
+      "text": "Exact PAMI value maps to PAMI",
+      "passed": true,
+      "evidence": "passed"
+    },
+    {
+      "text": "Flattened DeblurGAN is brace-protected",
+      "passed": true,
+      "evidence": "passed"
+    },
+    {
+      "text": "Flattened L0 is brace-protected",
+      "passed": true,
+      "evidence": "passed"
+    },
+    {
+      "text": "Flattened DINOv2 restores conventional capitalization",
+      "passed": true,
+      "evidence": "passed"
+    },
+    {
+      "text": "Flattened SigLIP is brace-protected",
+      "passed": true,
+      "evidence": "passed"
+    },
+    {
+      "text": "Flattened SAM is brace-protected",
+      "passed": true,
+      "evidence": "passed"
+    },
+    {
+      "text": "Flattened Bayesian is brace-protected",
+      "passed": true,
+      "evidence": "passed"
+    },
+    {
+      "text": "Incomplete author list remains",
+      "passed": true,
+      "evidence": "passed"
+    }
+  ],
+  "summary": {
+    "passed": 20,
+    "failed": 0,
+    "total": 20,
+    "pass_rate": 1.0
+  }
+}

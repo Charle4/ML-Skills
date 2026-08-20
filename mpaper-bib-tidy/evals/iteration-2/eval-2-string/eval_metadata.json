@@ -1,0 +1,12 @@
+{
+  "eval_id": 2,
+  "eval_name": "string-macro-mode",
+  "prompt": "main.bib 中的期刊和会议名称不太统一，我的投稿模板提供了 @String 定义（文件开头已有），请用那些 @String key 来统一期刊/会议名。没有对应 key 的期刊用官方全称 Title Case。顺便把 title 大小写也规范一下，专有名词要用花括号保护。请整理 test-string.bib。",
+  "assertions": [
+    "@String 定义和 citation key 保留",
+    "可逐字匹配的 venue 使用已有 key",
+    "无 key 的已写全 venue 仅进行 Title Case 格式化",
+    "格式字段、页码、作者和 flatten 标题术语处理",
+    "未核验的 conference identity 不得强制改写"
+  ]
+}

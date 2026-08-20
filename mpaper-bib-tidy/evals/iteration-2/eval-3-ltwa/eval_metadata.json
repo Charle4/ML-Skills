@@ -1,0 +1,11 @@
+{
+  "eval_id": 3,
+  "eval_name": "ltwa-abbreviation-mode",
+  "prompt": "我投的期刊要求参考文献中期刊名用 LTWA 缩写形式。请帮我整理 test-ltwa.bib，把所有期刊名统一成 LTWA 缩写格式，同时修正其他格式问题。",
+  "assertions": [
+    "格式字段清理、页码双横线、作者与标题 sentence case",
+    "Bregman 和 L1 保护性花括号",
+    "未完成三支柱核验的 LTWA 变换保持原值并报告",
+    "未核验的 journal identity 不得强制改写 entry type"
+  ]
+}
