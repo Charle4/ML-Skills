@@ -526,6 +526,7 @@ At every step the number stays in the paper; what changes is the conclusion the 
 
 Reviewers act on doubts the paper hands them. Check each qualifying sentence:
 
+- Does it serve only to preempt objections rather than advance the argument? If so, delete it.
 - Does it enlarge the paper's burden of proof past what the claim needs?
 - Does it raise a question no reviewer asked and the paper does not answer?
 - Does it convert a local observation into a general defect?

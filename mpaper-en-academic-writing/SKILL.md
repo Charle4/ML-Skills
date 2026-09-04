@@ -150,7 +150,7 @@ When the contrast is genuine — both halves carry independent information and t
 
 #### Defensive self-qualification
 
-Model-generated academic text over-defends: it volunteers caveats no reader disputes and pre-argues design choices nobody challenged. The passage then reads as a self-audit rather than a scientific claim, and it hands reviewers doubts they had not formed. Two forms appear repeatedly.
+Model-generated academic text over-defends: it volunteers caveats no reader disputes and pre-argues design choices nobody challenged. The passage then reads as a self-audit rather than a scientific claim, and it hands reviewers doubts they had not formed. **The core test:** *If a sentence serves only to preempt objections rather than advance the argument, delete it.* Two forms appear repeatedly.
 
 **Volunteered common knowledge.** A caveat the field already assumes carries no information, and repeating it across sections turns a shared premise into an apparent weakness of this particular paper. Test: does the caveat change what the reader should conclude from the evidence just presented? Some caveats are standing background: post-hoc attribution is one explanation among several, a benchmark is a proxy for the deployment setting, an ablation isolates correlation rather than mechanism. State those once, where the paper bounds its scope, not in every paragraph that touches the topic.
 
@@ -161,6 +161,20 @@ Model-generated academic text over-defends: it volunteers caveats no reader disp
 
 *Before:* `We adopt a feature-space objective rather than a pixel-space loss, and we stress that this is a modeling choice rather than a theoretical requirement.`
 *After:* `The objective matches feature-space distributions, which removes the per-pixel alignment requirement of the regression loss (Section~\ref{sec:method}).`
+
+#### Structural meta-disclosure
+
+The writer knows each sentence's rhetorical role — positioning, contrasting, transitioning, previewing a derivation — and leaks that role into the sentence itself instead of letting the content carry it. The result reads as stage directions rather than science. This is not the same as formulaic openers or defensive framing: the sentences are grammatically natural and technically correct; the problem is that they announce their function where only their content belongs.
+
+**Watch:** `The key difference between our method and X is...`; `This section derives the gradient of...`; `We now turn to the analysis of...`; `The purpose of this decomposition is to...`; `Our work is fundamentally different from X in that...`. Also watch for raw project-internal language surfacing in the manuscript: informal shorthand, implementation nicknames, debugging observations, or reasoning that only makes sense with the full project context. In Chinese academic writing (基金申请书, 中文论文), meta-disclosure takes forms such as: "本项目的三条研究内容是同一后验的三个侧面" (telling the reader about the internal structure instead of letting them discover it), "本段旨在说明……", "以下从三个方面论述". These expose the writing blueprint; the reader should perceive structure from the natural prose, not be told about it.
+
+*Before:* `The key difference between our method and the prior approach is that we use a mixture rather than a single Gaussian.`
+*After:* `A single Gaussian collapses to a point estimate when $\sigma\to 0$; the mixture maintains $K$ distinct modes throughout the diffusion trajectory.`
+
+*Before:* `We now derive the gradient of the variational objective with respect to $\mu_i$.`
+*After:* `Differentiating \eqref{eq:elbo} with respect to $\mu_i$ yields...`
+
+The test: does the sentence work if the reader does not know what section of the paper they are in? If it only makes sense as a section-level signpost, rewrite it as a claim or a derivation step.
 
 #### Enumerative padding
 
@@ -276,6 +290,14 @@ When outputting LaTeX generated from plain text, escape special characters when 
 
 Do not escape characters inside existing mathematical expressions unless the expression itself requires it.
 
+When generating new LaTeX (drafting, translation, or adding content):
+
+- Use ``` `` ``` and `''` for double quotes, not `"`. Use `` ` `` and `'` for single quotes.
+- Prefer `\cref` and `\Cref` over `\ref` and `\eqref` for cross-references to sections, figures, tables, theorems, and algorithm lines. Use `\eqref` only for equations.
+- In `algorithm` environments, use `\gets` for assignment, not `\leftarrow`.
+- Use `A^\top` or `A^T` for transpose, not `A^+` (which denotes pseudoinverse).
+- Do not hardcode line numbers, theorem numbers, or equation numbers; use labels and cross-references.
+
 ### Structural and Evidence Integrity
 
 Apply these requirements in every drafting, rewriting, translation, and de-AI mode. Venue style may change presentation, but does not override them.
@@ -286,7 +308,7 @@ Apply these requirements in every drafting, rewriting, translation, and de-AI mo
 - **Argument order, not project chronology:** organize a section by the logic that holds in the finished paper — what the problem is, why prior work is insufficient, what the mechanism is, what the evidence establishes. The order in which the work happened, the variants that were tried and dropped, and the debugging path are not that logic. Report an abandoned attempt only where the paper needs it to rule out a competing explanation, and then present it as that argument rather than as history.
 - **Evidence before inference:** within a section, move down the certainty ladder: measurements, then results, then interpretation, then inference, then speculation. A reader who meets the speculation first discounts the evidence that follows, because the framing arrived before the grounds for it. Mark each step down in the language rather than leaving the reader to infer it: `we observe`, `this is consistent with`, `one explanation is`, `we speculate that`. For a claim the reader is likely to resist, place every supporting piece ahead of it so the conclusion arrives as the last step of an argument the reader has already walked. Word choice tracks the same ladder — see the result-status distinction under [Applied Mathematics](#applied-mathematics). Conclusion verbs track it too: classify each conclusion by what backs it and choose the verb accordingly. Direct data support takes `indicate` or `show`; inference supported by the literature but not by the paper's own data takes `suggest`; reasoning without direct evidence takes `may` or `might`.
 - **Result narration:** a result that supports the paper's claim needs prose stating the condition under which it holds and the mechanism that produces it. A table reference alone leaves the reader to reconstruct the contribution, and reviewers reading linearly usually do not. A result that does not support the claim is reported at the granularity of the measurement — setting, number, comparison — without being escalated into a general assessment of the method.
-- **Pseudocode economy:** add pseudocode only when it clarifies a nontrivial procedure, execution order, or reproducibility detail better than prose and equations. Do not create one block per module or restate a derivation as an algorithm.
+- **Pseudocode economy:** add pseudocode only when it clarifies a nontrivial procedure, execution order, or reproducibility detail better than prose and equations. Do not create one block per module or restate a derivation as an algorithm. An Algorithm block is the natural endpoint of a derivation chain, not its starting point — every line in the algorithm must trace back to a derivation step or definition that appeared earlier in the section. "Algorithm 1 gives the complete procedure" followed by an unexplained block is a presentation, not a contribution; derive the update rules, then collect them into the algorithm.
 - **Logical form:** use bullets only for genuinely parallel, independently scannable items. Express causal, temporal, and progressive relations as connected prose or an explicitly ordered procedure. Do not format dependent reasoning as a flat list.
 - **Naming and emphasis:** assign one concise canonical name and, when needed, one abbreviation to each component. Define it once and reuse it exactly. Do not repeat desired properties as promotional modifiers, alternate long and short names, or add boldface to make module names appear important.
 - **AI-like language:** avoid ornamental semicolons and dashes, sentence-medial `therefore`/`thus`/`hence`, hollow transitions, and evaluative adverbs such as `elegantly` or `theoretically` when they merely praise the method. Use `theoretically` only for a real distinction between theoretical and empirical evidence.
@@ -311,6 +333,8 @@ The coherence pass is where the edit is finished. Deleting a clause in pass 1 of
 Writers repeat themselves. Across a section or a manuscript, a second occurrence of a defect is evidence of a habit rather than of a slip. Treat every finding as a search pattern. When a stacked negative, an undefined symbol, an inconsistent term, or a citation attached to the wrong clause turns up once, sweep the rest of the text for that pattern before moving on. Report the class and its instances together, not the one instance that happened to be read first.
 
 A full-section or full-paper pass reaches every major section in scope: abstract, introduction, method, results, discussion, and conclusion each carry the edits the mode calls for. The passages that resist a pass are usually the dense ones, and those are where the mode's edits matter most, so work paragraph by paragraph and confirm coverage section by section before reporting the pass complete.
+
+**Merge-pass after fragment-by-fragment drafting.** When sections are drafted individually, each fragment passes local review, but stitching them together often introduces forward references — a concept mentioned before its definition, a symbol used before its introduction, or a motivation that assumes the reader already knows a result from a later section. After assembling fragments into a full section or full paper, do one linear reading pass in final order. Flag any sentence that requires knowledge the reader cannot yet have at that point in the text.
 
 ### Framing Axes and Their Boundary
 
@@ -414,7 +438,7 @@ Requirements:
 - Check all AI-Tell Pattern categories systematically. Also check the Legitimate Academic Constructs list to avoid over-correcting evidence-tied hedging, passive voice, or other valid scholarly conventions.
 - Prefer plain, precise academic words.
 - Replace standardized or template-like expressions with more natural, personalized language.
-- Replace defensive framing with direct claims whose scope is explicit in the sentence.
+- Replace defensive framing with direct claims whose scope is explicit in the sentence; delete any sentence whose sole purpose is to preempt objections rather than advance the argument.
 - Replace broad claims with bounded, technical statements when the source supports them.
 - Trim redundancy.
 - Preserve the author's terms and technical content.
@@ -489,6 +513,8 @@ Use this mode when the user provides an outline, notes, or required points and a
 
 Requirements:
 
+- **The draft is a standalone product.** The reader sees only this document, not the project's internal docs, discussion logs, or full context. Every symbol, concept, and derivation step must be self-contained within the manuscript. "I know the conclusion so this is enough" is the agent's bias; the reader has no such knowledge. When drafting from project materials, translate the internal understanding into a reader-facing argument — do not transcribe the project narrative.
+- **Construct a derivation chain, not an introduction.** A Method section is not "Step 1: we do X. Step 2: we do Y." Each subsection opens with the problem or difficulty it resolves, derives the solution from what the reader already knows, and closes by connecting the result to the paper's argument. Symbols are introduced when the expression that needs them first appears, not batch-defined in advance. Intuitive explanations support but do not replace formal derivations — a chain of intuitive explanations is not a proof.
 - When the user provides a structured outline, follow its structure exactly and do not add or remove major points.
 - When the user provides loose materials or notes without a fixed structure, organize the content into a coherent logical order. Headings, paragraph grouping, and narrative sequence may all be adjusted as long as the reasoning is explained.
 - Write in academic English suitable for the stated venue.
@@ -500,6 +526,8 @@ Requirements:
 - Before drafting, identify the available evidence (theorems, experiments, citations, figures) and explicit gaps. Write gaps as placeholders (`[citation needed]`, `[proof TBD]`, `[experiment required]`) rather than plausible filler prose. When sources conflict, surface the conflict and ask which is authoritative.
 - For applied mathematics journals, motivate each algorithmic step with mathematical reasoning and keep theoretical claims prominent.
 - Avoid ML-conference rhetorical patterns such as `surprisingly`, `we find that`, or oversold contribution language.
+- **Revisions must not lose content (progressive dilution).** As conversation context accumulates, the agent increasingly "knows the conclusion" and tends to abbreviate — writing shorter, vaguer sentences that gesture at the point rather than making it. Each rewrite pass risks losing specifics the reader needs but the agent already takes for granted: derivation steps, bridging equations, narrative framing (a particle interpretation, a variational perspective), concrete objects, conditions, and numbers. After any substantial rewrite, compare information density against the previous version line by line. A method section that gets shorter without the user asking for compression is a red flag — check what was dropped. The document is the reader's only information source; the agent's context is not.
+- **When learning from reference papers, read broadly.** Read at least three reference papers in full (not just their Introduction), extract each paper's unique narrative strategy, and synthesize a diverse writing toolkit rather than imitating any single paper's style. Over-fitting to one reference collapses the writing into that paper's voice and structure.
 
 Default output:
 
@@ -522,7 +550,7 @@ Requirements:
 - Identify the key contribution of each work in one or two sentences.
 - Group related works thematically, not chronologically.
 - Avoid paper-by-paper dumps.
-- Clearly state where each prior approach falls short relative to the user's setting.
+- Clearly state where each prior approach falls short relative to the user's setting. State the user's advantage over each closely related method — "we differ from X" has no argumentative value; "we resolve X's limitation by Y" does.
 - State limitations factually with citations.
 - Do not editorialize.
 - Use past tense for what prior authors did.
@@ -750,6 +778,8 @@ For a conference paper the three moves expand into six argumentative stages:
 
 Treat these as argumentative stages, not a six-sentence or fixed-paragraph form. Preserve the full motivation chain from problem context to concrete difficulty, prior-work gap, insight, and contribution, giving each distinct stage enough explanation for a first-time reader, and expand the motivation and the gap across enough paragraphs that the reader follows the narrowing without a jump. Do not collapse the Introduction into one or two abrupt paragraphs merely to sound concise, and do not force a fixed paragraph count when the argument needs a different shape. In conference format the Introduction typically runs 1.5 to 2 pages; beyond two pages reviewer attention drops, and below one page the motivation is probably underdeveloped.
 
+The Introduction uses no display equations and no forward references to numbered objects defined later (Proposition X, Eq. X, Section X). All results are stated in natural language; the precise formulation belongs in the Method. Symbols that appear in the Introduction must be either standard notation the audience recognizes without definition or defined inline at first use within the Introduction itself.
+
 State the scope alongside the purpose: which setting the paper addresses and which neighboring setting it leaves open. A scope statement delimits the claim and belongs with it; it is not the same move as the caveat governed by the limitation-placement rule in [Cross-Section Coherence](#cross-section-coherence), which concerns qualifying a claim the reader has not yet received. `We analyze the single-node case; the distributed setting requires a different consistency argument and is not treated here` bounds a claim. `Our approach has several limitations` in the same position subtracts from one.
 
 Do not deliver every result in the Introduction; leave the reader a reason to keep going. When a roadmap paragraph is expected, say why the paper is organized as it is rather than listing section numbers. Writing the Introduction after the body is normal and usually produces a sharper one.
@@ -765,6 +795,8 @@ The completeness standard is that a competent reader could reproduce the study. 
 **Preparation.** Before writing, list every component of the method. For each, answer three questions: (1) How does it work? — the forward process, from input to output. (2) Why is it needed? — the problem or limitation it addresses. (3) Why does it work? — the property, prior, or mechanism that gives it an advantage. A component whose "why it works" answer is unclear to the author will be unclear to the reader.
 
 **Subsection structure.** Each component subsection carries three elements: motivation (the problem this component addresses), design (data structures, formulation, forward process), and advantage (why this design outperforms alternatives). Write the design first to build a concrete backbone, then add motivation and advantage. An overview subsection opens the section with the setting, the core contribution, a pointer to the pipeline or framework figure when one exists, and a map of what each subsection covers.
+
+**Derivation, not description.** The Method section builds a derivation chain that a reader without project context can follow step by step. Each subsection opens with the question or difficulty it answers, derives the result from premises the reader already has, and closes by connecting it to the next subsection's question. The algorithm block is the natural terminus of this chain — every line traces to a derivation step or definition that appeared earlier. Writing "the algorithm is as follows" and presenting the pseudocode without prior derivation is a presentation, not a contribution. Intuitive explanations complement derivations; a sequence of intuitive glosses strung together does not substitute for one.
 
 Keep the section's role clean: Method explains the proposed mechanism, formulation, and implementation. Baseline positioning belongs in Related Work and empirical comparison in Experiments, unless a brief contrast is indispensable to define the method.
 
@@ -970,7 +1002,7 @@ Use direct academic claims with explicit scope:
 - Calibrate stance, evidence emphasis, and scope against what the evidence carries, and hold the line a framing edit does not cross, following [Framing Axes and Their Boundary](#framing-axes-and-their-boundary).
 - Convert low-information caveat prefaces into the actual claim, scope, or evidence boundary.
 - Replace negative-to-positive scaffolding — including false conceptual oppositions that negate a view no reader holds — with a single affirmative claim whenever the scope is already clear.
-- In de-AI editing, treat defensive framing as a paragraph-level issue: revise the sentence so the argument becomes clearer and more direct. A paragraph's job is to establish its claim; pre-litigating objections the paper has not reached spends the paragraph on doubts and displaces the evidence that would have answered them.
+- In de-AI editing, treat defensive framing as a paragraph-level issue: if a sentence serves only to preempt objections rather than advance the argument, delete it. A paragraph's job is to establish its claim; pre-litigating objections the paper has not reached spends the paragraph on doubts and displaces the evidence that would have answered them.
 
 ### Active and Passive Voice
 
@@ -1034,7 +1066,7 @@ Check every output against the following list:
 
 1. The manuscript portion is in English unless the user requested otherwise.
 2. The text is standard academic English with simple, precise vocabulary.
-3. No AI-tell patterns remain in generated manuscript prose (check all categories: forbidden vocabulary, over-claiming verbs, significance hype, empty intensifiers, novelty padding, formulaic openers, connective overuse, boilerplate emphasis, false conceptual opposition, defensive self-qualification, enumerative padding, overlong sentences, contribution-list cliches, citation dumping, multi-angle restating).
+3. No AI-tell patterns remain in generated manuscript prose (check all categories: forbidden vocabulary, over-claiming verbs, significance hype, empty intensifiers, novelty padding, formulaic openers, connective overuse, boilerplate emphasis, false conceptual opposition, defensive self-qualification, structural meta-disclosure, enumerative padding, overlong sentences, contribution-list cliches, citation dumping, multi-angle restating).
 4. Legitimate academic constructs (evidence-tied hedging, passive voice where appropriate, "we") were preserved, not incorrectly flattened.
 5. There are no contractions.
 6. No unsupported claims, numbers, citations, baselines, or causal statements were added.
