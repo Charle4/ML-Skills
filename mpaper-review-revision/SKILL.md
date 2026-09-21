@@ -400,7 +400,7 @@ When auditing a Discussion, ask: if the results tables were removed, would the D
 #### Writing Form, Focus, and Citation Integrity
 
 - Lists contain genuinely parallel items. A causal, temporal, or progressive chain remains connected prose or an explicitly ordered procedure; it is not flattened into co-equal bullets.
-- Semicolons and dashes serve necessary syntax rather than ornamental rhythm. `Therefore`, `Thus`, and `Hence` mark a real inference boundary and do not appear mid-sentence as filler.
+- Semicolons and dashes serve necessary syntax rather than ornamental rhythm. `Therefore`, `Thus`, `Hence`, `However`, `Whereas`, and `Still` only mark relations already established by the argument. Remove a connective that turns difference into contradiction, a shared mechanism into evidence that an improvement failed, or sequence into causality; when a real inference is missing its premise or equation, restore that step instead of smoothing over the gap.
 - Evaluative adverbs such as `elegantly` and `theoretically` are removed when they praise rather than specify. Repeated adjectives such as `robust`, `adaptive`, or `principled` require direct evidence each time they carry a claim.
 - A local revision request remains local. Check whether adding one constraint, module, dataset, or reviewer-requested experiment caused the title, abstract, Introduction, or conclusion to reframe the whole paper around that detail.
 - Every citation entails the exact nearby characterization. Inspect the cited source before accepting claims about its method, results, assumptions, limitations, or relationship to another work. A title, snippet, neighboring citation, or another paper's related-work prose is insufficient. Mark unresolved pairings as `Unknown` or `Blocker`; do not repair them by guessing.
@@ -711,7 +711,7 @@ Use statuses:
 - Discussion (if present) interprets results through mechanism, connects back to the Introduction's gap, and does not merely restate tables.
 - Conclusion states what changed in understanding and what remains open.
 - Notation and terminology are consistent; overclaiming words are justified.
-- Lists contain parallel items, component names are concise and stable, and emphasis is not decorative.
+- Lists contain parallel items, component names are concise and stable, and emphasis is not decorative. Every connective marks a relation established by evidence or reasoning; no wording turns difference into contradiction or parallel facts into causality or progression.
 - Local changes have not displaced the main contribution; every citation supports its attached characterization.
 
 ### Title, Positioning, and Compliance

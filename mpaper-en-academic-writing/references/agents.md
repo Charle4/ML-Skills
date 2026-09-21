@@ -219,7 +219,7 @@ Assemble the relevant blocks for each agent call, in both coordinated workflow s
 Write in standard academic English. Rules:
 - Use clear, scientifically accessible language. Avoid fancy vocabulary.
 - Forbidden words: burgeoning, pivotal, in the realm of, keen, adept, endeavor, uphold, imperative, profound, ponder, cultivate, hone, delve, embrace, pave, embark, encompass, monumental, scrutinize, vast, versatile, paramount, foster, necessitates, tapestry, landscape (abstract), showcase, realm, seamless.
-- Also fix: over-claiming verbs (prove→show empirically; reserve "we prove/establish" for formal proofs, use "we observe/conjecture" for weaker evidence), significance hype (paves the way, groundbreaking), empty intensifiers (extensive, comprehensive, a wide range of; and the single-word attitude modifiers actually, basically, clearly, obviously, of course, quite, very, interesting, important — "clearly" in front of a step reads as a skipped argument), multi-angle restating (describing one fact from 2-3 near-synonymous dimensions to fake depth — collapse to the single most precise term), novelty padding (novel ×2, "to the best of our knowledge"), formulaic openers (In recent years... / meta-discourse: At its core / Fundamentally / Simply put), connective overuse (Moreover.../Furthermore.../Additionally... in consecutive sentences), boilerplate emphasis (It is worth noting that), false conceptual opposition (negating a view no reader holds to set up a "deeper" restatement: "not merely X, but rather Y" where X is a strawman or compatible with Y), defensive self-qualification (volunteering caveats the field already assumes; "we use X rather than Y" or "this is a design choice, not a theoretical necessity" defending an uncontested choice; escalating one weak result into a verdict on the method — delete any sentence whose sole purpose is to preempt objections rather than advance the argument), enumerative padding (long comma-separated chains of properties/goals where most items lack evidence — keep only items the paper substantiates), overlong clause-stacked sentences, contribution-list cliches (generic "novel method; extensive experiments; strong results"), citation dumping (bracketed list without context).
+- Also fix: over-claiming verbs (prove→show empirically; reserve "we prove/establish" for formal proofs, use "we observe/conjecture" for weaker evidence), significance hype (paves the way, groundbreaking), empty intensifiers (extensive, comprehensive, a wide range of; and the single-word attitude modifiers actually, basically, clearly, obviously, of course, quite, very, interesting, important — "clearly" in front of a step reads as a skipped argument), multi-angle restating (describing one fact from 2-3 near-synonymous dimensions to fake depth — collapse to the single most precise term), novelty padding (novel ×2, "to the best of our knowledge"), formulaic openers (In recent years... / meta-discourse: At its core / Fundamentally / Simply put), connective overuse or unsupported connective logic (Moreover.../Furthermore.../Additionally... in consecutive sentences; therefore/however/whereas/still used to manufacture inference, contrast, or progression between parallel facts), boilerplate emphasis (It is worth noting that), false conceptual opposition (negating a view no reader holds to set up a "deeper" restatement: "not merely X, but rather Y" where X is a strawman or compatible with Y), defensive self-qualification (volunteering caveats the field already assumes; "we use X rather than Y" or "this is a design choice, not a theoretical necessity" defending an uncontested choice; escalating one weak result into a verdict on the method — delete any sentence whose sole purpose is to preempt objections rather than advance the argument), enumerative padding (long comma-separated chains of properties/goals where most items lack evidence — keep only items the paper substantiates), overlong clause-stacked sentences, contribution-list cliches (generic "novel method; extensive experiments; strong results"), citation dumping (bracketed list without context).
 - Preserve legitimate academic constructs: evidence-tied hedging (suggests, is consistent with, may indicate), passive voice when actor is irrelevant, "we", semicolons in moderation.
 - Always use full forms: "it is", "he would" — never contractions.
 - No stylistic double quotes or dashes.
@@ -238,7 +238,7 @@ Editing constraints:
 - Preserve all structure, argument flow, and meaning. Never remove key information.
 - Make only the changes that are genuinely needed. Leave correct text unchanged.
 - Do not over-simplify. Keep academic rigor; do not obscure claims.
-- Ensure logical connectives between sentences. Do not optimise each sentence in isolation.
+- Preserve the actual relation between sentences. A connective labels an established contrast, inference, cause, sequence, or parallel relation; it does not create one. Remove a connective that turns mere difference into contradiction or parallel facts into causality, and supply the missing premise or equation when a real inference is under-explained. Do not optimise each sentence in isolation.
 - Introduce no new claims.
 - Never alter equations, labels, \cite, \eqref, \cref, variable names, or figure/table references.
 - Do not introduce unnecessary bullet points.
@@ -270,7 +270,7 @@ Draft the following section from the outline or notes provided:
 - If the input is loose materials or notes without a fixed structure, organize the content into a coherent logical order and explain the reasoning.
 - Write in academic English suitable for an applied mathematics or CS journal.
 - Each paragraph should have a clear topic sentence and logical internal structure.
-- Transitions between paragraphs must be explicit.
+- Make a transition explicit only when the source establishes a relation that would otherwise be unclear. Keep genuinely parallel paragraphs parallel, and never invent causality, contrast, or progression to make the section appear smoother.
 - Do not introduce claims not implied by the source materials.
 - Give the motivation enough connected prose for a first-time reader; do not compress distinct Introduction stages into one or two abrupt paragraphs.
 - Use bullets only for parallel items and pseudocode only for a nontrivial procedure.
@@ -334,7 +334,7 @@ Agent(
     Read the following text carefully and provide:
     1. A list of any phrases that sound unnatural, AI-like, or imprecise.
     2. Any defensive framing that can be replaced by a direct, scoped claim (delete any sentence whose sole purpose is to preempt objections rather than advance the argument).
-    3. Any logical gaps or unclear transitions between sentences.
+    3. Any logical gaps or connectives that manufacture contradiction, causality, or progression between facts whose actual relation is parallel, weaker, or unsupported.
     4. Specific suggestions for improvement (quote the original phrase, propose the replacement).
 
     Editing constraints (Block C):

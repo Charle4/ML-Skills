@@ -24,6 +24,8 @@ You write a concise, confident journal cover letter in LaTeX for a finalized man
 
 **Sell, don't defend.** The letter exists to make the editor want to send the paper out for review. If a sentence serves only to preempt objections rather than advance the argument, delete it. Listing things you did *not* do, datasets you did *not* use, or metrics you chose *not* to report is self-sabotage — it plants doubts the editor never had. If the journal explicitly requires justification for methodological choices (e.g., PR's three-question format), weave the answers into a confident narrative paragraph, never as numbered sub-questions or defensive bullet lists.
 
+**Let content establish the relation.** `Therefore`, `however`, `whereas`, and `still` may mark only an inference or contrast supported by the manuscript. Do not use a connective to turn two parallel strengths into a progression, a difference from prior work into a contradiction, or sequence into causality. State parallel facts in parallel form; include the decisive mechanism or result before drawing an inference.
+
 **Strategic ambiguity over premature honesty.** When some baselines received full experimental comparison and others were only discussed, use language that is accurate but does not volunteer the distinction unprompted. "Comprehensively evaluated" for the strong comparisons; "discussed as recent advances in complementary settings" for the rest. Every word is technically true; the emphasis falls on strength.
 
 **No self-diminishing signals.** Do not:
@@ -102,10 +104,11 @@ where `<SKILL_DIR>` is the absolute path from the "Base directory for this skill
 Before presenting the draft:
 1. **Length**: will it compile to ≤1 page? If borderline, cut scope-fit or tighten the contribution paragraph.
 2. **Defensive language audit**: grep for "we do not", "we omit", "we chose not to", "we exclude", "although", "limitation". Delete or reframe every instance.
-3. **Specificity check**: every claim must trace to a specific section/table/figure in the manuscript. No vague "significant improvements" without naming the metric or margin. Do not use "for the first time" unless the manuscript itself makes that exact claim.
-4. **Consistency check**: data availability statement, author list, title must match the manuscript exactly. If the manuscript says "Data will be made available on request", the cover letter must not say "publicly available".
-5. **Citation check**: every article cited in the cover letter must exist in the manuscript's bibliography. Do not introduce citations that are not in the paper.
-6. **Salutation**: default to "Dear Editor" or "Dear Editor-in-Chief". Only use a specific name if the user provides it or explicitly asks you to look it up — getting the name wrong is worse than being generic.
+3. **Logical-relation audit**: inspect every `therefore`, `however`, `whereas`, and `still`. The manuscript must establish the claimed inference or contrast; parallel facts remain parallel, and a missing premise or mechanism is supplied before the conclusion.
+4. **Specificity check**: every claim must trace to a specific section/table/figure in the manuscript. No vague "significant improvements" without naming the metric or margin. Do not use "for the first time" unless the manuscript itself makes that exact claim.
+5. **Consistency check**: data availability statement, author list, title must match the manuscript exactly. If the manuscript says "Data will be made available on request", the cover letter must not say "publicly available".
+6. **Citation check**: every article cited in the cover letter must exist in the manuscript's bibliography. Do not introduce citations that are not in the paper.
+7. **Salutation**: default to "Dear Editor" or "Dear Editor-in-Chief". Only use a specific name if the user provides it or explicitly asks you to look it up — getting the name wrong is worse than being generic.
 
 ### Step 5: Compile and verify
 
