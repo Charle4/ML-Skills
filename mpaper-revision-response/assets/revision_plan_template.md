@@ -27,6 +27,8 @@ Date: {{ date }}
 
 **Reviewer's verbatim**: "..."
 
+**Previous round**: <!-- Round 2 or later, follow-up comments only: the earlier concern's ID (round 1 R1.3), what the previous letter stated for it and at which location, and whether the current manuscript shows it there. The new response stays consistent with that statement. -->
+
 **Analysis**: <!-- What are they really asking? Is it valid? What does the code/paper actually say? -->
 
 **Modification plan**:

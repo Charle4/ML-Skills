@@ -79,16 +79,18 @@ These principles govern every step of the revision. They come from hard-won expe
 ### Phase 0: Classify and Decompose
 
 1. Read the editor decision letter and all reviewer reports completely.
-2. Identify the decision type: major revision / minor revision / R&R.
-3. Decompose each reviewer's comments into atomic concerns. One reviewer comment containing multiple distinct points must be split into separate concerns. Assign stable IDs: `R1.1`, `R1.2`, `R2.1`, etc. For editor-level comments: `E.1`, `E.2`.
-4. For each concern, record:
+2. When this is revision round 2 or later, read the previous round's response letter (`Response_R<round-1>.tex`) and revision plan (`revision_plan_R<round-1>.md`) completely. For each comment that follows up an earlier one ("my comment 3 was not addressed", "the new Section 4.2 still does not..."), find the earlier concern's ID and open the current manuscript at the location the previous letter claimed for it; a claimed revision that is not there is part of the new concern. The new responses stay consistent with every statement the previous letter made: a value, a claimed change, a stated scope, a reason for deferring.
+3. Identify the decision type: major revision / minor revision / R&R.
+4. Decompose each reviewer's comments into atomic concerns. One reviewer comment containing multiple distinct points must be split into separate concerns. Assign stable IDs: `R1.1`, `R1.2`, `R2.1`, etc. For editor-level comments: `E.1`, `E.2`.
+5. For each concern, record:
    - **ID**: `R{n}.{m}`
+   - **Previous-round ID** (round 2 or later, follow-up comments only): the earlier concern's ID, written as `round 1 R1.3`
    - **Verbatim quote**: the key sentence(s)
    - **Category**: one of — language/format, information gap, scientific logic, beyond scope
    - **Severity**: major / minor / typographic (as the reviewer frames it)
    - **Response strategy**: Accept+Revise / Defend+Clarify / Defer+Acknowledge / Redirect
    - **One-line summary** in your own words
-5. Check for cross-reviewer conflicts: if two reviewers' requests are incompatible, flag explicitly.
+6. Check for cross-reviewer conflicts: if two reviewers' requests are incompatible, flag explicitly.
 
 Present the decomposition to the user as a table before proceeding.
 
@@ -116,13 +118,13 @@ After Round 1 results arrive, conduct Round 2: send your synthesis (agreements, 
 
 ### Phase 2: Revision Plan
 
-Create the revision plan from the template:
+Create the revision plan from the template, with `<round>` the revision round (1 for the first revision):
 
 ```bash
-cp <SKILL_DIR>/assets/revision_plan_template.md <user-specified-path>/revision_plan_R1.md
+test -e <user-specified-path>/revision_plan_R<round>.md || cp <SKILL_DIR>/assets/revision_plan_template.md <user-specified-path>/revision_plan_R<round>.md
 ```
 
-Read the copied file, then Edit it to fill in every section. The template defines the full structure: overall assessment, concern tracking matrix, per-concern analysis with modification plan (tex line numbers), proposed manuscript and response text (dual drafting), consistency checklist, self-discovered issues, exclusion list, literature writing patterns, and edit execution order.
+Read the copied file, then Edit it to fill in every section. The template defines the full structure: overall assessment, concern tracking matrix, per-concern analysis with the previous-round link (round 2 or later) and modification plan (tex line numbers), proposed manuscript and response text (dual drafting), consistency checklist, self-discovered issues, exclusion list, literature writing patterns, and edit execution order.
 
 **Literature patterns**: for concerns requiring new text in the manuscript (parameter guidelines, reproducibility statements, initialization descriptions), delegate literature survey to SubAgent/Codex — they search for how published papers in the same venue phrase similar content, download PDFs to scratchpad for full-text extraction, and report exact quotes with citations. This informs the phrasing in both the manuscript revision and the response letter.
 
@@ -135,7 +137,7 @@ Present the plan to the user. Iterate based on their feedback. Do not proceed to
 Once the plan is confirmed, create the response letter:
 
 ```bash
-cp <SKILL_DIR>/assets/response_template.tex <user-specified-path>/Response.tex
+test -e <user-specified-path>/Response_R<round>.tex || cp <SKILL_DIR>/assets/response_template.tex <user-specified-path>/Response_R<round>.tex
 ```
 
 Read the copied file, then Edit it to fill in the manuscript title and adjust the reviewer block count to match the actual number of reviewers (see [Response Letter Setup](#response-letter-setup) for structure rules).
@@ -146,7 +148,7 @@ Process concerns one at a time, in the Edit Execution Order of the confirmed rev
 
 1. **Discuss** the modification strategy and response with the user — present the specific text changes and response draft before executing
 2. **Edit the manuscript** using the Edit tool (not sed/scripts). Mark reviewer-inspired changes in blue. When adding substantial content to an existing section, restructure the section for coherence rather than appending at the end — the result must read as if the content was always there
-3. **Write the response** for this concern in the Response.tex file, filling its verbatim-comment and response slots. Reference specific locations (section, page, equation, algorithm line number). When quoting added manuscript text, use ``` ``...''\, ```. The response can include details that would clutter the manuscript (exact parameter values, seed settings, full derivations)
+3. **Write the response** for this concern in the `Response_R<round>.tex` file, filling its verbatim-comment and response slots. Reference specific locations (section, page, equation, algorithm line number). When quoting added manuscript text, use ``` ``...''\, ```. The response can include details that would clutter the manuscript (exact parameter values, seed settings, full derivations)
 4. **Check consistency** across all related locations — grep every concept that was modified and verify uniform notation, parameter values, algorithm descriptions across all instances
 5. **Compile** and visually inspect any modified algorithm blocks, figures, or layout-sensitive areas in the PDF
 6. **Present** the completed modification for the user's review before moving to the next concern. Accept the user's micro-adjustments (wording, spacing, tone) and learn from them
@@ -162,12 +164,12 @@ After all concerns are processed:
 
 After all edits are complete, run these checks in order. Each check may trigger corrections; re-run affected checks after corrections.
 
-1. **Post-flight location verification** (most critical — the highest-risk hallucination in R&R is a response claiming a revision exists at a location where it doesn't):
+1. **Post-flight verification of locations, numbers, and quotations** (most critical — the highest-risk hallucination in R&R is a response claiming a revision exists at a location where it doesn't):
    - Compile the manuscript to get the final PDF with stable page numbers
-   - Extract every claim in the response letter of the form "we have added/modified/revised X in Section Y / page Z / Line N / equation (M)"
-   - For each claim, open the compiled PDF at the cited page and confirm the revision exists at the stated location
-   - Spawn SubAgent and Codex in parallel to independently verify the same claims against the PDF (give them the extracted claim list and the original and revised PDF paths, not the response letter)
-   - Fix any discrepancies: wrong page number → correct it; wrong section → correct it; missing revision → flag to user
+   - Extract three kinds of claim from the response letter: every location claim of the form "we have added/modified/revised X in Section Y / page Z / Line N / equation (M)"; every number the letter states about the revised manuscript (a table value, a parameter value, a count, a margin); and every span of manuscript text quoted with ``` ``...''\, ```
+   - For each location claim, open the compiled PDF at the cited page and confirm the revision exists at the stated location. For each number, find the table cell, equation, or sentence it comes from in the compiled PDF and confirm the value; recompute every derived number (a difference, a percentage, a ratio) with a script. For each quotation, confirm it matches the final manuscript verbatim: wording the user adjusted in Phase 3 after the letter quoted it no longer matches
+   - Spawn SubAgent and Codex in parallel to independently verify the same claims against the PDF (give them the extracted list of all three kinds and the original and revised PDF paths, not the response letter)
+   - Fix any discrepancies: wrong page number → correct it; wrong section → correct it; a number or quotation that differs from the manuscript → correct the letter to the manuscript; missing revision → flag to user
    - Every hardcoded reference (page, section, equation, figure, algorithm line) must be verified because the response letter cannot use `\cref` — all numbers are manual
 
 2. **Cross-reference consistency**: grep the entire manuscript for every concept that was modified. Verify uniform notation, consistent parameter values, aligned algorithm descriptions across all instances. Pay special attention to symbols that appear in both algorithms and running text.

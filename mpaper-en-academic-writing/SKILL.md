@@ -167,7 +167,7 @@ When the contrast is genuine (both halves carry independent information and the 
 
 Model-generated academic text over-defends: it volunteers caveats no reader disputes and pre-argues design choices nobody challenged. The passage then reads as a self-audit rather than a scientific claim, and it hands reviewers doubts they had not formed. **The core test:** *If a sentence serves only to preempt objections rather than advance the argument, delete it.* Treat it as a paragraph-level issue: a paragraph's job is to establish its claim, and pre-litigating objections the paper has not reached spends the paragraph on doubts and displaces the evidence that would have answered them. Four forms appear repeatedly.
 
-**Volunteered common knowledge.** A caveat the field already assumes carries no information, and repeating it across sections turns a shared premise into an apparent weakness of this particular paper. Test: does the caveat change what the reader should conclude from the evidence just presented? Some caveats are standing background: post-hoc attribution is one explanation among several, a benchmark is a proxy for the deployment setting, an ablation isolates correlation rather than mechanism. State those once in the closing limitations, per the limitation-placement rule in [Cross-Section Coherence](#cross-section-coherence), not in every paragraph that touches the topic.
+**Volunteered common knowledge.** A caveat the field already assumes carries no information, and repeating it across sections turns a shared premise into an apparent weakness of this particular paper. Test: does the caveat change what the reader should conclude from the evidence just presented? Some caveats are standing background: post-hoc attribution is one explanation among several, a benchmark is a proxy for the deployment setting, an ablation isolates correlation rather than mechanism. Delete them wherever they appear. A standing caveat enters the closing limitations, per the limitation-placement rule in [Cross-Section Coherence](#cross-section-coherence), only when it bounds a specific claim of this paper, and it is stated there together with that claim and the condition under which the claim stops holding.
 
 *Before:* `It is important to emphasize that our attribution maps, like all post-hoc attribution methods, provide only one possible explanation and cannot be guaranteed to correspond to the true internal computation of the network.`
 *After:* `The attribution maps localize the input regions the classifier responds to (Figure~\ref{fig:attr}).`
@@ -287,6 +287,7 @@ A de-AI pass or aggressive polish risks flattening legitimate scholarly conventi
 - Avoid dashes for stylistic effect. Prefer commas, clauses, parentheses, or sentence splitting. This governs the em dash (`---`). The en dash (`--`) in numeric ranges, page ranges, and joined-equal compounds such as `epochs 10--50`, `Newton--Raphson`, and `precision--recall trade-off` is required typography and stays.
 - Do not introduce bullet points unless the user asks for them, the source already uses them, or the venue convention strongly expects them, such as contribution bullets in a conference Introduction.
 - Do not convert coherent paragraphs into item lists.
+- Write relations as sentences. Run-in labels that split a paragraph into fragments (`\textbf{Input:} ... \textbf{Output:} ...`, a `\paragraph{}` every two sentences), claim or question tags carried over from an outline (`C1`, `RQ2`, `H1`), and arrows or slash chains standing in for a verb (`noise $\to$ bias`, `fidelity/perception/speed`) leave the reader to supply the relation. Keep run-in headings that the venue template requires or that the manuscript already uses for separate units.
 - Keep LaTeX source clean. Do not add decorative commands.
 
 ### Tense Conventions
@@ -783,7 +784,9 @@ Style reminders:
 - Explain notation before using it.
 - Group related equations into coherent derivations and add prose that states the purpose and interpretation of each group.
 - Use pseudocode only when it clarifies a nontrivial executable procedure beyond the equations.
-- Pair formal results with short intuition when possible.
+- Pair each formal result with a short intuition.
+- State each main theorem against the best known result it improves: the assumption it relaxes or the rate it sharpens, with the prior work cited in the sentence that introduces the theorem. This is the theoretical counterpart of the named baseline in [Evidence framing](#evidence-framing).
+- Open a proof that runs longer than a paragraph with its strategy: the chain of lemmas and the estimate that carries the argument. When the proof details move to an appendix, the strategy stays in the main text next to the theorem.
 - Preserve theorem, lemma, proposition, proof, and equation environments.
 - Distinguish result status in language: use "we prove" or "we establish" only for formally proved results; use "we conjecture", "we observe empirically", "numerical experiments suggest", or "heuristic analysis indicates" for weaker evidence levels. Do not conflate theorem, conjecture, experimental observation, intuition, and future-work direction in word choice.
 
@@ -937,6 +940,8 @@ The completeness standard is that a competent reader could reproduce the study. 
 
 Keep the section's role clean: Method explains the proposed mechanism, formulation, and implementation. Baseline positioning belongs in Related Work and empirical comparison in Experiments, unless a brief contrast is indispensable to define the method.
 
+Cite the original source of each borrowed component at its first description, whether a standard estimator, an optimization substep, or a network module, and cite for each new component the closest prior component it modifies or replaces. This attribution records what the method takes from prior work; the positioning against baselines stays in Related Work. When the source is not known, insert a placeholder per *Source gaps* in [Structural and Evidence Integrity](#structural-and-evidence-integrity).
+
 Do not cite standard tooling for its own sake. Name the library or solver when a specific version, tolerance, or numerical choice affects the result, and leave it out when it does not.
 
 Write `methods`, not `methodology`, which means the study of methods. When the methods are short, merging them into the section that uses them reads better than a separate section of three sentences.
@@ -1081,10 +1086,11 @@ Coherence between the sentences comes from three devices:
 
 Chain the sentences by position: the new information at the end of one sentence becomes the familiar subject at the start of the next. A paragraph where every sentence opens with new material reads as a list of facts even when each fact is correct.
 
-Two checks:
+Three checks:
 
 - Read only the first and last sentence of each paragraph in sequence. If the argument no longer holds, the topic sentences are carrying description rather than claims.
 - Paragraphs of four to eight sentences are typical. A single-sentence paragraph is usually an orphaned point that belongs to a neighbor, and a paragraph running most of a page usually holds two themes.
+- Read consecutive paragraphs side by side. When they share one template (the same opening construction, the same number of sentences, the same closing move), recast each around the argument it makes, so that its length and order follow its content. Content that is genuinely parallel, such as a sequence of procedure steps or comparisons along the same axes, keeps its parallel form, per [Sentence-Level Clarity](#sentence-level-clarity).
 
 ## Common Revisions
 
@@ -1210,14 +1216,14 @@ Check every output against the following list. In Minimal Polish, Grammar Check 
 11. Non-proper-noun technical terms are not incorrectly capitalized.
 12. Claims use direct framing with concrete scope and evidence boundaries. Statements about the work's own limitations stay at the granularity of the evidence and are not escalated into general assessments of the method. In a mode that applies [Claim Framing](#claim-framing), contributions are stated as what they achieve, comparisons as effects against a named baseline, and covered scope as coverage with its boundary adjacent, and no self-dismissive modifier without informational content remains. Every framing edit preserves its invariant: each strengthened claim earned its confidence from a clearer statement of its evidence in the same edit, every reported value, comparison direction, ranking, qualifier, and condition survived unchanged, and the other statements of the same claim in the abstract, body, and conclusion agree with it without carrying an overstatement.
 13. Existing formatting is preserved, and no new emphasis formatting was added.
-14. Paragraph logic is coherent; every connective names a relation established by the surrounding content rather than manufacturing contradiction, causality, or progression between parallel facts. Each paragraph does one job, key terms are repeated rather than varied, and reading only the first and last sentence of each paragraph still carries the argument.
+14. Paragraph logic is coherent; every connective names a relation established by the surrounding content rather than manufacturing contradiction, causality, or progression between parallel facts. Each paragraph does one job, key terms are repeated rather than varied, reading only the first and last sentence of each paragraph still carries the argument, and consecutive paragraphs share one template only where their content is parallel.
 15. Related-work text is grouped thematically and states limitations factually.
-16. Applied mathematics text contains mathematical motivation, avoids ML-conference hype, and uses language that correctly reflects result status (theorem vs conjecture vs empirical observation).
+16. Applied mathematics text contains mathematical motivation, avoids ML-conference hype, and uses language that correctly reflects result status (theorem vs conjecture vs empirical observation). Each main theorem is stated against the prior result it improves, and each proof longer than a paragraph opens with its strategy, which stays in the main text when the details move to an appendix.
 17. Terminology, tone, and style are consistent with the existing English manuscript when one is provided.
 18. Output format exactly matches the user's requested or mode-specific format.
 19. Introduction motivation is complete; Method symbols are defined and equations form readable groups rather than isolated displays, each equation reading as part of the sentence that carries it. No notation drift across sections (overloaded symbols, renamed variables, index or domain inconsistencies) and no derivation replaced by `it can be shown that`.
-20. Pseudocode, lists, and emphasis are necessary and structurally justified; dependent reasoning is not flattened into bullets.
-21. Component names and abbreviations are concise and consistent; Method does not contain avoidable baseline comparison.
+20. Pseudocode, lists, and emphasis are necessary and structurally justified; dependent reasoning is not flattened into bullets, run-in labeled fragments, outline tags, or arrow and slash chains.
+21. Component names and abbreviations are concise and consistent; Method does not contain avoidable baseline comparison, and each borrowed component carries its original citation at first description.
 22. No local editing constraint has displaced the paper's established motivation or contribution hierarchy.
 23. For full-section or multi-section tasks: the core motivation echoes across Introduction, contributions, and Conclusion; contribution bullets carry the "why", not just the result; the body states positive claims, and each limitation appears once, at the end, in a Limitations section or the limitations part of the Conclusion.
 24. Sections follow the finished paper's argument order rather than the chronology of the work, evidence precedes the interpretation and speculation drawn from it with each step down the certainty ladder marked in the language, and results that support the paper's claim are narrated with their condition and mechanism instead of being left in a table. Results paragraphs open with the finding rather than the experimental action, and subsection titles state what the subsection establishes when the evidence supports one.
