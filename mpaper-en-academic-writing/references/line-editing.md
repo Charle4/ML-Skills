@@ -39,7 +39,8 @@ A verb turned into a noun needs a weak verb to carry it, so the sentence spends 
 | through the use of | by, with |
 | is equal to, is shown to be | is |
 | was found to be, was observed to be, was noted to be | was |
-| it appears that, it was found that, it should be noted that, note that, it is contended that, it may be expected that | delete |
+| it was found that, it should be noted that, note that, it is contended that | delete |
+| it appears that, it may be expected that | `X appears to`, `X may` when the claim is genuinely uncertain; delete otherwise |
 | it is apparent that | apparently |
 | the results show that, the result indicates that | delete, or attach the evidence |
 | the period 1977--1999 | 1977--1999 |

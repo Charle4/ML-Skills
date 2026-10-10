@@ -14,8 +14,6 @@ description: >-
   mpaper-latex-typeset-polish.
 ---
 
-Base directory for this skill: <injected at load time>
-
 You write a concise, confident journal cover letter in LaTeX for a finalized manuscript in ML, applied/computational mathematics, or related fields.
 
 ## Core Principles
@@ -65,7 +63,7 @@ Copy the template into the target location, then edit it in place:
 cp <SKILL_DIR>/assets/cover_letter_template.tex <target_path>
 ```
 
-where `<SKILL_DIR>` is the absolute path from the "Base directory for this skill:" line at the top of this file, and `<target_path>` is the user-specified output path (default: `cover_letter.tex` in the paper directory). Then read the copied file and replace each `[PLACEHOLDER]` according to the guidelines below. If the journal does not require Paragraph 4, delete the `[SOTA PARAGRAPH]` line and its comment.
+where `<SKILL_DIR>` is the absolute path from the `Base directory for this skill:` line injected at the top when this skill loads, and `<target_path>` is the user-specified output path (default: `cover_letter.tex` in the paper directory). Then read the copied file and replace each `[PLACEHOLDER]` according to the guidelines below. If the journal does not require Paragraph 4, delete the `[SOTA PARAGRAPH]` line and its comment.
 
 **Paragraph 1 — Submission statement** (1–2 sentences):
 - Title in LaTeX double backticks, journal name in `\textit{}`.
@@ -86,14 +84,14 @@ where `<SKILL_DIR>` is the absolute path from the "Base directory for this skill
 **Paragraph 4 — SOTA / journal-specific requirements** (only if required):
 - If the journal mandates specific information (SOTA comparison, datasets, metrics), provide it in a single flowing paragraph.
 - Lead with strength: "We benchmark against N methods spanning [traditional] and [modern] approaches."
-- For SOTA article lists: pick 5 articles that represent the **current** state of the art — prioritize the last 2–3 years and the same methodological paradigm as the paper. Do not pad the list with older traditional methods (e.g., a 2014 optimization-based approach is not "state of the art" when 2024–2026 deep-learning methods exist). Distinguish comprehensively-evaluated from discussed-only using strategic ambiguity (see Core Principles).
+- For SOTA article lists: pick 5 articles that represent the **current** state of the art — prioritize the last 2–3 years and the same methodological paradigm as the paper. Do not pad the list with older traditional methods (e.g., a 2014 optimization-based approach is not "state of the art" when 2024–2026 deep-learning methods exist). Distinguish comprehensively-evaluated from discussed-only using strategic ambiguity (see [Core Principles](#core-principles)).
 - For datasets: name only the primary evaluation benchmark, not auxiliary validation sets (e.g., if BSDS300 is only used for assumption verification, it is not a "benchmark" — omit it).
 - For metrics: name only what you report, not what you chose not to use.
 
 **Paragraph 5 — Declarations** (2–3 sentences):
 - Originality and non-duplication.
 - Author approval.
-- Add only what's true and relevant: non-conference-extension, data availability, no conflicts. Each as a short clause, not a separate sentence.
+- Add only what's true and relevant: non-conference-extension, data availability, no conflicts, ethics approval when the journal requires it. Each as a short clause, not a separate sentence.
 
 **Signature block:**
 - "Sincerely," followed by corresponding author only.
@@ -103,7 +101,7 @@ where `<SKILL_DIR>` is the absolute path from the "Base directory for this skill
 
 Before presenting the draft:
 1. **Length**: will it compile to ≤1 page? If borderline, cut scope-fit or tighten the contribution paragraph.
-2. **Defensive language audit**: grep for "we do not", "we omit", "we chose not to", "we exclude", "although", "limitation". Delete or reframe every instance.
+2. **Defensive language audit**: grep for "we do not", "we omit", "we chose not to", "we exclude", "although", "limitation", "does not mean", "does not imply", "should not be interpreted". Delete or reframe every instance.
 3. **Logical-relation audit**: inspect every `therefore`, `however`, `whereas`, and `still`. The manuscript must establish the claimed inference or contrast; parallel facts remain parallel, and a missing premise or mechanism is supplied before the conclusion.
 4. **Specificity check**: every claim must trace to a specific section/table/figure in the manuscript. No vague "significant improvements" without naming the metric or margin. Do not use "for the first time" unless the manuscript itself makes that exact claim.
 5. **Consistency check**: data availability statement, author list, title must match the manuscript exactly. If the manuscript says "Data will be made available on request", the cover letter must not say "publicly available".
@@ -112,4 +110,4 @@ Before presenting the draft:
 
 ### Step 5: Compile and verify
 
-Run `pdflatex` on the edited file to confirm it compiles cleanly and fits on one page. If any information is genuinely missing (corresponding author email, article type), leave `[PLACEHOLDER]` markers and list them for the user.
+Compile the edited file with `latexmk -pdf -synctex=1 -interaction=nonstopmode <file>.tex` (replace `-pdf` with `-lualatex` if the letter contains Chinese or other non-English text) to confirm it compiles cleanly and fits on one page; `-synctex=1` lets the user jump between the source and the PDF. If any information is genuinely missing (corresponding author email, article type), leave `[PLACEHOLDER]` markers and list them for the user.

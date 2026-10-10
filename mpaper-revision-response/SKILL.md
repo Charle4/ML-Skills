@@ -1,11 +1,9 @@
 ---
 name: mpaper-revision-response
-description: "Journal revision and response (R&R) for ML, applied/computational mathematics, optimization, and inverse problems papers. Full-cycle: reviewer comments analysis with multi-agent cross-validation, revision plan, manuscript editing with blue-marking, point-by-point response letter, and response-manuscript consistency verification. Use when the user receives actual reviewer comments / referee reports from a journal and needs to plan revisions, draft response letters, edit the manuscript accordingly, or verify that the response letter matches the actual manuscript changes. Also use when the user says 返修, revision, R&R, rebuttal, response to reviewer, 审稿意见, 修订, 回复, respond to referees, revision plan, or points at a reviewer report / decision letter file. Boundary with sibling skills: mpaper-review-revision is for self-initiated review-perspective diagnosis before submission; this skill is for responding to real reviewer feedback after submission. For isolated paragraph-level English editing within the revision, the user may additionally invoke mpaper-en-academic-writing."
+description: "Journal revision and response (R&R) for ML, applied/computational mathematics, optimization, and inverse problems papers. Full-cycle: reviewer comments analysis with multi-agent cross-validation, revision plan, manuscript editing with blue-marking, point-by-point response letter, and response-manuscript consistency verification. Use when the user receives actual reviewer comments / referee reports from a journal and needs to plan revisions, draft response letters, edit the manuscript accordingly, or verify that the response letter matches the actual manuscript changes. Also use when the user says 返修, revision, R&R, rebuttal, response to reviewer, 审稿意见, 修订, 回复, respond to referees, revision plan, or points at a reviewer report / decision letter file. Boundary with sibling skills: mpaper-review-revision is for self-initiated review-perspective diagnosis before submission; this skill is for responding to real reviewer feedback after submission to a journal; a conference rebuttal during the author-response period goes to mpaper-review-revision. For isolated paragraph-level English editing within the revision, the user may additionally invoke mpaper-en-academic-writing."
 ---
 
-Base directory for this skill: (injected at load time)
-
-The line above gives the absolute path. All `<SKILL_DIR>` references below resolve to it.
+The `Base directory for this skill:` line injected at the top when this skill loads gives its absolute path; replace every `<SKILL_DIR>` below with it.
 
 # Journal Revision & Response (R&R)
 
@@ -30,7 +28,7 @@ These principles govern every step of the revision. They come from hard-won expe
 
 1. **The paper is an organic, self-consistent story, not a Q&A transcript.** Revisions must read as if the content was always there. No seams, no "as suggested by the reviewer" in the manuscript body.
 
-2. **Response and manuscript serve different audiences.** The response letter speaks directly to the reviewer — it can be more specific, include derivations, cite exact values. The manuscript must read fluently to a future reader who never saw the review.
+2. **Response and manuscript serve different audiences.** The response letter speaks directly to the reviewer — it can be more specific, include derivations, cite exact values. The manuscript must read fluently to a future reader who never saw the review. The letter argues; the manuscript does not. A manuscript change made in reply is a result, a precise definition, a clearer design statement, or a narrowed claim, not added reassurance or a sentence about what the paper does not claim; what the paper does not cover goes once into the limitations and future-work passage at the end. Wording calibrated to persuade the reviewer (`the remaining factors could not be separated`) stays in the letter; the manuscript states what was varied and what was held constant.
 
 3. **Every modification must preserve global consistency.** After changing any content (initialization, notation, parameter values, algorithm description), grep the entire manuscript for all related mentions and update them consistently. Changes in Algorithm 2 must propagate to Algorithm 3, to the implementation section, to the appendix.
 
@@ -42,7 +40,7 @@ These principles govern every step of the revision. They come from hard-won expe
 
 6. **The reviewer wants three things: you read their comment, you changed the paper, the paper is now better.** Structure every response to deliver exactly these three signals.
 
-7. **Response format: black question, blue answer.** Reproduce each reviewer comment verbatim in black, then respond in blue. Each response references the specific location of the revision (section, page, line, equation, algorithm, figure, table number). Use `''...''\,` to quote added or modified text from the manuscript when it helps.
+7. **Response format: black question, blue answer.** Reproduce each reviewer comment verbatim in black, then respond in blue. Each response references the specific location of the revision (section, page, line, equation, algorithm, figure, table number). Use ``` ``...''\, ``` to quote added or modified text from the manuscript when it helps.
 
 8. **The summary paragraph comes last in writing, first in the document.** Write all point-by-point responses first, then compose the summary ("Dear Editor and Reviewer, ... The main corrections are marked in blue. The revisions are summarized as follows: ..."). This ensures the summary accurately reflects what was actually done.
 
@@ -58,7 +56,7 @@ These principles govern every step of the revision. They come from hard-won expe
 
 ### Tone and Language
 
-13. **Courteous but confident, never defensive or submissive.** "We thank the reviewer for noting that..." is better than "We agree that...". Never say the reviewer is wrong — reframe misunderstandings as presentation issues ("We apologize for the lack of clarity"). But do not over-apologize or pre-emptively weaken claims. In revised manuscript text, if a sentence serves only to preempt potential objections rather than advance the argument, delete it. In both manuscript and response prose, a connective may label only a relation supported by the cited comment, manuscript fact, equation, or result. Do not turn difference into contradiction or parallel facts into causality with `however`, `whereas`, `still`, or `therefore`; state the facts directly or supply the missing premise.
+13. **Courteous but confident, never defensive or submissive.** "We thank the reviewer for noting that..." is better than "We agree that...". Never say the reviewer is wrong — reframe misunderstandings as presentation issues ("We apologize for the lack of clarity"). But do not over-apologize or pre-emptively weaken claims. End a supported answer on the answer and the revision, without a habitual concession such as `However, this does not prove...`. In revised manuscript text, if a sentence serves only to preempt potential objections rather than advance the argument, delete it. In both manuscript and response prose, a connective may label only a relation supported by the cited comment, manuscript fact, equation, or result. Do not turn difference into contradiction or parallel facts into causality with `however`, `whereas`, `still`, or `therefore`; state the facts directly or supply the missing premise.
 
 14. **Verb strength matches evidence strength.** When a reviewer challenges a claim, first check whether the claim's verbs match the available evidence: strong (demonstrate/show/establish) requires direct proof; moderate (indicate/suggest/support) for empirical consistency; limited (are consistent with / may reflect) for indirect evidence. Downgrading overclaimed verbs in the manuscript is often the right first step before drafting the response.
 
@@ -103,10 +101,10 @@ In a single message, spawn:
 - **Gemini** (async via `review_start`): independent assessment with focus on the reviewer's perspective
 - **Codex** (`approval-policy: "never"`, `model_reasoning_effort: "xhigh"`): independent analysis with code-level verification
 
-Persona for all external agents:
+Persona for all external agents, passed as `developer-instructions` for Codex and as `system` for Gemini (for Gemini, append the read-only command constraints from your global instructions):
 ```
 Act as a collaborative expert in applied & computational mathematics, optimization theory, machine learning, and image processing. Requirements:
-- Form your own independent judgment first, then provide a balanced conclusion.
+- Form your own independent judgment first, then provide a balanced conclusion. Do not simply agree with presented viewpoints.
 - Respond accurately, objectively, and concisely. Avoid exaggeration or unwarranted enthusiasm.
 - If you disagree with a point, say so clearly and explain why.
 - Maintain professional formality. Focus on substance over encouragement.
@@ -124,7 +122,7 @@ Create the revision plan from the template:
 cp <SKILL_DIR>/assets/revision_plan_template.md <user-specified-path>/revision_plan_R1.md
 ```
 
-Read the copied file, then Edit it to fill in every section. The template defines the full structure: concern tracking matrix, per-concern analysis with modification plan (tex line numbers), proposed manuscript and response text (dual drafting), consistency checklist, self-discovered issues, exclusion list, literature writing patterns, and edit execution order.
+Read the copied file, then Edit it to fill in every section. The template defines the full structure: overall assessment, concern tracking matrix, per-concern analysis with modification plan (tex line numbers), proposed manuscript and response text (dual drafting), consistency checklist, self-discovered issues, exclusion list, literature writing patterns, and edit execution order.
 
 **Literature patterns**: for concerns requiring new text in the manuscript (parameter guidelines, reproducibility statements, initialization descriptions), delegate literature survey to SubAgent/Codex — they search for how published papers in the same venue phrase similar content, download PDFs to scratchpad for full-text extraction, and report exact quotes with citations. This informs the phrasing in both the manuscript revision and the response letter.
 
@@ -144,14 +142,15 @@ Read the copied file, then Edit it to fill in the manuscript title and adjust th
 
 ### Phase 3: Execute Revisions
 
-Process concerns one at a time, in the order agreed with the user. For each concern:
+Process concerns one at a time, in the Edit Execution Order of the confirmed revision plan. For each concern:
 
 1. **Discuss** the modification strategy and response with the user — present the specific text changes and response draft before executing
 2. **Edit the manuscript** using the Edit tool (not sed/scripts). Mark reviewer-inspired changes in blue. When adding substantial content to an existing section, restructure the section for coherence rather than appending at the end — the result must read as if the content was always there
-3. **Write the response** for this concern in the Response.tex file. Reference specific locations (section, page, equation, algorithm line number). When quoting added manuscript text, use `''...''\,`. The response can include details that would clutter the manuscript (exact parameter values, seed settings, full derivations)
+3. **Write the response** for this concern in the Response.tex file, filling its verbatim-comment and response slots. Reference specific locations (section, page, equation, algorithm line number). When quoting added manuscript text, use ``` ``...''\, ```. The response can include details that would clutter the manuscript (exact parameter values, seed settings, full derivations)
 4. **Check consistency** across all related locations — grep every concept that was modified and verify uniform notation, parameter values, algorithm descriptions across all instances
 5. **Compile** and visually inspect any modified algorithm blocks, figures, or layout-sensitive areas in the PDF
 6. **Present** the completed modification for the user's review before moving to the next concern. Accept the user's micro-adjustments (wording, spacing, tone) and learn from them
+7. **Classify** the concern: set its Classification in the Concern Tracking Matrix of the revision plan
 
 After all concerns are processed:
 - Fix self-discovered issues silently (no blue, no mention in response)
@@ -167,7 +166,7 @@ After all edits are complete, run these checks in order. Each check may trigger 
    - Compile the manuscript to get the final PDF with stable page numbers
    - Extract every claim in the response letter of the form "we have added/modified/revised X in Section Y / page Z / Line N / equation (M)"
    - For each claim, open the compiled PDF at the cited page and confirm the revision exists at the stated location
-   - Spawn SubAgent and Codex in parallel to independently verify the same claims against the PDF (give them both PDF paths — they check without seeing the response)
+   - Spawn SubAgent and Codex in parallel to independently verify the same claims against the PDF (give them the extracted claim list and the original and revised PDF paths, not the response letter)
    - Fix any discrepancies: wrong page number → correct it; wrong section → correct it; missing revision → flag to user
    - Every hardcoded reference (page, section, equation, figure, algorithm line) must be verified because the response letter cannot use `\cref` — all numbers are manual
 
@@ -192,9 +191,9 @@ The response template is copied and initialized in Phase 2. The template contain
 - **Multiple reviewers** (common case): each reviewer gets a `\textbf{\large Comments of Reviewer \#N:}` header. Comments are numbered independently starting from 1 within each reviewer section. The revision summary at the top references both reviewer number and comment number: `(Reviewer~\#R, Comment~N)`.
 - **Single reviewer**: drop the `Comments of Reviewer \#N:` header and number comments flat (Comment 1, Comment 2, ...). The revision summary references just `(Comment~N)`.
 - **Comment text**: reproduce each reviewer comment verbatim in black.
-- **Response text**: in `{\color{blue} ... }`, referencing specific locations (section, page, equation, algorithm, figure, table). Quote added manuscript text with `''...''\,` when it helps.
+- **Response text**: in `{\color{blue} ... }`, referencing specific locations (section, page, equation, algorithm, figure, table). Quote added manuscript text with ``` ``...''\, ``` when it helps.
 
-- **Response density scales with severity**: major/scientific-logic concerns get full prose responses (acknowledge → explain change → cite location → quote new text). Language/format and typographic concerns can be grouped into a compact table (Comment / Action / Location) to avoid bloating the response letter with trivial items.
+- **Response density scales with severity**: major/scientific-logic concerns get full prose responses (acknowledge → explain change → cite location → quote new text). Language/format and typographic concerns can be grouped into a compact table (Comment / Action / Location), with the verbatim comment in the Comment column, to avoid bloating the response letter with trivial items.
 
 Adapt formatting (enumerate style, spacing, font) to match any reference response letters the user provides.
 
@@ -210,7 +209,7 @@ Each concern carries two orthogonal labels throughout the revision:
 |---|---|---|
 | **Addressed** | Revision directly resolves it with a specific, locatable change | Point to exact location (section, page, line, equation, algorithm) |
 | **Partially addressed** | Revision moves in the right direction but doesn't fully resolve | Explain what was done and what remains |
-| **Deferred** | No manuscript change; response explains why (scope, separate paper, conflicting reviewers) | Acknowledge value, explain boundary using study-design or scope reasons — never time, budget, or convenience |
+| **Deferred** | No change in the paper body, at most a sentence in the closing limitations and future-work passage; response explains why (scope, separate paper, conflicting reviewers) | Acknowledge value, explain boundary using study-design or scope reasons — never time, budget, or convenience |
 | **Disagreement** | Author respectfully disagrees with premise | Reframe as presentation issue — a misunderstanding means the text was genuinely unclear (this is a substantive reason to revise, not a cosmetic change); explain reasoning |
 
 **Response strategy** (how to handle):
@@ -218,11 +217,9 @@ Each concern carries two orthogonal labels throughout the revision:
 | Strategy | When to use |
 |---|---|
 | **Accept+Revise** | Concern is valid; make the change |
-| **Defend+Clarify** | Premise is wrong but manuscript was unclear; revise presentation, defend substance |
-| **Defer+Acknowledge** | Valid but out of scope; acknowledge value, add to limitations/future work |
-| **Redirect** | Concern arises from a misunderstanding; revise the section for genuine clarity |
-
-If any concern lacks a classification after Phase 3, flag it as **UNADDRESSED** and report to the user.
+| **Defend+Clarify** | The reviewer disputes a claim or result that stays unchanged; revise the presentation and argue the substance in the letter (usually ends Disagreement) |
+| **Defer+Acknowledge** | Valid but out of scope; acknowledge value, add it once to the limitations and future-work passage at the end of the paper (a Limitations section or the limitations part of the Conclusion) |
+| **Redirect** | The reviewer misread what the paper says and no claim is at stake; revise the section for genuine clarity (usually ends Addressed) |
 
 ---
 
@@ -238,10 +235,10 @@ Check consistency with: (a) any privacy/data-locality claims in the paper, (b) e
 For applied math venues: "all methods share identical degraded observations generated with a fixed random seed" + enumerate stochastic components briefly. Detailed seed values and framework-specific settings (cudnn.deterministic) go in the response letter, not the manuscript.
 
 ### "Add/supplement experiments"
-If feasible: do it. If not feasible (time, equipment, scope): acknowledge the value of the suggested experiment, explain the research boundary, point to existing evidence that partially addresses the concern, note it as future work in the limitations section. Never write "we cannot do this" — write "the current study focuses on X; the suggested experiment would be a valuable extension that we plan to pursue."
+If feasible: do it. If not feasible (time, equipment, scope): acknowledge the value of the suggested experiment, explain the research boundary, point to existing evidence that partially addresses the concern, and note it once in the limitations and future-work passage at the end of the paper. Never write "we cannot do this" — write "the current study focuses on X; the suggested experiment would be a valuable extension that we plan to pursue."
 
 ### Reviewer misunderstood the paper
-Do not say the reviewer is wrong. Write: "We apologize for the lack of clarity in the original manuscript. We have revised Section X to more clearly explain..." Then actually revise the section so the explanation is genuinely clearer. A misunderstanding is a signal about the manuscript's presentation, not about the reviewer's competence.
+Do not say the reviewer is wrong. Write: "We apologize for the lack of clarity in the original manuscript. We have revised Section X to more clearly explain..." Then actually revise the section so the explanation is genuinely clearer. A misunderstanding is a signal about the manuscript's presentation, not about the reviewer's competence. Describe the revision as what it is: a clarified presentation, not a corrected result.
 
 ### Two reviewers request incompatible changes
 Surface the conflict explicitly in the revision plan. Prioritize editor instructions if any. Find a minimal revision satisfying both (e.g., add detail in a remark rather than the main text, satisfying "more detail" without violating "too long"). In each response, explain the balancing choice without blaming the other reviewer. Never make incompatible promises across responses.

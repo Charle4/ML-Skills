@@ -1,9 +1,6 @@
 # External Agent Usage Guide
 
-Read this file **only** when at least one of the following MCP tools appears in your tool list:
-`mcp__codex__codex`, `mcp__gemini-review__review_start`.
-
-If neither is present and you still want a clean-context second opinion, use the Subagent fallback described at the bottom.
+Read this file when step 9 of the SKILL.md workflow calls for an external review, or when the user asks for one on a lighter task. The Codex and Gemini workflows need `mcp__codex__codex` or `mcp__gemini-review__review_start` in your tool list; with neither present, use the [Subagent Fallback](#subagent-fallback-no-mcp-available) at the bottom.
 
 ---
 
@@ -13,8 +10,9 @@ External agents review from a cold context. They have not seen your editing proc
 
 | Task scope | Workflow | Section |
 |:-----------|:---------|:--------|
-| Substantive writing: section drafting, deep rewrite of a full section, multi-paragraph de-AI, full-paper proofreading, related-work synthesis spanning many references | Coordinated multi-agent workflow | Below |
-| Light editing: single-paragraph Minimal Polish, Grammar Check Only, Focused Proofreading, quick output | Independent single-agent review (or no agent) | "When Single-Agent Review Suffices" |
+| Substantive writing: section drafting beyond a short single section, deep rewrite of a full section, multi-paragraph de-AI, related-work synthesis spanning many references | Coordinated multi-agent workflow | Below |
+| Framing Pass over a section or a full paper | Codex check of each edit against its invariant | "When Single-Agent Review Suffices" |
+| Light editing: single-paragraph Minimal Polish, Grammar Check Only, Focused Proofreading, quick output | No external review unless the user asks; then an independent single-agent review | "When Single-Agent Review Suffices" |
 
 When both Codex and Gemini MCP tools are available and the task is substantive, use the coordinated workflow. When only one is available, adapt: use it for review or polish, but you still own the draft and final review.
 
@@ -52,10 +50,10 @@ Tell Codex to read the draft file, the original text, and the plan, then review 
 - Claim-evidence mapping: does every claim in the text have a corresponding evidence anchor (theorem, experiment, citation)?
 - Cross-section consistency: do quantities, assumptions, and method names used in this section match the rest of the paper?
 - Argument logic: are there circular arguments, unsupported leaps, or redundant re-statements?
-- Evidence order: does each section present measurements and results before the interpretation and speculation drawn from them, and is each step down the certainty ladder marked in the language rather than left implicit? Is a partial agreement between two methods reported in both directions, or compressed into a claim of close match?
+- Evidence order: does each section present measurements and results before the interpretation and speculation drawn from them, and is each step down the certainty ladder marked in the language rather than left implicit? Is a partial agreement between two methods, where the disagreement bears on the claim, reported in both directions, or compressed into a claim of close match? Do the Results narrate metric groups, or walk through the metrics one by one and account in the prose for single-metric exceptions that the table already shows?
 - Structural integrity: is the Introduction motivation abruptly compressed; are symbols defined before use; are equation groups readable; are pseudocode, bullets, and emphasis necessary; does Method contain misplaced baseline comparison?
 - Focus and citation integrity: did the requested local edit change the paper's main motivation, and does every citation still support the exact claim attached to it?
-- Claim posture: does the draft volunteer caveats the field already assumes, defend choices the text never presents as contested, or escalate a local result into a general assessment of the method? Is each limitation stated once, in the section that bounds scope, rather than in the opening lines or as new material in the Conclusion?
+- Claim posture: does the draft volunteer caveats the field already assumes, defend choices the text never presents as contested, or escalate a local result into a general assessment of the method? Does the body state positive claims, with each limitation stated once at the end, in a Limitations section or the limitations part of the Conclusion?
 
 **Handling Codex output.** Codex routinely produces three types of feedback:
 
@@ -76,6 +74,7 @@ Tell Gemini to:
 - Read the draft file and smooth any stitched or awkward passages so the text flows naturally for a linear reader.
 - Flag any point where, reading linearly, the text becomes unclear or confusing, since that usually marks a genuine clarity problem.
 - Polish language for naturalness and readability without adding new claims or embellishing existing ones.
+- Return the polished passage and the flagged points in its response. Gemini reads files but does not write them; apply the changes you accept to the draft yourself.
 
 **Handling Gemini output.** Gemini tends to:
 
@@ -101,7 +100,7 @@ You own the final manuscript. After Stages 2 and 3:
 
 ### File-System Exchange Pattern
 
-Codex and Gemini operate through file-system reads and writes rather than prompt/response payloads, because prompt capacity is limited and the draft may be long.
+Codex and Gemini read the draft from the file system rather than from a prompt payload, because prompt capacity is limited and the draft may be long. Codex may also edit the draft file; Gemini returns its text in the response.
 
 Typical file layout:
 
@@ -116,22 +115,23 @@ When calling Codex: pass file paths in the prompt; Codex reads them directly.
 
 When calling Gemini: pass file paths in the prompt; Gemini reads them directly.
 
-After each agent finishes, read the file to see what changed, then apply Stage 4 review.
+After Codex finishes, read the file to see what changed; after Gemini finishes, compare its returned text with the draft. Then apply the Stage 4 review.
 
 ---
 
 ## When Single-Agent Review Suffices
 
-For lighter tasks, a single independent review pass is enough. Use the appropriate agent:
+A Framing Pass over a section or a full paper always gets this review. A lighter task gets it when the user asks for a review. Use the agent listed for the mode:
 
 | Mode | Agent value | Recommended agent |
 |:-----|:-----------|:-----------------|
+| Framing Pass | Check each edited claim against its evidence: no value, comparison direction, qualifier, or limitation lost, no stance beyond the evidence | Codex |
 | Deep Polish and Rewriting (single paragraph) | Readability and fluency check | Codex (or Gemini if Codex absent) |
 | De-AI Rewrite (single paragraph) | Verify residual AI-like phrasing | Codex |
 | Section Drafting From Outline (short, single section) | Argument logic check from a fresh read | Codex or Gemini |
 | Related-Work Synthesis (few references) | Coverage gaps and positioning errors | Codex or Gemini |
 
-**Do not** call external agents for:
+Without a request from the user, do not call external agents for:
 - Single-paragraph Minimal Polish, Focused Proofreading, or Grammar Check Only, where the overhead outweighs the benefit
 - Requests where the user just wants a quick output
 - Anything the user explicitly asks you to handle alone
@@ -159,7 +159,7 @@ mcp__codex__codex:
     <Prompt Blocks — assemble from Block A + task-specific blocks>
 ```
 
-Start the prompt with `$mpaper-en-academic-writing ` (trailing space or newline) so Codex loads this skill. Without whitespace separation from subsequent text, Codex will not recognise the trigger. Use `sandbox: read-only` for review-only tasks; omit `sandbox` when Codex should edit files directly (e.g., coordinated workflow Stage 2). Do not pass `model` — let Codex use its configured default.
+Start the prompt with `$mpaper-en-academic-writing ` (trailing space or newline) so Codex loads this skill. Without whitespace separation from subsequent text, Codex will not recognise the trigger. Use `sandbox: read-only` for review-only tasks; omit `sandbox` when Codex should edit files directly (e.g., coordinated workflow Stage 2). Do not pass `model`; let Codex use its configured default.
 
 Use `"model_reasoning_effort": "xhigh"` for the coordinated workflow (Stage 2), complex multi-section drafts, or full-paper reviews. Use `"high"` for single-agent review tasks. Use `"medium"` for quick fluency checks.
 
@@ -182,6 +182,9 @@ system: |
   - Respond accurately, objectively, and concisely. Avoid exaggeration, embellishment, or unwarranted enthusiasm.
   - If you disagree with a point, say so clearly and explain why.
   - Maintain professional formality. Focus on substance. Keep responses focused and avoid unnecessary elaboration.
+  - Prefer web search, read_file, and read_url over shell commands.
+  - You may use only these read-only commands: pwd, ls, find, rg, grep, cat, head, tail, wc, file, stat, git status, git log, git diff, pdfinfo, pdftotext with stdout output, jq, which, whereis, ps, and date. Invoke at most one direct, simple command per tool call.
+  - Do not use shell or Python scripts, interpreters, command wrappers, pipes, redirection, command chaining, command substitution, or commands that create, modify, move, or delete files.
 prompt: |
   <task-specific instructions only>
 ```
@@ -219,15 +222,15 @@ Assemble the relevant blocks for each agent call, in both coordinated workflow s
 Write in standard academic English. Rules:
 - Use clear, scientifically accessible language. Avoid fancy vocabulary.
 - Forbidden words: burgeoning, pivotal, in the realm of, keen, adept, endeavor, uphold, imperative, profound, ponder, cultivate, hone, delve, embrace, pave, embark, encompass, monumental, scrutinize, vast, versatile, paramount, foster, necessitates, tapestry, landscape (abstract), showcase, realm, seamless.
-- Also fix: over-claiming verbs (prove→show empirically; reserve "we prove/establish" for formal proofs, use "we observe/conjecture" for weaker evidence), significance hype (paves the way, groundbreaking), empty intensifiers (extensive, comprehensive, a wide range of; and the single-word attitude modifiers actually, basically, clearly, obviously, of course, quite, very, interesting, important — "clearly" in front of a step reads as a skipped argument), multi-angle restating (describing one fact from 2-3 near-synonymous dimensions to fake depth — collapse to the single most precise term), novelty padding (novel ×2, "to the best of our knowledge"), formulaic openers (In recent years... / meta-discourse: At its core / Fundamentally / Simply put), connective overuse or unsupported connective logic (Moreover.../Furthermore.../Additionally... in consecutive sentences; therefore/however/whereas/still used to manufacture inference, contrast, or progression between parallel facts), boilerplate emphasis (It is worth noting that), false conceptual opposition (negating a view no reader holds to set up a "deeper" restatement: "not merely X, but rather Y" where X is a strawman or compatible with Y), defensive self-qualification (volunteering caveats the field already assumes; "we use X rather than Y" or "this is a design choice, not a theoretical necessity" defending an uncontested choice; escalating one weak result into a verdict on the method — delete any sentence whose sole purpose is to preempt objections rather than advance the argument), enumerative padding (long comma-separated chains of properties/goals where most items lack evidence — keep only items the paper substantiates), overlong clause-stacked sentences, contribution-list cliches (generic "novel method; extensive experiments; strong results"), citation dumping (bracketed list without context).
+- Also fix: over-claiming verbs (prove→show empirically; reserve "we prove/establish" for formal proofs, use "we observe/conjecture" for weaker evidence), significance hype (paves the way, groundbreaking), empty intensifiers (extensive, comprehensive, a wide range of, which in an abstract or conclusion become the name of the problem class the experiments cover rather than a list of tasks and datasets; and the single-word attitude modifiers actually, basically, clearly, obviously, of course, quite, very, interesting, important; "clearly" in front of a step reads as a skipped argument), multi-angle restating (describing one fact from 2-3 near-synonymous dimensions to fake depth; collapse to the single most precise term), novelty padding (novel ×2, "to the best of our knowledge"), formulaic openers (In recent years... / meta-discourse: At its core / Fundamentally / Simply put), connective overuse or unsupported connective logic (Moreover.../Furthermore.../Additionally... in consecutive sentences; therefore/however/whereas/still used to manufacture inference, contrast, or progression between parallel facts), boilerplate emphasis (It is worth noting that; "This matters because" / "Why this matters" announcing significance instead of stating the consequence), false conceptual opposition (negating a view no reader holds to set up a "deeper" restatement: "not merely X, but rather Y", "not simply X", "Y, rather than relying on X" where X is a strawman or compatible with Y), defensive self-qualification (volunteering caveats the field already assumes; "we use X rather than Y" or "this is a design choice, not a theoretical necessity" defending an uncontested choice; "this is only X; it does not follow that Y", "this does not mean/imply", "should not be interpreted as" appended to correct a misreading no reader would make, where a real limiting condition belongs inside the claim with its evidence; listing what the study did not use or could not find; escalating one weak result into a verdict on the method; delete any sentence whose sole purpose is to preempt objections rather than advance the argument), structural meta-disclosure (a sentence announcing its own rhetorical role, such as "The key difference between our method and X is" or "We now turn to", instead of stating the claim or the derivation step), process and developer voice (verification narration such as "we carefully verified", "as a sanity check", "frozen", "post hoc"; repository paths, file and script names, run-configuration talk, internal code names for variants; restate as the scientific object in reader terms), enumerative padding (long comma-separated chains of properties/goals where most items lack evidence; keep only items the paper substantiates), overlong clause-stacked sentences, contribution-list cliches (generic "novel method; extensive experiments; strong results"), citation dumping (bracketed list without context).
 - Preserve legitimate academic constructs: evidence-tied hedging (suggests, is consistent with, may indicate), passive voice when actor is irrelevant, "we", semicolons in moderation.
-- Always use full forms: "it is", "he would" — never contractions.
+- Always use full forms: "it is", "he would", never contractions.
 - No stylistic double quotes or dashes.
 - No ornamental semicolons or sentence-medial `therefore`/`thus`/`hence`; no evaluative `elegantly` or `theoretically` used as praise.
 - No unverified data or figures. No exaggeration or figurative language.
 - Use direct academic claims with concrete scope and evidence boundaries.
 - Do not add bullets, boldface, or promotional modifiers to component names.
-- Tense: past tense for what prior authors did and for completed experiment conclusions; present tense for algorithms, methods, and findings that hold generally.
+- Tense: past tense for what prior authors did and for completed experiments and specific observations; present tense for algorithms, methods, definitions, and the conclusions the paper asks readers to accept.
 - Non-proper-noun technical terms are not capitalised in running text.
 ```
 
@@ -239,11 +242,11 @@ Editing constraints:
 - Make only the changes that are genuinely needed. Leave correct text unchanged.
 - Do not over-simplify. Keep academic rigor; do not obscure claims.
 - Preserve the actual relation between sentences. A connective labels an established contrast, inference, cause, sequence, or parallel relation; it does not create one. Remove a connective that turns mere difference into contradiction or parallel facts into causality, and supply the missing premise or equation when a real inference is under-explained. Do not optimise each sentence in isolation.
-- Introduce no new claims.
+- Introduce no new claims. A margin or ratio computed from reported values is checked against them and keeps their metric, aggregation scope, and unit; an average the paper does not itself compute is a new result.
 - Never alter equations, labels, \cite, \eqref, \cref, variable names, or figure/table references.
 - Do not introduce unnecessary bullet points.
 - Keep the paper's established motivation and contribution hierarchy; a local requested constraint stays local.
-- Do not insert caveats, disclaimers, or "X rather than Y" defenses of choices the text does not present as contested. A limitation the evidence establishes stays in the paper, stated once where the paper bounds its scope and at the granularity of the measurement.
+- Do not insert caveats, disclaimers, "this does not mean" corrections of misreadings the text does not invite, or "X rather than Y" defenses of choices the text does not present as contested. A limitation the evidence establishes stays in the paper, stated once, at the end of the paper and at the granularity of the measurement.
 - Define symbols before use, keep equation groups coherent, and add pseudocode only for a nontrivial procedure. Flag notation drift: overloaded symbols, renamed variables, index or domain inconsistencies across sections.
 - Keep baseline comparison out of Method unless required to define the mechanism.
 - Preserve citation-claim pairings; do not infer support from titles, snippets, or neighboring citations. A citation scopes to the clause it follows, so do not move one to the end of a sentence whose first half comes from elsewhere.
@@ -268,7 +271,7 @@ Polish the following passage minimally:
 Draft the following section from the outline or notes provided:
 - If the input is a structured outline, follow its structure exactly and do not add or remove major points.
 - If the input is loose materials or notes without a fixed structure, organize the content into a coherent logical order and explain the reasoning.
-- Write in academic English suitable for an applied mathematics or CS journal.
+- Write in academic English suitable for the stated venue.
 - Each paragraph should have a clear topic sentence and logical internal structure.
 - Make a transition explicit only when the source establishes a relation that would otherwise be unclear. Keep genuinely parallel paragraphs parallel, and never invent causality, contrast, or progression to make the section appear smoother.
 - Do not introduce claims not implied by the source materials.
@@ -298,6 +301,7 @@ Summarise and synthesise the following references for a related work section:
 | Section drafting | A + B + E |
 | Related-work synthesis | A + B + F |
 | Final proofreading | A + B + C |
+| Framing Pass check | A + C + the Framing Pass check from "When Single-Agent Review Suffices" |
 | Discussion / idea review | A only |
 
 ---
@@ -316,13 +320,13 @@ Summarise and synthesise the following references for a related work section:
 
 6. **Verify before applying.** An agent saying "this is correct" is not evidence that it is correct. Check proposed changes against the style-guide and the source text before applying.
 
-7. **Judge versions by evidence legibility, not by which one the agent prefers.** A cold-context reader's verdict moves with claim stance, evidence emphasis, and scope framing even when the reported content is identical, and asking that reader for a stricter review makes it harsher rather than insensitive to those cues. So an agent preferring your revision is not evidence that the revision is more sound. Compare the two versions on whether the comparison, condition, and margin became easier to find, and settle the rest yourself with the source in hand.
+7. **Judge versions by evidence legibility, not by which one the agent prefers.** A cold-context reader's verdict moves with claim stance, evidence framing, and scope even when the reported content is identical, and asking that reader for a stricter review makes it harsher rather than insensitive to those cues. So an agent preferring your revision is not evidence that the revision is more sound. Compare the two versions on whether the comparison, condition, and margin became easier to find and whether each edit preserved its invariant (see [The Invariant and the Equivalence Check](../SKILL.md#the-invariant-and-the-equivalence-check)), and settle the rest yourself with the source in hand.
 
 ---
 
 ## Subagent Fallback (No MCP Available)
 
-When no Codex or Gemini MCP tool is visible but a clean-context second opinion is genuinely useful (e.g., a full section draft that needs an independent readability check), spawn a same-model subagent:
+When step 9 of the SKILL.md Workflow calls for review and neither the Codex nor the Gemini MCP tool is in your tool list, spawn a same-model subagent. For a Framing Pass, replace items 1 to 4 of the prompt below with the check in the Framing Pass row of the table in "When Single-Agent Review Suffices".
 
 ```
 Agent(
@@ -337,7 +341,7 @@ Agent(
     3. Any logical gaps or connectives that manufacture contradiction, causality, or progression between facts whose actual relation is parallel, weaker, or unsupported.
     4. Specific suggestions for improvement (quote the original phrase, propose the replacement).
 
-    Editing constraints (Block C):
+    Editing constraints (from Block C):
     - Preserve all LaTeX commands exactly.
     - Do not introduce new claims.
     - Make only changes that clearly improve the text.

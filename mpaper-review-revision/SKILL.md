@@ -9,11 +9,11 @@ description: "Review-driven paper improvement: use senior-reviewer thinking to d
 
 Act as a senior researcher who reads papers with a reviewer's eye but works as the author's ally. Diagnose what reviewers will doubt, then produce concrete fixes: revision plans, rewritten sections, experiment redesigns, conference rebuttals, and submission checklists.
 
-Every audit finding must come with an actionable improvement — a specific rewrite, a concrete experiment to add, or an exact structural change. Diagnosis without a fix is incomplete.
+Every audit finding must come with an actionable improvement: a specific rewrite, a concrete experiment to add, or an exact structural change. Diagnosis without a fix is incomplete.
 
 Match the depth of work to the user's request. A narrow ask ("improve this abstract") gets a focused edit. A broad ask ("help me strengthen this paper for ICLR") gets full diagnosis, revision planning, and section-by-section editing.
 
-Preserve the author's real technical contribution. Do not inflate claims, add unsupported generality, or rewrite in a way that changes the paper's actual evidence boundary. Where the evidence points at a different contribution than the draft argues, recommend repositioning the argument through [Narrative Repositioning](#narrative-repositioning) — the claim the paper leads with is revisable, the results it reports are not.
+Preserve the author's real technical contribution. Do not inflate claims, add unsupported generality, or rewrite in a way that changes the paper's actual evidence boundary. Where the evidence points at a different contribution than the draft argues, recommend repositioning the argument through [Narrative Repositioning](#narrative-repositioning): the claim the paper leads with is revisable, the results it reports are not.
 
 ## Intake
 
@@ -26,7 +26,16 @@ Capture:
 - target venue or level if provided: A会, B会, journal, workshop, thesis
 - field and task
 - paper stage: idea, early draft, full draft, rejected paper, rebuttal, camera-ready
-- target output: summary, critique, revision plan, edited text, checklist, conference rebuttal
+- target output: summary, critique, revision plan, edited text, experiment plan, checklist, conference rebuttal
+
+Infer the target output from the request; users describe what they want rather than naming it. Then take the path for that output. Every path starts with the [Paper Map](#paper-map).
+
+- **Summary**: the Paper Map and the reasoning chain behind it are the deliverable.
+- **Critique or revision plan**: [Diagnosis by Audit Dimension](#diagnosis-by-audit-dimension), re-weighted by contribution type → [Reviewer Objections](#reviewer-objections) → [Narrative Repositioning](#narrative-repositioning) when one of its trigger conditions holds → [Revision Planning](#revision-planning) → [Final Checklist](#final-checklist).
+- **Edited text**: the Diagnosis subsections that cover the sections being rewritten, including [Writing](#writing) → [Detailed Editing](#detailed-editing) → [Final Checklist](#final-checklist) when the edit spans more than one section. A request limited to one section ends at Detailed Editing.
+- **Experiment plan**: [Idea (Claim-Evidence Spine)](#idea-claim-evidence-spine), [Experiments](#experiments), and [Statistics & Reproducibility](#statistics--reproducibility) → the claim-experiment matrix → the P1 rows of a [Revision Planning](#revision-planning) table.
+- **Checklist**: [Final Checklist](#final-checklist), with each Risk or Blocker traced to the Diagnosis subsection it comes from.
+- **Conference rebuttal**: [Conference Rebuttal](#conference-rebuttal), whose After Acceptance step reruns the Final Checklist.
 
 ## Paper Map
 
@@ -44,7 +53,7 @@ Fill contribution type second, because it decides what the remaining fields shou
 
 If the main claim cannot be written cleanly, flag this as the first problem.
 
-After the map, rebuild the author's intended reasoning chain from problem to evidence. Identify where the chain breaks — a gap between claim and experiment, a missing link between insight and method, or an unsupported leap. These breaks become the starting points for diagnosis.
+After the map, rebuild the author's intended reasoning chain from problem to evidence. Identify where the chain breaks: a gap between claim and experiment, a missing link between insight and method, or an unsupported leap. These breaks become the starting points for diagnosis.
 
 ## Diagnosis by Audit Dimension
 
@@ -120,7 +129,7 @@ If yes, novelty may be real. If no, the paper probably relies on packaging.
 
 ### Idea (Claim-Evidence Spine)
 
-A novelty point is not yet a paper. A paper needs a claim-evidence spine — a mapping from every major claim to the evidence (experimental, theoretical, or both) that supports it.
+A novelty point is not yet a paper. A paper needs a claim-evidence spine: a mapping from every major claim to the evidence (experimental, theoretical, or both) that supports it.
 
 Require:
 
@@ -144,7 +153,16 @@ Questions:
 - **Scope**: is the claim drawn at the broadest level the study covers, and does it stop there? Datasets, tasks, model classes, and deployment settings the paper never evaluated do not belong in the claim.
 - **Evidence legibility**: can a reader see which method is compared with which baseline, on which metric, dataset, and evaluation condition, and by what margin, without reconstructing it from a table?
 
-Reviewers score these three as science rather than as prose. Someone who meets a buried comparison or an over-hedged result concludes that the contribution is thin or the evidence is soft, which puts the cost on contribution and soundness. Route framing findings to P1 with the evidence-chain issues.
+Reviewers score these three as science rather than as prose. Someone who meets a buried comparison or an over-hedged result concludes that the contribution is thin or the evidence is soft, which puts the cost on contribution and soundness. Route a framing finding to P1 when the claim itself has to change and to P2 when a single word does, per the split in [Revision Planning](#revision-planning).
+
+Under-framing leaves recognizable traces in the text. Look for them in the abstract, the contribution list, the purpose sentence of the Introduction, and the openings of the Results subsections:
+
+- a contribution stated only as the absence of something (`does not require`, `without retraining`) or carried by a purpose clause while the main clause says something weaker;
+- a comparison that carries a claim given as two values side by side, or as a bare table pointer, with no effect verb or named baseline in the sentence;
+- a covered scope phrased as a restriction (`only`, `we focus on`, `limited to`);
+- a self-dismissive modifier that carries no uncertainty (`simple`, `modest`, `preliminary`, `a first step`).
+
+The finding names the passage and the claim it undersells. To write the fix, load `mpaper-en-academic-writing` and apply its Claim Framing moves, which also define what each move must hold fixed.
 
 Where the framing is doing work the evidence does not support, the paper is exposed to the reviewer who reads the tables first. Name the claim, state what the evidence actually carries, then bring the claim down to that or move it to an axis the evidence does carry through [Narrative Repositioning](#narrative-repositioning). Reinforcing the original framing is not among the options.
 
@@ -171,7 +189,7 @@ Avoid adding modules that can only be justified by "it improves performance." Re
 
 Auditing a method section is also subtraction. A module that survives only because it was built, and answers none of the four questions above, weakens the paper twice: it dilutes the core contribution and it invites a reviewer question the paper cannot answer. Recommend demoting it to an appendix or removing it.
 
-**Net-benefit test.** A module that adds constraints, complexity, or runtime must justify that the benefit outweighs the cost. A design that solves one failure mode while introducing a stronger limitation — task-specific tuning, restrictive input assumptions, significant latency — may have negative net value. Apply this to the method as a whole: if the paper requires per-scenario hyperparameter retuning to maintain its advantage, the claim of general improvement is undermined, and reviewers will question robustness.
+**Net-benefit test.** A module that adds constraints, complexity, or runtime must justify that the benefit outweighs the cost. A design that solves one failure mode while introducing a stronger limitation (task-specific tuning, restrictive input assumptions, significant latency) may have negative net value. Apply this to the method as a whole: if the paper requires per-scenario hyperparameter retuning to maintain its advantage, the claim of general improvement is undermined, and reviewers will question robustness.
 
 **Implementation completeness.** A mechanism is not specified until a competent reader could reproduce it. Check that the paper actually gives: how the key variable is computed, how calibration/normalization maps are built, how context or prompts are constructed, how thresholds are chosen, how losses are weighted, and how each external dependency (OCR, retriever, detector, frozen model) is configured. A beautiful mechanism story with missing operational detail reads as hand-waving.
 
@@ -181,7 +199,7 @@ Also audit exposition quality: every symbol is defined before or at first use; r
 
 Apply this when the paper states propositions, theorems, bounds, guarantees, or formal claims. Reviewers attack theory more harshly than prose because it is checkable.
 
-**Claim-theory alignment.** Each theorem should support a specific claim in the claim-evidence spine. Ask: which claim does this theorem serve? Does the theorem actually prove what the claim says, or only a weaker/idealized version? If there is a gap between what the theorem proves and what the claim states, that gap must be filled by experiments — otherwise the claim is unsupported. Conversely, if a method makes an implicit assumption that drives its behavior (e.g., a loss function implicitly assumes conditional independence, a score is treated as a calibrated probability), check whether that assumption deserves formal justification — a missing theorem can be as damaging as a wrong one.
+**Claim-theory alignment.** Each theorem should support a specific claim in the claim-evidence spine. Ask: which claim does this theorem serve? Does the theorem actually prove what the claim says, or only a weaker/idealized version? If there is a gap between what the theorem proves and what the claim states, that gap must be filled by experiments; otherwise the claim is unsupported. Conversely, if a method makes an implicit assumption that drives its behavior (e.g., a loss function implicitly assumes conditional independence, a score is treated as a calibrated probability), check whether that assumption deserves formal justification: a missing theorem can be as damaging as a wrong one.
 
 Ask:
 
@@ -189,7 +207,7 @@ Ask:
 - Does the theorem describe what the method *actually does*, or an idealized proxy the implementation never realizes?
 - Is the bound non-vacuous and tight enough to matter, or could it be satisfied trivially?
 - Does the proof genuinely use each assumption, or are some assumptions decorative?
-- If the theorem were false, would the method still work? If yes, the theory is intuition, not a guarantee — say so.
+- If the theorem were false, would the method still work? If yes, the theory is intuition, not a guarantee; say so.
 - Are regularity conditions, constants, and edge cases handled, or hidden in "it can be shown"?
 - Does the proof contain all intermediate steps, or does it hide non-trivial gaps behind "it follows that" / "it can be shown" / "by standard arguments"?
 
@@ -201,7 +219,7 @@ Repair moves:
 
 - Downgrade wording: "estimator" → "calibrated plug-in surrogate under stated assumptions"; "guarantee" → "holds when assumption X is met"; "decouples" → "reduces measured leakage."
 - Add direct measurement of the quantity the theory is about (calibration curve / ECE / Brier; mutual-information or HSIC / MINE estimate; leakage probe predicting the nuisance variable from the representation; threshold-transfer across datasets).
-- State the assumption-violation regime as an explicit boundary.
+- State the assumption-violation regime as an explicit boundary, in the theorem's assumptions or the closing limitations.
 
 Theory-practice alignment table:
 
@@ -244,7 +262,7 @@ Claim-experiment matrix template:
 
 The last two columns exist to rule out a rival cause, so they carry content for a mechanism, ablation, or robustness claim. A head-to-head result under a fixed protocol answers `n/a` in Alternative Explanation and is checked on protocol fairness instead. Filling those columns for every row turns each claim into a mechanism probe and pushes the main comparison to the end of the plan, which is the opposite of the order in which reviewers read the evidence.
 
-**Absolute performance.** Relative improvement over baselines is necessary but not sufficient. If absolute performance remains below what the venue considers meaningful — even after showing statistically significant gains — reviewers will question whether the problem is solved or only incrementally reduced. Flag when the absolute numbers sit far below what the field considers acceptable for the task, or when the gap between the proposed method and a practical deployment threshold is larger than the gap between the proposed method and the baselines.
+**Absolute performance.** Relative improvement over baselines is necessary but not sufficient. If absolute performance remains below what the venue considers meaningful, even after showing statistically significant gains, reviewers will question whether the problem is solved or only incrementally reduced. Flag when the absolute numbers sit far below what the field considers acceptable for the task, or when the gap between the proposed method and a practical deployment threshold is larger than the gap between the proposed method and the baselines.
 
 **Setting realism.** Check whether the experimental setting matches conditions where the claimed advantage would matter. An advantage demonstrated only on a simplified proxy, an artificially controlled setup, or an evaluation that rewards a shortcut the paper does not acknowledge weakens the main claim. When the paper's logic depends on a real-world condition (noise, distribution shift, resource constraint), the experiment should include that condition rather than assuming it away.
 
@@ -282,7 +300,7 @@ Reviewers form an opinion from the teaser figure and the main table before they 
 Teaser / page-1 figure:
 
 - Does one figure make the problem or insight undeniable on first glance?
-- Does it show the failure mode old methods suffer and the variable the paper introduces — not just a system block diagram?
+- Does it show the failure mode old methods suffer and the variable the paper introduces, not just a system block diagram?
 - Is it honest (no exaggerated axes, no hand-picked best case presented as typical)?
 
 Every figure:
@@ -310,11 +328,11 @@ Five things must be present, each carried by a sentence that states a fact rathe
 2. missing assumption in prior work
 3. paper insight
 4. method mechanism
-5. strongest evidence and boundary
+5. strongest evidence, with the scope it covers stated positively
 
 Which of them opens the abstract depends on the venue: a journal abstract runs objectives, methods, results, conclusions, while at NeurIPS, ICLR, ICML, ACL, CVPR and similar venues the contribution leads and the problem follows as the reason it was hard. Audit for the five contents; leave the ordering to the venue convention.
 
-Avoid generic first sentences such as "Large language models have achieved remarkable success." Also avoid an abstract that lists every module as a buzzword — that signals a stitched pipeline before the reviewer reaches the method.
+Avoid generic first sentences such as "Large language models have achieved remarkable success." Also avoid an abstract that lists every module as a buzzword: that signals a stitched pipeline before the reviewer reaches the method. The evidence sentence names the class of problems the experiments cover; one that lists every task and dataset spends the abstract on setup, and the list belongs to the experimental setup.
 
 Write the Abstract and Conclusion backward from the paper's 3-5 strongest conclusions. These conclusions anchor the narrative: every tension set up in the Introduction must resolve into one of them, and every result highlighted in the Abstract must be one of them. Content that does not serve any conclusion is secondary and should not compete for space in the Abstract or Introduction.
 
@@ -322,20 +340,20 @@ Write the Abstract and Conclusion backward from the paper's 3-5 strongest conclu
 
 Introduction is the gatekeeper: experienced reviewers often form their accept/reject leaning before leaving this section. The quality of the research gap extraction is the sharpest signal of whether the author understands the field.
 
-Use four argumentative stages:
+Audit for four argumentative contents. Their order and paragraphing follow the venue convention; when rewriting, the Introduction form in `mpaper-en-academic-writing` applies.
 
-1. real contradiction in a task — open with a concrete phenomenon, failure, or tension, not a generic "X has attracted increasing attention" background. A grounded opening that makes the problem tangible in two sentences outperforms a paragraph of field overview.
-2. why existing methods do not address it — the gap must be specific, verifiable, and sharp. Diagnose gap quality on a spectrum:
+1. real contradiction in a task: open with a concrete phenomenon, failure, or tension, not a generic "X has attracted increasing attention" background. A grounded opening that makes the problem tangible in two sentences outperforms a paragraph of field overview.
+2. why existing methods do not address it: the gap must be specific, verifiable, and sharp. Diagnose gap quality on a spectrum:
    - **Absent or vague gap** (reject risk): "existing methods still have limitations" or a Related-Work-style list ending with "however, these methods have shortcomings." This signals the author has not identified what is actually missing.
-   - **Generic gap** (major revision risk): names a direction but not a testable hole — "few works consider X" without saying why X matters or what breaks without it.
+   - **Generic gap** (major revision risk): names a direction but not a testable hole ("few works consider X" without saying why X matters or what breaks without it).
    - **Sharp gap** (strong signal): names the specific assumption that fails, the setting that is uncovered, or the phenomenon that is unexplained, and makes the reader agree this needs solving. Effective patterns: prior methods assume A but A fails in setting B; methods solve X but introduce Y; benchmarks cover P and Q but miss critical dimension R.
 3. why the failure mode is not an isolated case
-4. paper's core judgment and contribution — state not only what the method does but why this approach resolves the gap. A method listed without rationale reads as "A + B stitched together."
+4. paper's core judgment and contribution: state not only what the method does but why this approach resolves the gap. A method listed without rationale reads as "A + B stitched together."
 
 Introduction should make reviewers accept the problem before asking them to accept the method.
-Each stage may require one or more paragraphs. Flag an Introduction compressed into one or two paragraphs when a first-time reader must jump from generic context to the method without a developed difficulty, prior-work gap, or core judgment. Do not force exactly four paragraphs when the reasoning is clearer with another division.
+Each of these contents may take one or more paragraphs. Flag an Introduction compressed into one or two paragraphs when a first-time reader must jump from generic context to the method without a developed difficulty, prior-work gap, or core judgment. Do not force exactly four paragraphs when the reasoning is clearer with another division.
 
-A well-chosen entry angle — one that reframes a known difficulty or reveals a hidden tension — can carry a paper whose results are not the strongest. An angle that merely states the obvious ("X is important, we do X better") starts from zero. When auditing, ask whether the Introduction constructs a tension the reader did not expect, or only narrates facts the field already knows.
+A well-chosen entry angle, one that reframes a known difficulty or reveals a hidden tension, can carry a paper whose results are not the strongest. An angle that merely states the obvious ("X is important, we do X better") starts from zero. When auditing, ask whether the Introduction constructs a tension the reader did not expect, or only narrates facts the field already knows.
 
 #### Related Work
 
@@ -355,16 +373,18 @@ Do not write only input-module-output. Tie each module to a hypothesis and an ex
 
 #### Experiments
 
-Order experiments by reviewer question:
+The experiments answer four reviewer questions; their presentation order in the Results follows the Results form in `mpaper-en-academic-writing`:
 
 1. Does the problem exist?
 2. Does the method solve the core setting?
 3. Does the mechanism hold?
 4. Where are the boundary and cost?
 
+Flag Results prose that walks through the metrics one at a time (`PSNR and SSIM are higher, LPIPS is second, FID is the lowest`) or accounts cell by cell for an exception that does not change the conclusion (`all metrics except KID exceed the best baseline`). It reads as a checklist and hides the trend the table supports. The rewrite narrates metric groups, following *Results prose narrates metric groups* in `mpaper-en-academic-writing`.
+
 #### Conclusion and Limitations
 
-Do not repeat the abstract.
+Do not repeat the abstract. When rewriting, the Conclusions form in `mpaper-en-academic-writing` applies: a mechanism the recap adds joins the sentence of the finding it explains instead of following it as a second sentence that restates the finding.
 
 Answer:
 
@@ -374,16 +394,16 @@ Answer:
 
 Limitations must be honest enough to make the claims credible. A limitations paragraph that only lists generic future work reads as evasive. Name the specific conditions under which the method weakens (the same boundaries found in the experiment and theory audits), and the assumptions a follow-up must relax.
 
-Honest is not the same as expansive. Each limitation is one the evidence establishes, stated once and at the granularity the evidence supports. A speculative weakness, a caveat the field already assumes, or an open question the paper raises and does not answer adds no credibility and hands the reviewer an objection. The Conclusion reinforces what the work established; a limitation appearing there for the first time arrives after the evidence has closed and reads as a late concession.
+Honest is not the same as expansive. Each limitation is one the evidence establishes, stated once and at the granularity the evidence supports. A speculative weakness, a caveat the field already assumes, or an open question the paper raises and does not answer adds no credibility and hands the reviewer an objection. The body of the paper states positive claims; each limitation is stated once, at the end, in a Limitations section or the limitations part of the Conclusion. A caveat in the Abstract or the Introduction subtracts from a claim the reader has not yet received, and one inside the Results or the Discussion interrupts the evidence it qualifies.
 
 #### Discussion (when the venue expects a separate Discussion section)
 
-Discussion is where the paper connects results to the broader field — it is the section with the highest ceiling and the lowest floor. A weak Discussion restates results ("as shown in Table 2, our method achieves...") or pads word count with generic future work. A strong Discussion explains *why* the results look the way they do and *what they mean* for the field.
+Discussion is where the paper connects results to the broader field: it is the section with the highest ceiling and the lowest floor. A weak Discussion restates results ("as shown in Table 2, our method achieves...") or pads word count with generic future work. A strong Discussion explains *why* the results look the way they do and *what they mean* for the field.
 
 Structure by interpretation angles, not by restating each table:
 
 - For each angle, state the mechanism or principle the results reveal, cite the evidence, and connect it to the broader question the paper addresses.
-- Unexpected results — a metric where the method underperforms, a setting where behavior diverges from prediction — are discussion opportunities, not embarrassments. Explain what the result reveals about the method's operating regime.
+- Unexpected results (a metric where the method underperforms, a setting where behavior diverges from prediction) are discussion opportunities, not embarrassments. Explain what the result reveals about the method's operating regime, at the granularity of the measurement; the limitation it establishes goes once into the closing limitations.
 - Connect findings to the gap identified in the Introduction. The Discussion closes the loop: the Introduction opens a question, the Discussion answers it with evidence.
 - Avoid speculation unsupported by any result in the paper. Each interpretive claim should point to a specific figure, table, or analysis.
 
@@ -402,6 +422,7 @@ When auditing a Discussion, ask: if the results tables were removed, would the D
 - Lists contain genuinely parallel items. A causal, temporal, or progressive chain remains connected prose or an explicitly ordered procedure; it is not flattened into co-equal bullets.
 - Semicolons and dashes serve necessary syntax rather than ornamental rhythm. `Therefore`, `Thus`, `Hence`, `However`, `Whereas`, and `Still` only mark relations already established by the argument. Remove a connective that turns difference into contradiction, a shared mechanism into evidence that an improvement failed, or sequence into causality; when a real inference is missing its premise or equation, restore that step instead of smoothing over the gap.
 - Evaluative adverbs such as `elegantly` and `theoretically` are removed when they praise rather than specify. Repeated adjectives such as `robust`, `adaptive`, or `principled` require direct evidence each time they carry a claim.
+- The manuscript describes the object of study, not the project that produced it. Flag Results that read as an experiment log (`We evaluated X. We found Y. We also found Z.`, paragraphs opening with `We next ran...` instead of the finding), a Discussion that argues why the results are acceptable instead of what they mean, captions that narrate preprocessing or analysis steps, and repository or process traces in the prose: file paths, script and config names, internal code names for variants, and verification narration (`as a sanity check`, `we carefully verified`). The rewrite names the scientific object in the reader's terms; the patterns and fixes are under *Process and developer voice*, *Results*, *Discussion*, and the caption rules of `mpaper-en-academic-writing`.
 - A local revision request remains local. Check whether adding one constraint, module, dataset, or reviewer-requested experiment caused the title, abstract, Introduction, or conclusion to reframe the whole paper around that detail.
 - Every citation entails the exact nearby characterization. Inspect the cited source before accepting claims about its method, results, assumptions, limitations, or relationship to another work. A title, snippet, neighboring citation, or another paper's related-work prose is insufficient. Mark unresolved pairings as `Unknown` or `Blocker`; do not repair them by guessing.
 
@@ -435,9 +456,9 @@ The core audit dimensions above are method-paper-centric. Re-weight by contribut
 - **Method / model paper**: emphasize Method, Theory, Experiments, Statistics. The risk is stitched-pipeline novelty.
 - **Benchmark / evaluation paper**: emphasize construction validity, coverage, leakage resistance, annotation quality and agreement (inter-annotator kappa), baseline saturation, and what the benchmark reveals that existing ones miss. Novelty lives in the revealing setting, not a method.
 - **Dataset paper**: emphasize collection protocol, licensing/consent (Ethics section), datasheet, bias and representativeness, splits, and maintenance/availability plan.
-- **Theory paper**: Theory & Proof is primary. Emphasize assumption realism, proof correctness, tightness, and whether the result changes how the field should think — not just whether it is true.
-- **Empirical study / analysis paper**: emphasize hypothesis clarity, controlled comparison, statistical rigor, and that conclusions are not overgeneralized beyond the studied conditions. There may be no new method — the contribution is understanding.
-- **Survey / position paper**: emphasize a defensible organizing taxonomy, coverage without bias, and a forward claim the field can act on — not a flat literature list.
+- **Theory paper**: Theory & Proof is primary. Emphasize assumption realism, proof correctness, tightness, and whether the result changes how the field should think, not just whether it is true.
+- **Empirical study / analysis paper**: emphasize hypothesis clarity, controlled comparison, statistical rigor, and that conclusions are not overgeneralized beyond the studied conditions. There may be no new method: the contribution is understanding.
+- **Survey / position paper**: emphasize a defensible organizing taxonomy, coverage without bias, and a forward claim the field can act on, not a flat literature list.
 - **System / applied paper**: emphasize the real-world constraint solved, deployment evidence, cost/latency, and ablations that isolate which design choice mattered.
 
 ## Reviewer Objections
@@ -476,11 +497,11 @@ Use these when a paper feels superficially complete but something is off, or whe
 - Are limitations honest enough to make the claims credible?
 - Would each theorem survive its own assumptions being false in the real setting?
 - Is any gain inside the noise band once seeds and variance are considered?
-- Is any result "too good" — explainable by contamination, leakage, or a shortcut?
+- Is any result "too good" (explainable by contamination, leakage, or a shortcut)?
 - Are there five co-equal contributions where there should be one core and three supporting?
 - What single sentence will the area chair remember and repeat in the meta-review?
 - If a reviewer ran one breakdown the authors did not show, where would the method fail?
-- Which single result, standing alone, would still be worth publishing — and is the paper built on that one?
+- Which single result, standing alone, would still be worth publishing, and is the paper built on that one?
 - Is the narrative staked on a metric this work does not lead on, when a different axis would carry the contribution honestly?
 - Which sentence in this draft would a reviewer quote back as the reason to reject, and did the paper have to write it?
 - Which claim's confidence comes from its verb rather than from the evidence behind it, and which earned result is stated so cautiously that the reader has to find it in a table?
@@ -493,13 +514,13 @@ Raise the repositioning question when: the main table loses on the metric the ab
 
 ### Locate the real advantage
 
-Ask which single result, if it were the only one in the paper, would still be worth publishing. That result names the contribution — new capability, new problem, new mechanism, new perspective, wider applicability, lower cost, better scaling, or a trade-off the field should know about. Material that carries no advantage supports the main line or sits in the appendix; it does not lead.
+Ask which single result, if it were the only one in the paper, would still be worth publishing. That result names the contribution: new capability, new problem, new mechanism, new perspective, wider applicability, lower cost, better scaling, or a trade-off the field should know about. Material that carries no advantage supports the main line or sits in the appendix; it does not lead.
 
 An advantage the reader has to extract from a table has not been claimed. Reviewers do not reconstruct contributions from numbers. For each advantage the paper relies on, the text states: the condition under which it holds, the mechanism that produces it, the practical problem it resolves, and why that capability matters relative to what prior methods offer.
 
 ### Reposition rather than lose the wrong contest
 
-A metric the paper does not lead on should not be the axis the narrative is built on. Repositioning means changing the task definition, evaluation dimension, deployment setting, constraint regime, or comparison protocol — and then arguing for the new axis from the problem.
+A metric the paper does not lead on should not be the axis the narrative is built on. Repositioning means changing the task definition, evaluation dimension, deployment setting, constraint regime, or comparison protocol, and then arguing for the new axis from the problem.
 
 This move is one step away from evading hard cases, so it has to pass every test below. Failing any one of them means the paper is avoiding the difficulty rather than relocating the question:
 
@@ -520,7 +541,7 @@ Apply the first move that fits, in order:
 4. **Demote it** from main-claim carrier to boundary or limitation evidence, and say what regime it delimits.
 5. **Keep it as a main result** when the core conclusion genuinely depends on it.
 
-At every step the number stays in the paper; what changes is the conclusion the paper asks the reader to draw from it. State the outcome at the granularity of the measurement — setting, number, comparison. Escalating it into a general assessment ("the method is limited in this regime", "performance degrades") is the author doing the reviewer's work on less evidence than the reviewer would require.
+At every step the number stays in the paper; what changes is the conclusion the paper asks the reader to draw from it. State the outcome at the granularity of the measurement: setting, number, comparison. Measurement granularity bounds how far the statement reaches; the table reports every value, and the prose names the result where it changes what the reader concludes. Escalating it into a general assessment ("the method is limited in this regime", "performance degrades") is the author doing the reviewer's work on less evidence than the reviewer would require.
 
 ### Do not manufacture objections
 
@@ -532,7 +553,9 @@ Reviewers act on doubts the paper hands them. Check each qualifying sentence:
 - Does it convert a local observation into a general defect?
 - Is the negative judgment broader than the evidence behind it?
 
-A limitation the evidence establishes belongs in the paper, stated once at measurement granularity in Limitations — that is what makes the claims credible. A weakness the paper speculates about itself is not honesty; it is an unforced reviewer objection with the authors' names on it.
+A limitation the evidence establishes belongs in the paper, stated once at measurement granularity in the closing limitations: that is what makes the claims credible. A weakness the paper speculates about itself is not honesty; it is an unforced reviewer objection with the authors' names on it.
+
+Reviewers reuse what the paper says about its own weaknesses, so the choice of limitation sentences shapes the review. That makes the following moves concealment rather than restraint, and none of them is a fix: leaving out a limitation the evidence establishes, adding minor limitations to draw criticism away from a real one, presenting a weakness as a deliberate design choice without support in the work itself, and relabeling a restriction as a strength (`only two datasets` as `complementary data regimes`). The test is a reviewer who reads every table and knows the closest prior work: if that reviewer would find a weakness the text hid, renamed, or diluted, restore it.
 
 ### Rebuild the story once repositioned
 
@@ -544,15 +567,19 @@ The story serves the strongest evidence rather than the original hypothesis. Thi
 
 Use this priority system:
 
-- **P0 Paper Spine**: main claim unclear, novelty collapsed or diluted across co-equal modules, claim unsupported, wrong experiment setting, missing closest prior work, broken theory assumption. A P0 finding that the evidence contradicts the claim is a repositioning question, not an editing task — resolve it through [Narrative Repositioning](#narrative-repositioning) before filling in the plan, because P1 and P2 fixes to a story the results do not support are wasted work.
+- **P0 Paper Spine**: main claim unclear, novelty collapsed or diluted across co-equal modules, claim unsupported, wrong experiment setting, missing closest prior work, broken theory assumption. A P0 finding that the evidence contradicts the claim is a repositioning question, not an editing task: resolve it through [Narrative Repositioning](#narrative-repositioning) before filling in the plan, because P1 and P2 fixes to a story the results do not support are wasted work.
 - **P1 Evidence Chain**: weak ablation, missing oracle test, no failure analysis, no boundary or subgroup test, uncontrolled variables, no variance/significance, unexplained "too good" result, claim stance or scope out of step with the evidence, a comparison the reader has to reconstruct from a table.
-- **P2 Writing & Presentation**: abstract vague, intro starts with generic background, related work is a literature list, method reads like module documentation, conclusion repeats the abstract, figure/table problems, notation drift, decorative emphasis, an unsupported evaluative word inside an otherwise correctly scoped claim.
+- **P2 Writing & Presentation**: abstract vague, intro starts with generic background, related work is a literature list, method reads like module documentation, Results read as an experiment log or a metric-by-metric checklist, the manuscript carries repository and process traces, conclusion repeats the abstract, figure/table problems, notation drift, decorative emphasis, an unsupported evaluative word inside an otherwise correctly scoped claim.
 
-Overclaiming lands in both P1 and P2, and what separates them is what has to change to repair it. When the claim itself reaches past its evidence, the repair is a different claim, and the finding belongs in P1 with the evidence chain. When the claim is scoped correctly and a single word oversells it (`robust`, `general`, `guarantee`), the repair is that word, and the finding belongs in P2.
+Overclaiming lands in both P1 and P2, and so does underclaiming; what separates them is what has to change to repair it. When the claim itself reaches past its evidence or falls short of it, the repair is a different claim, and the finding belongs in P1 with the evidence chain. When the claim is scoped correctly and a single word oversells it (`robust`, `general`, `guarantee`) or undersells it (`simple`, `only`, `preliminary`), the repair is that word, and the finding belongs in P2.
 
 Some deficits cap the outcome regardless of what else the revision achieves, so locate them before allocating the round. A main claim the evidence does not adequately support caps the paper on its own. So do a missing baseline, ablation, or evaluation that the main claim requires; a contribution that is incremental or narrow relative to the closest prior work; and several moderate weaknesses spread across novelty, evaluation, reproducibility, and significance, which compound rather than average. Clarity, organization, and framing never lift a paper past one of these, so a round spent on presentation while one stands open buys nothing. A reviewer weighing two adjacent verdicts takes the lower one unless the paper supplies concrete evidence for the higher, which makes each unresolved doubt cost a full step rather than a fraction of one.
 
-Prose and framing saturate after one careful pass. A second round spent re-polishing the same sections returns little, and running that round against a fresh review of the first round's output does not change the yield. Once the framing matches the evidence, the next round changes the evidence: a new experiment, a breakdown the paper did not show, a claim narrowed to what the results carry.
+Prose and framing saturate after one careful pass. A second round spent re-polishing the same sections returns little, and running that round against a fresh review of the first round's output does not change the yield. Order the work so that the framing pass is spent once:
+
+1. Settle what each claim says. Repositioning and claims brought down or narrowed to what the results carry belong to P0 and P1.
+2. Change the evidence the plan calls for: a new experiment, a breakdown the paper did not show.
+3. Make the wording-level framing pass last, on the claims and results that will be submitted. A pass made before a new experiment lands has to be redone after it. A later round changes the evidence, not the prose.
 
 Revision plans must include:
 
@@ -580,13 +607,13 @@ For each rewritten section:
 - connect method choices to failure mechanisms
 - align experiments with claims
 - reduce generic background
-- expose boundaries rather than hiding them
+- state each claim's scope positively inside the claim, and state what the paper does not cover once in the closing limitations
 - avoid unsupported "general", "robust", "universal", or "model-agnostic" wording unless evidence supports it
-- when a rewrite changes how a claim is framed, let the added confidence come from naming the comparison, condition, and margin, and carry every reported value, comparison direction, ranking, qualifier, and condition through unchanged
+- when a rewrite changes how a claim is framed, load `mpaper-en-academic-writing` and apply its Claim Framing moves, checking each edit against its invariant: the added confidence comes from naming the comparison, condition, and margin, and reported values, the direction of every comparison, rankings, qualifiers that materially define a claim, the conditions under which a result holds, and the boundary of the evidence survive unchanged; a margin computed from reported values is checked against them and keeps their metric and unit, and an average the paper does not itself compute is a new result
 - preserve the paper's established motivation and contribution hierarchy when the requested change is local
 - preserve citation-claim pairings and flag any pairing that cannot be verified from the source
 
-For large documents, edit one section at a time and keep a change log.
+For large documents, edit one section at a time and report the changes per section after the rewritten text.
 
 ## Conference Rebuttal
 
@@ -596,10 +623,10 @@ This covers the short reply window at a conference, where the deliverable is a r
 
 Sort every reviewer point into one of:
 
-1. **Factual error / misunderstanding** — the reviewer misread something. Correct it politely, cite the exact location, and consider whether the writing caused the misread (it usually did).
-2. **Missing experiment / evidence request** — a concrete, runnable ask. Score each by *impact on the decision x feasibility in the rebuttal window*.
-3. **Framing / positioning complaint** — novelty, related work, scope. Often fixable with rewriting and one clarifying result.
-4. **Subjective dislike / out-of-scope** — acknowledge, scope explicitly, do not over-promise.
+1. **Factual error / misunderstanding**: the reviewer misread something. Correct it politely, cite the exact location, and consider whether the writing caused the misread (it usually did).
+2. **Missing experiment / evidence request**: a concrete, runnable ask. Score each by *impact on the decision x feasibility in the rebuttal window*.
+3. **Framing / positioning complaint**: novelty, related work, scope. Often fixable with rewriting and one clarifying result.
+4. **Subjective dislike / out-of-scope**: acknowledge, scope explicitly, do not over-promise.
 
 ### Prioritize New Experiments
 
@@ -607,12 +634,13 @@ Rebuttal time is short. Run the experiments that (a) are demanded by more than o
 
 ### Write the Response
 
-- Open with a brief summary of what changed and the strongest new evidence — before per-reviewer replies.
+- Open with a brief summary of what changed and the strongest new evidence, before per-reviewer replies.
 - Address each reviewer in their own block; quote or paraphrase each point so it is traceable.
 - Lead each block with the points you can resolve with evidence; group the rest.
 - Concede gracefully where the reviewer is right ("We agree and have added X"); defend with evidence, not assertion, where they are wrong.
+- Answer a weakness with a new result, a narrowed claim, or a concession. An explanation that argues the weakness away without new evidence tends to make the reviewer rate it as more severe, while restating an established strength with its evidence carries little risk.
 - Never argue about tone or accuse the reviewer; never introduce claims you cannot support in camera-ready.
-- Find the thread common to multiple reviewers and answer it once, prominently — the area chair reads the meta-pattern.
+- Find the thread common to multiple reviewers and answer it once, prominently: the area chair reads the meta-pattern.
 - Track every promise; under-promise relative to what you can deliver in the camera-ready.
 
 ### After Acceptance
@@ -622,7 +650,7 @@ Rebuttal time is short. Run the experiments that (a) are demanded by more than o
 
 ## Final Checklist
 
-End review-revision work with a checklist unless the user asks only for a narrow task.
+Run this checklist at the end of the paths in [Intake](#intake) that route to it.
 
 Use statuses:
 
@@ -650,7 +678,7 @@ Use statuses:
 - Each advantage the paper relies on is stated with its condition and mechanism rather than left for the reader to extract from a table.
 - Each claim's stance and scope match what its evidence carries, in both directions, and every comparison names its baseline, metric, dataset, and condition in the text.
 - Results that do not favor the paper are reported at measurement granularity and are not escalated into general verdicts on the method.
-- Every limitation is one the evidence establishes; the paper raises no unforced objection against itself.
+- Every limitation is one the evidence establishes; the paper raises no unforced objection against itself, and no established limitation was dropped, diluted by minor ones, or relabeled as a strength; each is stated once, in a Limitations section or the limitations part of the Conclusion.
 
 ### Method
 
@@ -683,6 +711,7 @@ Use statuses:
 - Absolute performance is acceptable for the venue, not only relative improvement over baselines.
 - Experimental setting is realistic; advantage is not demonstrated only on a simplified proxy.
 - Case studies explain metric changes.
+- Every experiment supports a claim; an unattached result was removed, demoted, or redesigned.
 
 ### Statistics and Reproducibility
 
@@ -695,20 +724,21 @@ Use statuses:
 ### Figures and Tables
 
 - A page-1 figure makes the problem or insight undeniable and is honest.
-- Captions are self-contained; notation matches the text.
+- Captions are self-contained; notation matches the text; captions state what is plotted rather than how it was produced.
 - The claimed setting is the highlighted comparison; variance is shown; baselines are fair.
 
 ### Writing
 
-- Abstract states problem, gap, insight, method, evidence, and boundary.
+- Abstract states problem, gap, insight, method, and evidence with its scope, naming the problem class rather than listing every task and dataset.
 - Introduction opens with a concrete phenomenon or tension, not a generic background sentence.
 - Introduction makes the problem feel necessary.
 - Introduction develops the motivation and gap without an abrupt one- or two-paragraph jump; the gap is sharp and verifiable, not a vague "limitations remain."
 - The entry angle constructs a tension, not just narrates known facts.
 - Related work is grouped by assumptions.
 - Method explains judgments before details.
-- Experiments follow reviewer questions.
-- Discussion (if present) interprets results through mechanism, connects back to the Introduction's gap, and does not merely restate tables.
+- Experiments answer the four reviewer questions; Results paragraphs lead with findings rather than experimental actions and narrate metric groups rather than walking through the metrics one by one.
+- Discussion (if present) interprets results through mechanism, connects back to the Introduction's gap, and does not merely restate tables or argue that the results are acceptable.
+- No repository paths, script or config names, internal variant code names, or verification narration remain in the manuscript.
 - Conclusion states what changed in understanding and what remains open.
 - Notation and terminology are consistent; overclaiming words are justified.
 - Lists contain parallel items, component names are concise and stable, and emphasis is not decorative. Every connective marks a relation established by evidence or reasoning; no wording turns difference into contradiction or parallel facts into causality or progression.
